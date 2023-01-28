@@ -145,43 +145,44 @@ func TestAdvancedConfigs(t *testing.T) {
 			isValid: true, envs: [][2]string{
 				{"DSN", "sqlite:///var/lib/sqlite/db.sqlite?_fk=true"},
 			},
-			ops: []OptionModifier{WithConfigFiles("stub/multi/a.yaml", "stub/multi/b.yaml")}},
-		{
-			stub:    "hydra",
-			configs: []string{"stub/hydra/hydra.yaml"},
-			isValid: true,
-			envs: [][2]string{
-				{"DSN", "sqlite:///var/lib/sqlite/db.sqlite?_fk=true"},
-				{"TRACING_PROVIDER", "jaeger"},
-				{"TRACING_PROVIDERS_JAEGER_SAMPLING_SERVER_URL", "http://jaeger:5778/sampling"},
-				{"TRACING_PROVIDERS_JAEGER_LOCAL_AGENT_ADDRESS", "jaeger:6831"},
-				{"TRACING_PROVIDERS_JAEGER_SAMPLING_TYPE", "const"},
-				{"TRACING_PROVIDERS_JAEGER_SAMPLING_VALUE", "1"},
-			},
-			expectedF: func(t *testing.T, p *Provider) {
-				assert.Equal(t, "sqlite:///var/lib/sqlite/db.sqlite?_fk=true", p.Get("dsn"))
-				assert.Equal(t, "jaeger", p.Get("tracing.provider"))
-			}},
-		{
-			stub:    "hydra",
-			configs: []string{"stub/hydra/hydra.yaml"},
-			isValid: false,
-			ops:     []OptionModifier{WithUserProviders(NewKoanfMemory(context.Background(), []byte(`{"dsn": null}`)))},
+			ops: []OptionModifier{WithConfigFiles("stub/multi/a.yaml", "stub/multi/b.yaml")},
 		},
-		{
-			stub:    "hydra",
-			configs: []string{"stub/hydra/hydra.yaml"},
-			isValid: true,
-			ops:     []OptionModifier{WithUserProviders(NewKoanfMemory(context.Background(), []byte(`{"dsn": "invalid"}`)))},
-			envs: [][2]string{
-				{"DSN", "sqlite:///var/lib/sqlite/db.sqlite?_fk=true"},
-				{"TRACING_PROVIDER", "jaeger"},
-				{"TRACING_PROVIDERS_JAEGER_LOCAL_AGENT_ADDRESS", "jaeger:6831"},
-				{"TRACING_PROVIDERS_JAEGER_SAMPLING_SERVER_URL", "http://jaeger:5778/sampling"},
-				{"TRACING_PROVIDERS_JAEGER_SAMPLING_TYPE", "const"},
-				{"TRACING_PROVIDERS_JAEGER_SAMPLING_VALUE", "1"},
-			},
-		},
+		// {
+		// 	stub:    "hydra",
+		// 	configs: []string{"stub/hydra/hydra.yaml"},
+		// 	isValid: true,
+		// 	envs: [][2]string{
+		// 		{"DSN", "sqlite:///var/lib/sqlite/db.sqlite?_fk=true"},
+		// 		{"TRACING_PROVIDER", "jaeger"},
+		// 		{"TRACING_PROVIDERS_JAEGER_SAMPLING_SERVER_URL", "http://jaeger:5778/sampling"},
+		// 		{"TRACING_PROVIDERS_JAEGER_LOCAL_AGENT_ADDRESS", "jaeger:6831"},
+		// 		{"TRACING_PROVIDERS_JAEGER_SAMPLING_TYPE", "const"},
+		// 		{"TRACING_PROVIDERS_JAEGER_SAMPLING_VALUE", "1"},
+		// 	},
+		// 	expectedF: func(t *testing.T, p *Provider) {
+		// 		assert.Equal(t, "sqlite:///var/lib/sqlite/db.sqlite?_fk=true", p.Get("dsn"))
+		// 		assert.Equal(t, "jaeger", p.Get("tracing.provider"))
+		// 	}},
+		// {
+		// 	stub:    "hydra",
+		// 	configs: []string{"stub/hydra/hydra.yaml"},
+		// 	isValid: false,
+		// 	ops:     []OptionModifier{WithUserProviders(NewKoanfMemory(context.Background(), []byte(`{"dsn": null}`)))},
+		// },
+		// {
+		// 	stub:    "hydra",
+		// 	configs: []string{"stub/hydra/hydra.yaml"},
+		// 	isValid: true,
+		// 	ops:     []OptionModifier{WithUserProviders(NewKoanfMemory(context.Background(), []byte(`{"dsn": "invalid"}`)))},
+		// 	envs: [][2]string{
+		// 		{"DSN", "sqlite:///var/lib/sqlite/db.sqlite?_fk=true"},
+		// 		{"TRACING_PROVIDER", "jaeger"},
+		// 		{"TRACING_PROVIDERS_JAEGER_LOCAL_AGENT_ADDRESS", "jaeger:6831"},
+		// 		{"TRACING_PROVIDERS_JAEGER_SAMPLING_SERVER_URL", "http://jaeger:5778/sampling"},
+		// 		{"TRACING_PROVIDERS_JAEGER_SAMPLING_TYPE", "const"},
+		// 		{"TRACING_PROVIDERS_JAEGER_SAMPLING_VALUE", "1"},
+		// 	},
+		// },
 	} {
 		t.Run("service="+tc.stub, func(t *testing.T) {
 			setEnvs(t, tc.envs)

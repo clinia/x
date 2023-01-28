@@ -36,6 +36,14 @@ func NewNoop(_ *logrusx.Logger, c *Config) *Tracer {
 // setup constructs the tracer based on the given configuration.
 func (t *Tracer) setup(name string, l *logrusx.Logger, c *Config) error {
 	switch f := stringsx.SwitchExact(c.Provider); {
+	case f.AddCase("jaeger"):
+		tracer, err := SetupJaeger(t, name, c)
+		if err != nil {
+			return err
+		}
+
+		t.tracer = tracer
+		l.Infof("Jaeger tracer configured! Sending spans to %s", c.Providers.Jaeger.LocalAgentAddress)
 	case f.AddCase("otel"):
 		tracer, err := SetupOTLP(t, name, c)
 		if err != nil {

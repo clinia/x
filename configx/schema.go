@@ -20,7 +20,7 @@ import (
 func newCompiler(schema []byte) (string, *jsonschema.Compiler, error) {
 	id := gjson.GetBytes(schema, "$id").String()
 	if id == "" {
-		id = fmt.Sprintf("%s.json", uuid.Must(uuid.NewV4()).String())
+		id = fmt.Sprintf("%s.json", uuid.Must(uuid.NewRandom()).String())
 	}
 
 	compiler := jsonschema.NewCompiler()

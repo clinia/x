@@ -9,6 +9,16 @@ import (
 	"io"
 )
 
+type JaegerConfig struct {
+	LocalAgentAddress string         `json:"local_agent_address"`
+	Sampling          JaegerSampling `json:"sampling"`
+}
+
+type JaegerSampling struct {
+	ServerURL    string  `json:"server_url"`
+	TraceIdRatio float64 `json:"trace_id_ratio"`
+}
+
 type OTLPConfig struct {
 	ServerURL string       `json:"server_url"`
 	Insecure  bool         `json:"insecure"`
@@ -20,7 +30,8 @@ type OTLPSampling struct {
 }
 
 type ProvidersConfig struct {
-	OTLP OTLPConfig `json:"otlp"`
+	Jaeger JaegerConfig `json:"jaeger"`
+	OTLP   OTLPConfig   `json:"otlp"`
 }
 
 type Config struct {

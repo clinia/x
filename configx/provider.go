@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"reflect"
+	"strings"
 	"sync"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 	"github.com/clinia/x/logrusx"
 	"github.com/clinia/x/otelx"
 	"github.com/clinia/x/watcherx"
+	"github.com/rs/cors"
 
 	"github.com/inhies/go-bytesize"
 	"github.com/knadh/koanf"
@@ -458,19 +460,6 @@ func (p *Provider) TracingConfig(serviceName string) *otelx.Config {
 		ServiceName: p.StringF("tracing.service_name", serviceName),
 		Provider:    p.String("tracing.provider"),
 		Providers: otelx.ProvidersConfig{
-			Jaeger: otelx.JaegerConfig{
-				Sampling: otelx.JaegerSampling{
-					ServerURL:    p.String("tracing.providers.jaeger.sampling.server_url"),
-					TraceIdRatio: p.Float64F("tracing.providers.jaeger.sampling.trace_id_ratio", 1),
-				},
-				LocalAgentAddress: p.String("tracing.providers.jaeger.local_agent_address"),
-			},
-			Zipkin: otelx.ZipkinConfig{
-				ServerURL: p.String("tracing.providers.zipkin.server_url"),
-				Sampling: otelx.ZipkinSampling{
-					SamplingRatio: p.Float64("tracing.providers.zipkin.sampling.sampling_ratio"),
-				},
-			},
 			OTLP: otelx.OTLPConfig{
 				ServerURL: p.String("tracing.providers.otlp.server_url"),
 				Insecure:  p.Bool("tracing.providers.otlp.insecure"),

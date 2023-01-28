@@ -11,8 +11,9 @@ import (
 	"strings"
 
 	"github.com/sirupsen/logrus"
-	// "go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace"
-	// "github.com/ory/x/errorsx"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type Logger struct {
