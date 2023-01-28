@@ -1,0 +1,29 @@
+name: "Release"
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  release:
+    name: "Release a new version"
+    runs-on: ubuntu-22.04
+    if: github.ref == 'refs/head/main'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: "0"
+      - uses: actions/setup-node@v2
+        with:
+          node-version: "14"
+      - name: Define next tag
+        run:
+          npx semver -- $(git describe --tags `git rev-list --tags
+          --max-count=1`)
+      - name: Create git tag
+        run: |
+          git tag "v$(npx semver -- $(git describe --tags `git rev-list --tags --max-count=1`) --increment=patch)"
+      - name: Push git tag
+        run: git push --tags
