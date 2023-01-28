@@ -1,6 +1,6 @@
 .PHONY: test
 test:
-	go test -p 1 ./...
+	go test ./...
 
 .PHONY: lint
 lint:
