@@ -1,0 +1,9 @@
+linters:
+  enable:
+    - gosec
+    - vet
+  disable-all: true
+
+run:
+  skip-files:
+    - ".+_test.go"
