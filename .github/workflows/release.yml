@@ -9,7 +9,6 @@ jobs:
   release:
     name: "Release a new version"
     runs-on: ubuntu-22.04
-    if: github.ref == 'refs/head/main'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
