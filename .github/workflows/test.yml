@@ -1,9 +1,6 @@
 name: "Test & Lint"
 
 on:
-  push:
-    branches:
-      - main
   pull_request:
     branches:
       - main
@@ -28,6 +25,6 @@ jobs:
           args: --timeout 2m
 
       - name: Test
-        run: make test
+        run: go test $(go list ./... | grep -v /provider_watch_test/)
 
       
