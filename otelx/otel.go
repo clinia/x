@@ -52,6 +52,14 @@ func (t *Tracer) setup(name string, l *logrusx.Logger, c *Config) error {
 
 		t.tracer = tracer
 		l.Infof("OTLP tracer configured! Sending spans to %s", c.Providers.OTLP.ServerURL)
+	case f.AddCase("stdout"):
+		tracer, err := SetupStdout(t, name, c)
+		if err != nil {
+			return err
+		}
+
+		t.tracer = tracer
+		l.Infof("Stdout tracer configured! Sending spans to stdout")
 	case f.AddCase(""):
 		l.Infof("No tracer configured - skipping tracing setup")
 		t.tracer = trace.NewNoopTracerProvider().Tracer(name)

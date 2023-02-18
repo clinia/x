@@ -5,14 +5,14 @@ go 1.19
 require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/fsnotify/fsnotify v1.4.9
-	github.com/google/uuid v1.2.0
+	github.com/google/uuid v1.3.0
 	github.com/knadh/koanf v1.5.0
 	github.com/pelletier/go-toml v1.8.1
 	github.com/pkg/errors v0.9.1
 	github.com/spf13/pflag v1.0.5
 	go.opentelemetry.io/contrib/propagators/jaeger v1.12.0
 	go.opentelemetry.io/otel/exporters/jaeger v1.11.2
-	go.opentelemetry.io/otel/trace v1.11.2
+	go.opentelemetry.io/otel/trace v1.13.0
 	google.golang.org/protobuf v1.28.1
 )
 
@@ -42,14 +42,14 @@ require (
 	github.com/subosito/gotenv v1.2.0 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.0 // indirect
-	go.opentelemetry.io/otel/exporters/otlp/internal/retry v1.11.2 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/internal/retry v1.13.0 // indirect
 	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4 // indirect
-	golang.org/x/net v0.0.0-20220722155237-a158d28d115b // indirect
-	golang.org/x/sys v0.0.0-20221010170243-090e33056c14 // indirect
-	golang.org/x/text v0.4.0 // indirect
+	golang.org/x/net v0.4.0 // indirect
+	golang.org/x/sys v0.3.0 // indirect
+	golang.org/x/text v0.5.0 // indirect
 	golang.org/x/tools v0.1.12 // indirect
-	google.golang.org/genproto v0.0.0-20211208223120-3a66f561d7aa // indirect
-	google.golang.org/grpc v1.51.0 // indirect
+	google.golang.org/genproto v0.0.0-20221118155620-16455021b5e6 // indirect
+	google.golang.org/grpc v1.52.3 // indirect
 	gopkg.in/ini.v1 v1.62.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
@@ -73,9 +73,11 @@ require (
 	go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace v0.37.0
 	go.opentelemetry.io/contrib/propagators/b3 v1.12.0
 	go.opentelemetry.io/contrib/samplers/jaegerremote v0.6.0
-	go.opentelemetry.io/otel v1.11.2
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.11.2
+	go.opentelemetry.io/otel v1.13.0
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.13.0
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.13.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.11.2
-	go.opentelemetry.io/otel/sdk v1.11.2
+	go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.13.0
+	go.opentelemetry.io/otel/sdk v1.13.0
 	go.opentelemetry.io/proto/otlp v0.19.0
 )

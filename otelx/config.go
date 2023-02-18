@@ -20,6 +20,7 @@ type JaegerSampling struct {
 }
 
 type OTLPConfig struct {
+	Protocol  string       `json:"protocol"`
 	ServerURL string       `json:"server_url"`
 	Insecure  bool         `json:"insecure"`
 	Sampling  OTLPSampling `json:"sampling"`
@@ -29,9 +30,14 @@ type OTLPSampling struct {
 	SamplingRatio float64 `json:"sampling_ratio"`
 }
 
+type StdoutConfig struct {
+	Pretty bool `json:"pretty"`
+}
+
 type ProvidersConfig struct {
 	Jaeger JaegerConfig `json:"jaeger"`
 	OTLP   OTLPConfig   `json:"otlp"`
+	Stdout StdoutConfig `json:"stdout"`
 }
 
 type Config struct {
