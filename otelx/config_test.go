@@ -33,12 +33,6 @@ func TestConfigSchema(t *testing.T) {
 		conf := Config{
 			ServiceName: "Clinia X",
 			Provider:    "otlp",
-			ResourceAttributes: map[string]string{
-				"service.name":    "Clinia X",
-				"service.version": "1.0.0",
-				"service.node.id": "node-1",
-				"tenant.id":       "tenant-1",
-			},
 			Providers: ProvidersConfig{
 				OTLP: OTLPConfig{
 					ServerURL: "http://localhost:5778/sampling",

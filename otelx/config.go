@@ -7,6 +7,8 @@ import (
 	"bytes"
 	_ "embed"
 	"io"
+
+	"go.opentelemetry.io/otel/attribute"
 )
 
 type JaegerConfig struct {
@@ -41,11 +43,10 @@ type ProvidersConfig struct {
 }
 
 type Config struct {
-	Environment        string            `json:"environment"`
-	ServiceName        string            `json:"service_name"`
-	Provider           string            `json:"provider"`
-	Providers          ProvidersConfig   `json:"providers"`
-	ResourceAttributes map[string]string `json:"resource_attributes"`
+	ServiceName        string               `json:"service_name"`
+	Provider           string               `json:"provider"`
+	Providers          ProvidersConfig      `json:"providers"`
+	ResourceAttributes []attribute.KeyValue `json:"resource_attributes"`
 }
 
 //go:embed config.schema.json

@@ -29,6 +29,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/ory/jsonschema/v3"
@@ -455,10 +456,11 @@ func (p *Provider) CORS(prefix string, defaults cors.Options) (cors.Options, boo
 	}, p.Bool(prefix + "cors.enabled")
 }
 
-func (p *Provider) TracingConfig(serviceName string) *otelx.Config {
+func (p *Provider) TracingConfig(serviceName string, attrs ...attribute.KeyValue) *otelx.Config {
 	return &otelx.Config{
-		ServiceName: p.StringF("tracing.service_name", serviceName),
-		Provider:    p.String("tracing.provider"),
+		ResourceAttributes: attrs,
+		ServiceName:        p.StringF("tracing.service_name", serviceName),
+		Provider:           p.String("tracing.provider"),
 		Providers: otelx.ProvidersConfig{
 			Jaeger: otelx.JaegerConfig{
 				LocalAgentAddress: p.String("tracing.providers.jaeger.local_agent_address"),

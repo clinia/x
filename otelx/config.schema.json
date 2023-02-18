@@ -16,17 +16,6 @@
         "description": "Specifies the service name to use on the tracer.",
         "examples": ["Clinia Data Fabric", "Clinia Health Grade Search", "Clinia Care Paths"]
       },
-      "environment": {
-        "type": "string",
-        "description": "Name of the deployment environment",
-        "examples": ["development","staging","production"],
-        "enum": [
-          "local",
-          "development",
-          "staging",
-          "production"
-        ]
-      },
       "providers": {
         "type": "object",
         "additionalProperties": false,

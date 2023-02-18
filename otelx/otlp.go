@@ -27,17 +27,8 @@ func SetupOTLP(t *Tracer, tracerName string, c *Config) (trace.Tracer, error) {
 		return nil, errors.WithStack(err)
 	}
 
-	atts := []attribute.KeyValue{
-		semconv.ServiceNameKey.String(c.ServiceName),
-	}
-
-	if len(c.Environment) > 0 {
-		atts = append(atts, semconv.ServiceNamespaceKey.String(c.Environment))
-	}
-
-	for key, v := range c.ResourceAttributes {
-		atts = append(atts, attribute.String(key, v))
-	}
+	atts := append([]attribute.KeyValue{}, semconv.ServiceNameKey.String(c.ServiceName))
+	atts = append(atts, c.ResourceAttributes...)
 
 	tpOpts := []sdktrace.TracerProviderOption{
 		sdktrace.WithBatcher(exp),
