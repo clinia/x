@@ -82,6 +82,7 @@ func TestOTLPTracer(t *testing.T) {
 		Provider:    "otel",
 		Providers: ProvidersConfig{
 			OTLP: OTLPConfig{
+				Protocol:  "http",
 				ServerURL: tsu.Host,
 				Insecure:  true,
 				Sampling: OTLPSampling{
