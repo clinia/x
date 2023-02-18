@@ -8,7 +8,7 @@
       "provider": {
         "type": "string",
         "description": "Set this to the tracing backend you wish to use. Supports OTEL.",
-        "enum": ["otel"],
+        "enum": ["otel", "stdout", "jaeger"],
         "examples": ["otel"]
       },
       "service_name": {
@@ -115,9 +115,11 @@
             "type": "object",
             "additionalProperties": false,
             "description": "Configures the Stdout tracing backend.",
-            "pretty": {
-              "type": "boolean",
-              "description": "Sets the export stream format to use JSON"
+            "properties": {
+              "pretty": {
+                "type": "boolean",
+                "description": "Sets the export stream format to use JSON"
+              }
             }
           }
         }
