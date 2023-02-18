@@ -41,9 +41,11 @@ type ProvidersConfig struct {
 }
 
 type Config struct {
-	ServiceName string          `json:"service_name"`
-	Provider    string          `json:"provider"`
-	Providers   ProvidersConfig `json:"providers"`
+	Environment        string            `json:"environment"`
+	ServiceName        string            `json:"service_name"`
+	Provider           string            `json:"provider"`
+	Providers          ProvidersConfig   `json:"providers"`
+	ResourceAttributes map[string]string `json:"resource_attributes"`
 }
 
 //go:embed config.schema.json

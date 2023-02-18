@@ -8,6 +8,7 @@ import (
 
 	"github.com/pkg/errors"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
@@ -26,11 +27,23 @@ func SetupOTLP(t *Tracer, tracerName string, c *Config) (trace.Tracer, error) {
 		return nil, errors.WithStack(err)
 	}
 
+	atts := []attribute.KeyValue{
+		semconv.ServiceNameKey.String(c.ServiceName),
+	}
+
+	if len(c.Environment) > 0 {
+		atts = append(atts, semconv.ServiceNamespaceKey.String(c.Environment))
+	}
+
+	for key, v := range c.ResourceAttributes {
+		atts = append(atts, attribute.String(key, v))
+	}
+
 	tpOpts := []sdktrace.TracerProviderOption{
 		sdktrace.WithBatcher(exp),
 		sdktrace.WithResource(resource.NewWithAttributes(
 			semconv.SchemaURL,
-			semconv.ServiceNameKey.String(c.ServiceName),
+			atts...,
 		)),
 		sdktrace.WithSampler(sdktrace.ParentBased(sdktrace.TraceIDRatioBased(
 			c.Providers.OTLP.Sampling.SamplingRatio,

@@ -8,13 +8,24 @@
       "provider": {
         "type": "string",
         "description": "Set this to the tracing backend you wish to use. Supports OTEL.",
-        "enum": ["otel", "stdout", "jaeger"],
-        "examples": ["otel"]
+        "enum": ["otlp", "stdout", "jaeger"],
+        "examples": ["otlp"]
       },
       "service_name": {
         "type": "string",
         "description": "Specifies the service name to use on the tracer.",
         "examples": ["Clinia Data Fabric", "Clinia Health Grade Search", "Clinia Care Paths"]
+      },
+      "environment": {
+        "type": "string",
+        "description": "Name of the deployment environment",
+        "examples": ["development","staging","production"],
+        "enum": [
+          "local",
+          "development",
+          "staging",
+          "production"
+        ]
       },
       "providers": {
         "type": "object",
