@@ -460,12 +460,22 @@ func (p *Provider) TracingConfig(serviceName string) *otelx.Config {
 		ServiceName: p.StringF("tracing.service_name", serviceName),
 		Provider:    p.String("tracing.provider"),
 		Providers: otelx.ProvidersConfig{
+			Jaeger: otelx.JaegerConfig{
+				LocalAgentAddress: p.String("tracing.providers.jaeger.local_agent_address"),
+				Sampling: otelx.JaegerSampling{
+					ServerURL: p.String("tracing.providers.jaeger.sampling.server_url"),
+				},
+			},
 			OTLP: otelx.OTLPConfig{
+				Protocol:  p.String("tracing.providers.otlp.protocol"),
 				ServerURL: p.String("tracing.providers.otlp.server_url"),
 				Insecure:  p.Bool("tracing.providers.otlp.insecure"),
 				Sampling: otelx.OTLPSampling{
 					SamplingRatio: p.Float64("tracing.providers.otlp.sampling.sampling_ratio"),
 				},
+			},
+			Stdout: otelx.StdoutConfig{
+				Pretty: p.Bool("tracing.providers.stdout.pretty"),
 			},
 		},
 	}
