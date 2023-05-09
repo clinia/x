@@ -18,6 +18,7 @@ import (
 	"github.com/clinia/x/jsonschemax"
 	"github.com/clinia/x/logrusx"
 	"github.com/clinia/x/otelx"
+	"github.com/clinia/x/pubsubx"
 	"github.com/clinia/x/watcherx"
 	"github.com/rs/cors"
 
@@ -478,6 +479,18 @@ func (p *Provider) TracingConfig(serviceName string, attrs ...attribute.KeyValue
 			},
 			Stdout: otelx.StdoutConfig{
 				Pretty: p.Bool("tracing.providers.stdout.pretty"),
+			},
+		},
+	}
+}
+
+func (p *Provider) PubSubConfig() *pubsubx.Config {
+	return &pubsubx.Config{
+		Provider: p.StringF("pubsub.provider", "inmemory"),
+		Providers: pubsubx.ProvidersConfig{
+			InMemory: pubsubx.InMemoryConfig{},
+			Kafka: pubsubx.KafkaConfig{
+				Brokers: p.Strings("pubsub.providers.kafka.brokers"),
 			},
 		},
 	}
