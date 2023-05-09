@@ -17,9 +17,11 @@ require (
 )
 
 require (
+	github.com/arangodb/go-velocypack v0.0.0-20200318135517-5af53c29c67e // indirect
 	github.com/cenkalti/backoff/v4 v4.2.0 // indirect
 	github.com/cespare/xxhash/v2 v2.1.1 // indirect
 	github.com/dustin/go-humanize v1.0.0 // indirect
+	github.com/elastic/elastic-transport-go/v8 v8.2.0 // indirect
 	github.com/go-logr/logr v1.2.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
@@ -56,8 +58,11 @@ require (
 )
 
 require (
+	github.com/arangodb/go-driver v1.5.2
 	github.com/bradleyjkemp/cupaloy/v2 v2.8.0
+	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/dgraph-io/ristretto v0.1.1
+	github.com/elastic/go-elasticsearch/v8 v8.7.1
 	github.com/ghodss/yaml v1.0.0
 	github.com/google/go-cmp v0.5.9
 	github.com/inhies/go-bytesize v0.0.0-20220417184213-4913239db9cf
@@ -65,11 +70,13 @@ require (
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/ory/jsonschema/v3 v3.0.7
 	github.com/rs/cors v1.8.3
+	github.com/segmentio/ksuid v1.0.4
 	github.com/sirupsen/logrus v1.9.0
 	github.com/spf13/cast v1.5.0
 	github.com/stretchr/testify v1.8.1
 	github.com/tidwall/gjson v1.14.4
 	github.com/tidwall/sjson v1.2.5
+	github.com/wesovilabs/koazee v0.0.5
 	go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace v0.37.0
 	go.opentelemetry.io/contrib/propagators/b3 v1.12.0
 	go.opentelemetry.io/contrib/samplers/jaegerremote v0.6.0
