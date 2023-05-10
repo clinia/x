@@ -29,7 +29,7 @@ func SetupKafkaSubscriber(l *logrusx.Logger, c *Config) (Subscriber, error) {
 
 	subscriber, err := kafka.NewSubscriber(
 		kafka.SubscriberConfig{
-			Brokers:               []string{"kafka:9092"},
+			Brokers:               c.Providers.Kafka.Brokers,
 			Unmarshaler:           kafka.DefaultMarshaler{},
 			OverwriteSaramaConfig: saramaSubscriberConfig,
 		},
