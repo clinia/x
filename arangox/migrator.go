@@ -169,7 +169,7 @@ func (m *Migrator) Up(ctx context.Context, n int) error {
 			continue
 		}
 		p++
-		if err := migration.Up(m.db); err != nil {
+		if err := migration.Up(ctx, m.db); err != nil {
 			return err
 		}
 		if err := m.SetVersion(migration.Version, migration.Description); err != nil {
@@ -198,7 +198,7 @@ func (m *Migrator) Down(ctx context.Context, n int) error {
 			continue
 		}
 		p++
-		if err := migration.Down(m.db); err != nil {
+		if err := migration.Down(ctx, m.db); err != nil {
 			return err
 		}
 

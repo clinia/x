@@ -1,13 +1,14 @@
 package migrate
 
 import (
+	"context"
 	"sort"
 
 	"github.com/clinia/x/elasticx"
 )
 
 // MigrationFunc is used to define actions to be performed for a migration.
-type MigrationFunc func(engine elasticx.Engine) error
+type MigrationFunc func(ctx context.Context, engine elasticx.Engine) error
 
 // Migration represents single engine migration.
 // Migration contains:

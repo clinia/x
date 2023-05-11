@@ -1,13 +1,14 @@
 package arangox
 
 import (
+	"context"
 	"sort"
 
 	arangoDriver "github.com/arangodb/go-driver"
 )
 
 // MigrationFunc is used to define actions to be performed for a migration.
-type MigrationFunc func(db arangoDriver.Database) error
+type MigrationFunc func(ctx context.Context, db arangoDriver.Database) error
 
 // Migration represents single database migration.
 // Migration contains:
