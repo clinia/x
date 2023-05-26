@@ -5,13 +5,24 @@ import (
 	"github.com/clinia/x/stringsx"
 )
 
-type PubSub struct {
-	Publisher  Publisher
-	Subscriber Subscriber
+type PubSub interface {
+	Publisher() Publisher
+	Subscriber(group string) (Subscriber, error)
+	CloseAllSubscribers() error
 }
 
-func New(l *logrusx.Logger, c *Config) (*PubSub, error) {
-	ps := &PubSub{}
+type pubSub struct {
+	publisher  Publisher
+	subscriber func(group string) (Subscriber, error)
+	subs       map[string]Subscriber
+}
+
+var _ PubSub = (*pubSub)(nil)
+
+func New(l *logrusx.Logger, c *Config) (PubSub, error) {
+	ps := &pubSub{
+		subs: map[string]Subscriber{},
+	}
 
 	if err := ps.setup(l, c); err != nil {
 		return nil, err
@@ -20,7 +31,7 @@ func New(l *logrusx.Logger, c *Config) (*PubSub, error) {
 	return ps, nil
 }
 
-func (ps *PubSub) setup(l *logrusx.Logger, c *Config) error {
+func (ps *pubSub) setup(l *logrusx.Logger, c *Config) error {
 	switch f := stringsx.SwitchExact(c.Provider); {
 	case f.AddCase("kafka"):
 		publisher, err := SetupKafkaPublisher(l, c)
@@ -28,14 +39,19 @@ func (ps *PubSub) setup(l *logrusx.Logger, c *Config) error {
 			return err
 		}
 
-		subscriber, err := SetupKafkaSubscriber(l, c)
-		if err != nil {
-			return err
-		}
+		ps.publisher = publisher
+		ps.subscriber = func(group string) (Subscriber, error) {
+			if _, ok := ps.subs[group]; !ok {
+				s, e := SetupKafkaSubscriber(l, c, group)
+				if e != nil {
+					return nil, e
+				}
+				ps.subs[group] = s
+			}
 
+			return ps.subs[group], nil
+		}
 		l.Infof("Kafka pubsub configured! Sending & receiving messages to %s", c.Providers.Kafka.Brokers)
-		ps.Publisher = publisher
-		ps.Subscriber = subscriber
 
 	case f.AddCase("inmemory"):
 		pubsub, err := SetupInMemoryPubSub(l, c)
@@ -43,11 +59,34 @@ func (ps *PubSub) setup(l *logrusx.Logger, c *Config) error {
 			return err
 		}
 
+		ps.publisher = pubsub
+		ps.subscriber = pubsub.SetupSubscriber()
 		l.Infof("InMemory publisher configured! Sending & receiving messages to in-memory")
-		ps.Publisher = pubsub
-		ps.Subscriber = pubsub
 	default:
 		return f.ToUnknownCaseErr()
+	}
+
+	return nil
+}
+
+func (ps *pubSub) Publisher() Publisher {
+	return ps.publisher
+}
+
+func (ps *pubSub) Subscriber(group string) (Subscriber, error) {
+	return ps.subscriber(group)
+}
+
+func (ps *pubSub) CloseAllSubscribers() error {
+	errors := []error{}
+	for _, s := range ps.subs {
+		if err := s.Close(); err != nil {
+			errors = append(errors, err)
+		}
+	}
+
+	if len(errors) > 0 {
+		return errors[0]
 	}
 
 	return nil

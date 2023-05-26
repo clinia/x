@@ -58,6 +58,13 @@ func (ps *memoryPubSub) Publish(topic string, messages ...*message.Message) erro
 	return ps.pubsubchan.Publish(topic, messages...)
 }
 
+func (ps *memoryPubSub) SetupSubscriber() func(group string) (Subscriber, error) {
+	// The in-memory pubsub doesn't support grouping.
+	return func(group string) (Subscriber, error) {
+		return ps, nil
+	}
+}
+
 func (ps *memoryPubSub) Subscribe(ctx context.Context, topic string) (<-chan *message.Message, error) {
 	return ps.pubsubchan.Subscribe(ctx, topic)
 }
