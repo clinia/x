@@ -8,7 +8,8 @@ import (
 type PubSub interface {
 	Publisher() Publisher
 	Subscriber(group string) (Subscriber, error)
-	CloseAllSubscribers() error
+	// CLoses all publishers and subscribers.
+	Close() error
 }
 
 type pubSub struct {
@@ -77,7 +78,7 @@ func (ps *pubSub) Subscriber(group string) (Subscriber, error) {
 	return ps.subscriber(group)
 }
 
-func (ps *pubSub) CloseAllSubscribers() error {
+func (ps *pubSub) Close() error {
 	errors := []error{}
 	for _, s := range ps.subs {
 		if err := s.Close(); err != nil {
@@ -87,6 +88,12 @@ func (ps *pubSub) CloseAllSubscribers() error {
 
 	if len(errors) > 0 {
 		return errors[0]
+	}
+
+	err := ps.publisher.Close()
+
+	if err != nil {
+		return err
 	}
 
 	return nil
