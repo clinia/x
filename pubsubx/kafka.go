@@ -23,16 +23,22 @@ func SetupKafkaPublisher(l *logrusx.Logger, c *Config) (Publisher, error) {
 }
 
 // TODO: add subscriber configs
-func SetupKafkaSubscriber(l *logrusx.Logger, c *Config) (Subscriber, error) {
+func SetupKafkaSubscriber(l *logrusx.Logger, c *Config, group string) (Subscriber, error) {
 	saramaSubscriberConfig := kafka.DefaultSaramaSubscriberConfig()
 	saramaSubscriberConfig.Consumer.Offsets.Initial = sarama.OffsetOldest
 
+	conf := kafka.SubscriberConfig{
+		Brokers:               c.Providers.Kafka.Brokers,
+		Unmarshaler:           kafka.DefaultMarshaler{},
+		OverwriteSaramaConfig: saramaSubscriberConfig,
+	}
+
+	if group != "" {
+		conf.ConsumerGroup = group
+	}
+
 	subscriber, err := kafka.NewSubscriber(
-		kafka.SubscriberConfig{
-			Brokers:               c.Providers.Kafka.Brokers,
-			Unmarshaler:           kafka.DefaultMarshaler{},
-			OverwriteSaramaConfig: saramaSubscriberConfig,
-		},
+		conf,
 		NewLogrusLogger(l.Logger),
 	)
 	if err != nil {

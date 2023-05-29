@@ -1,17 +1,31 @@
 package pubsubx
 
 import (
+	"sync"
+
 	"github.com/clinia/x/logrusx"
 	"github.com/clinia/x/stringsx"
 )
 
-type PubSub struct {
-	Publisher  Publisher
-	Subscriber Subscriber
+type PubSub interface {
+	Publisher() Publisher
+	Subscriber(group string) (Subscriber, error)
+	// CLoses all publishers and subscribers.
+	Close() error
 }
 
-func New(l *logrusx.Logger, c *Config) (*PubSub, error) {
-	ps := &PubSub{}
+type pubSub struct {
+	publisher  Publisher
+	subscriber func(group string) (Subscriber, error)
+	subs       sync.Map
+}
+
+var _ PubSub = (*pubSub)(nil)
+
+func New(l *logrusx.Logger, c *Config) (PubSub, error) {
+	ps := &pubSub{
+		subs: sync.Map{},
+	}
 
 	if err := ps.setup(l, c); err != nil {
 		return nil, err
@@ -20,7 +34,7 @@ func New(l *logrusx.Logger, c *Config) (*PubSub, error) {
 	return ps, nil
 }
 
-func (ps *PubSub) setup(l *logrusx.Logger, c *Config) error {
+func (ps *pubSub) setup(l *logrusx.Logger, c *Config) error {
 	switch f := stringsx.SwitchExact(c.Provider); {
 	case f.AddCase("kafka"):
 		publisher, err := SetupKafkaPublisher(l, c)
@@ -28,14 +42,23 @@ func (ps *PubSub) setup(l *logrusx.Logger, c *Config) error {
 			return err
 		}
 
-		subscriber, err := SetupKafkaSubscriber(l, c)
-		if err != nil {
-			return err
-		}
+		ps.publisher = publisher
+		ps.subscriber = func(group string) (Subscriber, error) {
 
+			var s Subscriber
+			if ms, ok := ps.subs.Load(group); !ok {
+				s, e := SetupKafkaSubscriber(l, c, group)
+				if e != nil {
+					return nil, e
+				}
+				ps.subs.Store(group, s)
+			} else {
+				s = ms.(Subscriber)
+			}
+
+			return s, nil
+		}
 		l.Infof("Kafka pubsub configured! Sending & receiving messages to %s", c.Providers.Kafka.Brokers)
-		ps.Publisher = publisher
-		ps.Subscriber = subscriber
 
 	case f.AddCase("inmemory"):
 		pubsub, err := SetupInMemoryPubSub(l, c)
@@ -43,11 +66,49 @@ func (ps *PubSub) setup(l *logrusx.Logger, c *Config) error {
 			return err
 		}
 
+		ps.publisher = pubsub
+		ps.subscriber = pubsub.SetupSubscriber()
 		l.Infof("InMemory publisher configured! Sending & receiving messages to in-memory")
-		ps.Publisher = pubsub
-		ps.Subscriber = pubsub
 	default:
 		return f.ToUnknownCaseErr()
+	}
+
+	return nil
+}
+
+func (ps *pubSub) Publisher() Publisher {
+	return ps.publisher
+}
+
+func (ps *pubSub) Subscriber(group string) (Subscriber, error) {
+	return ps.subscriber(group)
+}
+
+func (ps *pubSub) Close() error {
+	errors := []error{}
+	keys := []string{}
+	ps.subs.Range(func(k any, value interface{}) bool {
+		keys = append(keys, k.(string))
+		s := value.(Subscriber)
+		if err := s.Close(); err != nil {
+			errors = append(errors, err)
+		}
+
+		return false
+	})
+
+	if len(errors) > 0 {
+		return errors[0]
+	}
+
+	for _, k := range keys {
+		ps.subs.Delete(k)
+	}
+
+	err := ps.publisher.Close()
+
+	if err != nil {
+		return err
 	}
 
 	return nil
