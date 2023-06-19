@@ -15,9 +15,7 @@ func TestEngine(t *testing.T) {
 	ctx := context.Background()
 
 	err := client.Init(ctx)
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 
 	t.Run("should remove an engine", func(t *testing.T) {
 		ctx := context.Background()
@@ -34,9 +32,7 @@ func TestEngine(t *testing.T) {
 
 	name := "engine-indexes"
 	engine, err := client.CreateEngine(ctx, name, nil)
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 
 	t.Run("should create an index", func(t *testing.T) {
 		name := "test-create-index"

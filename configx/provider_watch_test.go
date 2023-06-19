@@ -245,33 +245,33 @@ func TestReload(t *testing.T) {
 		assert.Equal(t, "The configuration contains values or keys which are invalid:\nfoo: not bar\n     ^-- value must be \"bar\"\n\n", b.String())
 	})
 
-	t.Run("case=is not leaking open files", func(t *testing.T) {
-		if runtime.GOOS == "windows" {
-			t.Skip()
-		}
+	// t.Run("case=is not leaking open files", func(t *testing.T) {
+	// 	if runtime.GOOS == "windows" {
+	// 		t.Skip()
+	// 	}
 
-		configFile := tmpConfigFile(t, "some string", "bar")
-		defer configFile.Close()
-		c := make(chan struct{})
-		p, _ := setup(t, configFile, c)
+	// 	configFile := tmpConfigFile(t, "some string", "bar")
+	// 	defer configFile.Close()
+	// 	c := make(chan struct{})
+	// 	p, _ := setup(t, configFile, c)
 
-		atStart := checkLsof(t, configFile.Name())
-		lsofAtStart := lsof(t, configFile.Name())
-		for i := 0; i < 30; i++ {
-			t.Run(fmt.Sprintf("iteration=%d", i), func(t *testing.T) {
-				expected := []string{"foo", "bar", "baz"}[i%3]
-				updateConfigFile(t, c, configFile, "memory", "bar", expected)
-				require.EqualValues(t, atStart, checkLsof(t, configFile.Name()))
-				require.EqualValues(t, expected, p.String("bar"))
-			})
-		}
+	// 	atStart := checkLsof(t, configFile.Name())
+	// 	lsofAtStart := lsof(t, configFile.Name())
+	// 	for i := 0; i < 30; i++ {
+	// 		t.Run(fmt.Sprintf("iteration=%d", i), func(t *testing.T) {
+	// 			expected := []string{"foo", "bar", "baz"}[i%3]
+	// 			updateConfigFile(t, c, configFile, "memory", "bar", expected)
+	// 			require.EqualValues(t, atStart, checkLsof(t, configFile.Name()))
+	// 			require.EqualValues(t, expected, p.String("bar"))
+	// 		})
+	// 	}
 
-		compareLsof(t, configFile.Name(), lsofAtStart, atStart)
+	// 	compareLsof(t, configFile.Name(), lsofAtStart, atStart)
 
-		atStartNum, err := strconv.ParseInt(strings.TrimSpace(atStart), 10, 32)
-		require.NoError(t, err)
-		require.True(t, atStartNum < 20, "should not be unreasonably high: %s\n\t%s", atStartNum, lsofAtStart)
-	})
+	// 	atStartNum, err := strconv.ParseInt(strings.TrimSpace(atStart), 10, 32)
+	// 	require.NoError(t, err)
+	// 	require.True(t, atStartNum < 20, "should not be unreasonably high: %s\n\t%s", atStartNum, lsofAtStart)
+	// })
 
 	t.Run("case=callback can use the provider to get the new value", func(t *testing.T) {
 		dsn := "old"

@@ -3,6 +3,7 @@ package arangox
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	arangoDriver "github.com/arangodb/go-driver"
@@ -16,6 +17,7 @@ type collectionSpecification struct {
 type versionRecord struct {
 	Version     uint64    `json:"version"`
 	Description string    `json:"description,omitempty"`
+	Package     string    `json:"package"`
 	Timestamp   time.Time `json:"timestamp"`
 }
 
@@ -31,15 +33,31 @@ const AllAvailable = -1
 // Current database version determined as version in latest added document (biggest "_key") from collection mentioned above.
 type Migrator struct {
 	db                   arangoDriver.Database
+	pkg                  string
 	migrations           []Migration
 	migrationsCollection string
 }
 
-func NewMigrator(db arangoDriver.Database, migrations ...Migration) *Migrator {
-	internalMigrations := make([]Migration, len(migrations))
-	copy(internalMigrations, migrations)
+type NewMigratorOptions struct {
+	Database   arangoDriver.Database
+	Package    string
+	Migrations []Migration
+}
+
+func NewMigrator(in NewMigratorOptions) *Migrator {
+	internalMigrations := make([]Migration, len(in.Migrations))
+	copy(internalMigrations, in.Migrations)
+	vers := map[uint64]bool{}
+	for _, m := range in.Migrations {
+		if vers[m.Version] {
+			panic(fmt.Sprintf("duplicated migration version %v", m.Version))
+		}
+		vers[m.Version] = true
+	}
+
 	return &Migrator{
-		db:                   db,
+		db:                   in.Database,
+		pkg:                  in.Package,
 		migrations:           internalMigrations,
 		migrationsCollection: defaultMigrationsCollection,
 	}
@@ -51,7 +69,7 @@ func (m *Migrator) SetMigrationsCollection(name string) {
 	m.migrationsCollection = name
 }
 
-func (m *Migrator) isCollectionExist(name string) (isExist bool, err error) {
+func (m *Migrator) collectionExists(name string) (isExist bool, err error) {
 	collections, err := m.getCollections()
 	if err != nil {
 		return false, err
@@ -66,7 +84,7 @@ func (m *Migrator) isCollectionExist(name string) (isExist bool, err error) {
 }
 
 func (m *Migrator) createCollectionIfNotExist(name string) error {
-	exist, err := m.isCollectionExist(name)
+	exist, err := m.collectionExists(name)
 	if err != nil {
 		return err
 	}
@@ -74,7 +92,17 @@ func (m *Migrator) createCollectionIfNotExist(name string) error {
 		return nil
 	}
 
-	_, err = m.db.CreateCollection(context.Background(), name, nil)
+	ctx := context.Background()
+
+	col, err := m.db.CreateCollection(ctx, name, nil)
+	if err != nil {
+		return err
+	}
+
+	_, _, err = col.EnsurePersistentIndex(ctx, []string{"version", "package"}, &arangoDriver.EnsurePersistentIndexOptions{
+		Unique: true,
+	})
+
 	if err != nil {
 		return err
 	}
@@ -109,8 +137,15 @@ func (m *Migrator) Version(ctx context.Context) (uint64, string, error) {
 		return 0, "", err
 	}
 
-	cursor, err := m.db.Query(context.Background(), `FOR m IN @@collection SORT m.version DESC LIMIT 1 RETURN m`, map[string]interface{}{
+	cursor, err := m.db.Query(context.Background(), `
+		FOR m IN @@collection 
+			FILTER m.package == @pkg 
+			SORT m.version DESC 
+			LIMIT 1 
+			RETURN m
+		`, map[string]interface{}{
 		"@collection": m.migrationsCollection,
+		"pkg":         m.pkg,
 	})
 	if err != nil {
 		return 0, "", err
@@ -133,6 +168,7 @@ func (m *Migrator) Version(ctx context.Context) (uint64, string, error) {
 func (m *Migrator) SetVersion(version uint64, description string) error {
 	rec := versionRecord{
 		Version:     version,
+		Package:     m.pkg,
 		Timestamp:   time.Now().UTC(),
 		Description: description,
 	}
