@@ -122,6 +122,8 @@ func TestMigration(t *testing.T) {
 		defer func() {
 			if r := recover(); r == nil {
 				t.Errorf("The code did not panic")
+			} else {
+				assert.Equal(t, "duplicated migration version 1", r)
 			}
 		}()
 
