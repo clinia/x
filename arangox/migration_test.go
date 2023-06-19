@@ -157,4 +157,37 @@ func TestMigration(t *testing.T) {
 
 	})
 
+	t.Run("should not be able to create a migration with the same version directly in the database", func(t *testing.T) {
+		fMig := NewMigrator(NewMigratorOptions{
+			Database: db,
+			Package:  "package-3",
+			Migrations: []Migration{
+				{
+					Version:     uint64(1),
+					Description: "Test initial migration",
+					Up: func(ctx context.Context, db driver.Database) error {
+						return nil
+					},
+					Down: func(ctx context.Context, db driver.Database) error {
+						return nil
+					},
+				},
+			},
+		})
+
+		err := fMig.Up(ctx, 0)
+		assert.NoError(t, err)
+
+		col, err := db.Collection(ctx, fMig.migrationsCollection)
+		assert.NoError(t, err)
+
+		_, err = col.CreateDocument(ctx, versionRecord{
+			Version:     uint64(1),
+			Package:     "package-3",
+			Description: "Should fail since I have the same version within the same package",
+		})
+
+		assert.Error(t, err)
+		assert.True(t, driver.IsConflict(err))
+	})
 }
