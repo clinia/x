@@ -12,7 +12,7 @@ import (
 func createClient(t *testing.T) (Client, *elasticsearch.Client) {
 	url := "http://localhost:9200"
 
-	urlFromEnv := os.Getenv("ELASTIC")
+	urlFromEnv := os.Getenv("ELASTICSEARCH_URL")
 	if len(urlFromEnv) > 0 {
 		url = urlFromEnv
 	}
@@ -22,14 +22,10 @@ func createClient(t *testing.T) (Client, *elasticsearch.Client) {
 	}
 
 	client, err := NewClient(esConfig)
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 
 	es, err := elasticsearch.NewClient(esConfig)
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 
 	return client, es
 }

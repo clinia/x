@@ -13,24 +13,16 @@ func TestIndex(t *testing.T) {
 	ctx := context.Background()
 
 	err := client.Clean(ctx)
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 
 	err = client.Init(ctx)
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 
 	engine, err := client.CreateEngine(ctx, "engine-index", nil)
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 
 	index, err := engine.CreateIndex(ctx, "index-documents", nil)
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 
 	t.Run("should create a document", func(t *testing.T) {
 		type property struct {

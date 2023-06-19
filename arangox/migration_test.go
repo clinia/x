@@ -44,7 +44,7 @@ func TestMigration(t *testing.T) {
 	db, err := client.CreateDatabase(ctx, "test", nil)
 	assert.NoError(t, err)
 
-	t.Run("should be able to add migration with same version in multiple packages", func(t *testing.T) {
+	t.Run("should be able to add migration with same version in multiple packages only", func(t *testing.T) {
 		fMig := NewMigrator(NewMigratorOptions{
 			Database: db,
 			Package:  "package-1",
@@ -116,6 +116,43 @@ func TestMigration(t *testing.T) {
 				Description: "Test initial migration for second package",
 			},
 		}, cmpopts.IgnoreFields(versionRecord{}, "Timestamp"))
+	})
+
+	t.Run("should panic when passing a migrations with conflicting versions", func(t *testing.T) {
+		defer func() {
+			if r := recover(); r == nil {
+				t.Errorf("The code did not panic")
+			}
+		}()
+
+		// Should panic
+		NewMigrator(NewMigratorOptions{
+			Database: db,
+			Package:  "package-2",
+			Migrations: []Migration{
+				{
+					Version:     uint64(1),
+					Description: "Test initial migration for second package",
+					Up: func(ctx context.Context, db driver.Database) error {
+						return nil
+					},
+					Down: func(ctx context.Context, db driver.Database) error {
+						return nil
+					},
+				},
+				{
+					Version:     uint64(1),
+					Description: "I should fail since I have the same version within the same package",
+					Up: func(ctx context.Context, db driver.Database) error {
+						return nil
+					},
+					Down: func(ctx context.Context, db driver.Database) error {
+						return nil
+					},
+				},
+			},
+		})
+
 	})
 
 }

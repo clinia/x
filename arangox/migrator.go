@@ -3,6 +3,7 @@ package arangox
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	arangoDriver "github.com/arangodb/go-driver"
@@ -46,6 +47,14 @@ type NewMigratorOptions struct {
 func NewMigrator(in NewMigratorOptions) *Migrator {
 	internalMigrations := make([]Migration, len(in.Migrations))
 	copy(internalMigrations, in.Migrations)
+	vers := map[uint64]bool{}
+	for _, m := range in.Migrations {
+		if vers[m.Version] {
+			panic(fmt.Sprintf("duplicated migration version %v", m.Version))
+		}
+		vers[m.Version] = true
+	}
+
 	return &Migrator{
 		db:                   in.Database,
 		pkg:                  in.Package,
