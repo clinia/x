@@ -3,6 +3,7 @@ module github.com/clinia/x
 go 1.19
 
 require (
+	github.com/Shopify/sarama v1.32.0
 	github.com/davecgh/go-spew v1.1.1
 	github.com/fsnotify/fsnotify v1.4.9
 	github.com/google/uuid v1.3.0
@@ -18,7 +19,6 @@ require (
 )
 
 require (
-	github.com/Shopify/sarama v1.32.0 // indirect
 	github.com/arangodb/go-velocypack v0.0.0-20200318135517-5af53c29c67e // indirect
 	github.com/cenkalti/backoff/v4 v4.2.0 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
@@ -60,6 +60,7 @@ require (
 	github.com/spf13/afero v1.5.1 // indirect
 	github.com/spf13/cobra v1.1.3 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
+	github.com/stretchr/objx v0.5.0 // indirect
 	github.com/subosito/gotenv v1.2.0 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.0 // indirect

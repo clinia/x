@@ -9,6 +9,13 @@ jobs:
   test:
     name: Test & Lint
     runs-on: ubuntu-22.04
+    services:
+      arangodb:
+        image: arangodb/arangodb:3.11.1
+        env:
+          ARANGO_NO_AUTH: 1
+        ports:
+          - 8529/tcp
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -21,10 +28,11 @@ jobs:
       - name: Lint
         uses: golangci/golangci-lint-action@v3
         with:
-          skip-go-installation: true
           args: --timeout 2m
 
       - name: Test
+        env:
+          ARANGO_URL: 'http://localhost:${{ job.services.arangodb.ports[8529] }}'
         run: go test $(go list ./... | grep -v /provider_watch_test/)
 
       
