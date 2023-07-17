@@ -44,19 +44,17 @@ func (ps *pubSub) setup(l *logrusx.Logger, c *Config) error {
 
 		ps.publisher = publisher
 		ps.subscriber = func(group string) (Subscriber, error) {
-
-			var s Subscriber
 			if ms, ok := ps.subs.Load(group); !ok {
 				s, e := SetupKafkaSubscriber(l, c, group)
 				if e != nil {
 					return nil, e
 				}
-				ps.subs.Store(group, s)
-			} else {
-				s = ms.(Subscriber)
-			}
 
-			return s, nil
+				ps.subs.Store(group, s)
+				return s, nil
+			} else {
+				return ms.(Subscriber), nil
+			}
 		}
 		l.Infof("Kafka pubsub configured! Sending & receiving messages to %s", c.Providers.Kafka.Brokers)
 
