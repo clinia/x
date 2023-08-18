@@ -9,9 +9,9 @@ import (
 
 func TestRawMessage(t *testing.T) {
 	t.Run("should normalize an indentented json string", func(t *testing.T) {
-		raw := RawMessage([]byte(`{
+		raw := RawMessage(`{
 			"foo": "bar"
-		}`))
+		}`)
 
 		assert.Equal(t, json.RawMessage(`{"foo":"bar"}`), raw)
 	})
