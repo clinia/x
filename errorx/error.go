@@ -160,3 +160,10 @@ func NewAlreadyExistsError(message string) CliniaError {
 		Message: message,
 	}
 }
+
+func NewNotImplementedError(message string) CliniaError {
+	return CliniaError{
+		Type:    ErrorTypeNotImplemented,
+		Message: message,
+	}
+}

@@ -1,76 +1,51 @@
 package errorx
 
 import (
-	"encoding/json"
 	"fmt"
 )
 
-type ErrorType int
+type ErrorType string
 
 const (
 	// The Invalid type should not be used, only useful to assert whether or not an error is an MdmError during cast
-	ErrorTypeUnspecified ErrorType = iota
-	ErrorTypeInternal
-	ErrorTypeOutOfRange
-	ErrorTypeUnsupported // Bad request
-	ErrorTypeNotFound
-	ErrorTypeAlreadyExists // Conflict
+	ErrorTypeUnspecified   = ErrorType("")
+	ErrorTypeInternal      = ErrorType("INTERNAL")
+	ErrorTypeOutOfRange    = ErrorType("OUT_OF_RANGE")
+	ErrorTypeUnsupported   = ErrorType("UNSUPPORTED") // Bad request
+	ErrorTypeNotFound      = ErrorType("NOT_FOUND")
+	ErrorTypeAlreadyExists = ErrorType("ALREADY_EXISTS") // Conflict
 	// Map to 422
-	ErrorTypeInvalidFormat
+	ErrorTypeInvalidFormat = ErrorType("INVALID_FORMAT")
 	// Map to 400
-	ErrorTypeFailedPrecondition
+	ErrorTypeFailedPrecondition = ErrorType("FAILED_PRECONDITION")
+	ErrorTypeNotImplemented     = ErrorType("NOT_IMPLEMENTED")
 )
-
-// TODO: update below
-var (
-	ErrorType_name = map[int]string{
-		0: "UNSPECIFIED",
-		1: "INTERNAL",
-		2: "OUT_OF_RANGE",
-		3: "UNSUPPORTED",
-		4: "NOT_FOUND",
-		5: "ALREADY_EXISTS",
-		6: "INVALID_FORMAT",
-		7: "FAILED_PRECONDITION",
-	}
-	ErrorType_value = map[string]int{
-		"UNSPECIFIED":         0,
-		"INTERNAL":            1,
-		"OUT_OF_RANGE":        2,
-		"UNSUPPORTED":         3,
-		"NOT_FOUND":           4,
-		"ALREADY_EXISTS":      5,
-		"INVALID_FORMAT":      6,
-		"FAILED_PRECONDITION": 7,
-	}
-)
-
-func (u ErrorType) String() string {
-	return ErrorType_name[int(u)]
-}
-
-func (e ErrorType) MarshalJSON() ([]byte, error) {
-	return json.Marshal(e.String())
-}
 
 func ParseErrorType(s string) (ErrorType, error) {
-	value, ok := ErrorType_value[s]
-	if !ok {
-		return ErrorTypeUnspecified, fmt.Errorf("%q is not a valid error type", s)
+	e := ErrorType(s)
+	if err := e.Validate(); err != nil {
+		return ErrorTypeUnspecified, err
 	}
 
-	return ErrorType(value), nil
+	return e, nil
 }
 
-func (e *ErrorType) UnmarshalJSON(data []byte) (err error) {
-	var errorType string
-	if err := json.Unmarshal(data, &errorType); err != nil {
-		return err
-	}
+func (e ErrorType) String() string {
+	return string(e)
+}
 
-	if *e, err = ParseErrorType(errorType); err != nil {
-		return err
+func (e ErrorType) Validate() error {
+	switch e {
+	case ErrorTypeInternal,
+		ErrorTypeOutOfRange,
+		ErrorTypeUnsupported,
+		ErrorTypeNotFound,
+		ErrorTypeAlreadyExists,
+		ErrorTypeInvalidFormat,
+		ErrorTypeFailedPrecondition,
+		ErrorTypeNotImplemented:
+		return nil
+	default:
+		return NewInvalidFormatError(fmt.Sprintf("invalid error type: %s", e))
 	}
-
-	return nil
 }
