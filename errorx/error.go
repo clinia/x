@@ -61,7 +61,7 @@ func IsCliniaError(e error) (*CliniaError, bool) {
 }
 
 func IsNotFoundError(e error) bool {
-	mE, ok := e.(CliniaError)
+	mE, ok := IsCliniaError(e)
 	if !ok {
 		return false
 	}
@@ -70,7 +70,7 @@ func IsNotFoundError(e error) bool {
 }
 
 func IsFailedPreconditionError(e error) bool {
-	mE, ok := e.(CliniaError)
+	mE, ok := IsCliniaError(e)
 	if !ok {
 		return false
 	}
@@ -79,7 +79,7 @@ func IsFailedPreconditionError(e error) bool {
 }
 
 func IsAlreadyExistsError(e error) bool {
-	mE, ok := e.(CliniaError)
+	mE, ok := IsCliniaError(e)
 	if !ok {
 		return false
 	}
@@ -88,7 +88,7 @@ func IsAlreadyExistsError(e error) bool {
 }
 
 func IsInvalidFormatError(e error) bool {
-	mE, ok := e.(CliniaError)
+	mE, ok := IsCliniaError(e)
 	if !ok {
 		return false
 	}
@@ -97,7 +97,7 @@ func IsInvalidFormatError(e error) bool {
 }
 
 func IsUnsupportedError(e error) bool {
-	mE, ok := e.(CliniaError)
+	mE, ok := IsCliniaError(e)
 	if !ok {
 		return false
 	}
@@ -106,7 +106,7 @@ func IsUnsupportedError(e error) bool {
 }
 
 func IsInternalError(e error) bool {
-	mE, ok := e.(CliniaError)
+	mE, ok := IsCliniaError(e)
 	if !ok {
 		return false
 	}

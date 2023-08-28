@@ -43,7 +43,9 @@ jobs:
       - name: Lint
         uses: golangci/golangci-lint-action@v3
         with:
-          args: --timeout 2m
+          skip-pkg-cache: true
+          skip-build-cache: true
+          args: --timeout=5m
 
       - name: Test
         env:
