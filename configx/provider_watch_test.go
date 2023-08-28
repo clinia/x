@@ -116,7 +116,7 @@ func compareLsof(t *testing.T, file, atStart, expected string) {
 	assert.True(t, e < a+deviation && e > a-deviation, "\n\t%s\n\t%s", atStart, lsof(t, file))
 }
 
-func TestReload(t *testing.T) {
+func TestProviderReload(t *testing.T) {
 	setup := func(t *testing.T, cf *os.File, c chan<- struct{}, modifiers ...OptionModifier) (*Provider, *logrusx.Logger) {
 		l := logrusx.New("configx", "test")
 		ctx, cancel := context.WithCancel(context.Background())

@@ -38,17 +38,19 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v3
         with:
-          go-version: "1.19"
+          go-version: "1.21"
       
       - name: Lint
         uses: golangci/golangci-lint-action@v3
         with:
-          args: --timeout 2m
+          skip-pkg-cache: true
+          skip-build-cache: true
+          args: --timeout=5m
 
       - name: Test
         env:
           ARANGO_URL: 'http://localhost:${{ job.services.arangodb.ports[8529] }}'
           ELASTICSEARCH_URL: 'http://localhost:${{ job.services.elasticsearch.ports[9200] }}'
-        run: go test $(go list ./... | grep -v /provider_watch_test/)
+        run: go test -skip TestProviderReload ./...
 
       

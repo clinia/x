@@ -23,4 +23,14 @@ func TestError(t *testing.T) {
 		_, ok := IsCliniaError(err)
 		assert.True(t, ok)
 	})
+
+	t.Run("should return is not found from stack", func(t *testing.T) {
+		err := errors.WithStack(NotFoundErrorf("test"))
+		assert.True(t, IsNotFoundError(err))
+	})
+
+	t.Run("should return is not found", func(t *testing.T) {
+		err := NotFoundErrorf("test")
+		assert.True(t, IsNotFoundError(err))
+	})
 }
