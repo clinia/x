@@ -69,8 +69,8 @@ func (m *Migrator) SetMigrationsCollection(name string) {
 	m.migrationsCollection = name
 }
 
-func (m *Migrator) collectionExists(name string) (isExist bool, err error) {
-	collections, err := m.getCollections()
+func (m *Migrator) collectionExists(ctx context.Context, name string) (isExist bool, err error) {
+	collections, err := m.getCollections(ctx)
 	if err != nil {
 		return false, err
 	}
@@ -83,16 +83,14 @@ func (m *Migrator) collectionExists(name string) (isExist bool, err error) {
 	return false, nil
 }
 
-func (m *Migrator) createCollectionIfNotExist(name string) error {
-	exist, err := m.collectionExists(name)
+func (m *Migrator) createCollectionIfNotExist(ctx context.Context, name string) error {
+	exist, err := m.collectionExists(ctx, name)
 	if err != nil {
 		return err
 	}
 	if exist {
 		return nil
 	}
-
-	ctx := context.Background()
 
 	col, err := m.db.CreateCollection(ctx, name, nil)
 	if err != nil {
@@ -110,14 +108,14 @@ func (m *Migrator) createCollectionIfNotExist(name string) error {
 	return nil
 }
 
-func (m *Migrator) getCollections() (collections []collectionSpecification, err error) {
-	cols, err := m.db.Collections(context.Background())
+func (m *Migrator) getCollections(ctx context.Context) (collections []collectionSpecification, err error) {
+	cols, err := m.db.Collections(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	for _, col := range cols {
-		p, err := col.Properties(context.Background())
+		p, err := col.Properties(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -133,11 +131,11 @@ func (m *Migrator) getCollections() (collections []collectionSpecification, err 
 
 // Version returns current database version and comment.
 func (m *Migrator) Version(ctx context.Context) (uint64, string, error) {
-	if err := m.createCollectionIfNotExist(m.migrationsCollection); err != nil {
+	if err := m.createCollectionIfNotExist(ctx, m.migrationsCollection); err != nil {
 		return 0, "", err
 	}
 
-	cursor, err := m.db.Query(context.Background(), `
+	cursor, err := m.db.Query(ctx, `
 		FOR m IN @@collection 
 			FILTER m.package == @pkg 
 			SORT m.version DESC 
@@ -165,7 +163,7 @@ func (m *Migrator) Version(ctx context.Context) (uint64, string, error) {
 }
 
 // SetVersion forcibly changes database version to provided.
-func (m *Migrator) SetVersion(version uint64, description string) error {
+func (m *Migrator) SetVersion(ctx context.Context, version uint64, description string) error {
 	rec := versionRecord{
 		Version:     version,
 		Package:     m.pkg,
@@ -173,12 +171,12 @@ func (m *Migrator) SetVersion(version uint64, description string) error {
 		Description: description,
 	}
 
-	col, err := m.db.Collection(context.Background(), m.migrationsCollection)
+	col, err := m.db.Collection(ctx, m.migrationsCollection)
 	if err != nil {
 		return err
 	}
 
-	_, err = col.CreateDocument(context.Background(), rec)
+	_, err = col.CreateDocument(ctx, rec)
 	if err != nil {
 		return err
 	}
@@ -208,7 +206,7 @@ func (m *Migrator) Up(ctx context.Context, n int) error {
 		if err := migration.Up(ctx, m.db); err != nil {
 			return err
 		}
-		if err := m.SetVersion(migration.Version, migration.Description); err != nil {
+		if err := m.SetVersion(ctx, migration.Version, migration.Description); err != nil {
 			return err
 		}
 	}
@@ -244,7 +242,7 @@ func (m *Migrator) Down(ctx context.Context, n int) error {
 		} else {
 			prevMigration = m.migrations[i-1]
 		}
-		if err := m.SetVersion(prevMigration.Version, prevMigration.Description); err != nil {
+		if err := m.SetVersion(ctx, prevMigration.Version, prevMigration.Description); err != nil {
 			return err
 		}
 	}
