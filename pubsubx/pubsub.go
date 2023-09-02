@@ -22,22 +22,27 @@ type pubSub struct {
 
 var _ PubSub = (*pubSub)(nil)
 
-func New(l *logrusx.Logger, c *Config) (PubSub, error) {
+func New(l *logrusx.Logger, c *Config, opts ...PubSubOption) (PubSub, error) {
+	pubSubOpts := &pubSubOptions{}
+	for _, opt := range opts {
+		opt.apply(pubSubOpts)
+	}
+
 	ps := &pubSub{
 		subs: sync.Map{},
 	}
 
-	if err := ps.setup(l, c); err != nil {
+	if err := ps.setup(l, c, pubSubOpts); err != nil {
 		return nil, err
 	}
 
 	return ps, nil
 }
 
-func (ps *pubSub) setup(l *logrusx.Logger, c *Config) error {
+func (ps *pubSub) setup(l *logrusx.Logger, c *Config, opts *pubSubOptions) error {
 	switch f := stringsx.SwitchExact(c.Provider); {
 	case f.AddCase("kafka"):
-		publisher, err := SetupKafkaPublisher(l, c)
+		publisher, err := SetupKafkaPublisher(l, c, opts)
 		if err != nil {
 			return err
 		}
@@ -45,7 +50,7 @@ func (ps *pubSub) setup(l *logrusx.Logger, c *Config) error {
 		ps.publisher = publisher
 		ps.subscriber = func(group string) (Subscriber, error) {
 			if ms, ok := ps.subs.Load(group); !ok {
-				s, e := SetupKafkaSubscriber(l, c, group)
+				s, e := SetupKafkaSubscriber(l, c, opts, group)
 				if e != nil {
 					return nil, e
 				}
@@ -104,7 +109,6 @@ func (ps *pubSub) Close() error {
 	}
 
 	err := ps.publisher.Close()
-
 	if err != nil {
 		return err
 	}
