@@ -29,10 +29,6 @@ type pubSubOptions struct {
 }
 type PubSubOption func(*pubSubOptions)
 
-func (p PubSubOption) apply(opts *pubSubOptions) {
-	p(opts)
-}
-
 func WithTracerProvider(provider trace.TracerProvider) PubSubOption {
 	return func(opts *pubSubOptions) {
 		if provider != nil {

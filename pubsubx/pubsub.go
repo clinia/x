@@ -25,7 +25,7 @@ var _ PubSub = (*pubSub)(nil)
 func New(l *logrusx.Logger, c *Config, opts ...PubSubOption) (PubSub, error) {
 	pubSubOpts := &pubSubOptions{}
 	for _, opt := range opts {
-		opt.apply(pubSubOpts)
+		opt(pubSubOpts)
 	}
 
 	ps := &pubSub{
