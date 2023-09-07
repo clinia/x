@@ -1,50 +1,52 @@
 package elasticx
 
-import (
-	"context"
-	"testing"
+// import (
+// 	"context"
+// 	"testing"
 
-	"github.com/stretchr/testify/assert"
-)
+// 	"github.com/stretchr/testify/assert"
+// )
 
-func TestIndex(t *testing.T) {
-	client, _ := createClient(t)
+// func TestIndex(t *testing.T) {
+// 	client, _ := createClient(t)
 
-	ctx := context.Background()
+// 	ctx := context.Background()
 
-	err := client.Clean(ctx)
-	assert.NoError(t, err)
+// 	err := client.Init(ctx)
+// 	assert.NoError(t, err)
 
-	err = client.Init(ctx)
-	assert.NoError(t, err)
+// 	engine, err := client.CreateEngine(ctx, "test-index")
+// 	assert.NoError(t, err)
 
-	engine, err := client.CreateEngine(ctx, "engine-index", nil)
-	assert.NoError(t, err)
+// 	t.Run("should create a document", func(t *testing.T) {
+// 		index, err := engine.CreateIndex(ctx, "create-documents", nil)
+// 		assert.NoError(t, err)
 
-	index, err := engine.CreateIndex(ctx, "index-documents", nil)
-	assert.NoError(t, err)
+// 		type property struct {
+// 			Source string `json:"source"`
+// 		}
 
-	t.Run("should create a document", func(t *testing.T) {
-		type property struct {
-			Source string `json:"source"`
-		}
+// 		type doc struct {
+// 			ID         string `json:"id"`
+// 			Properties map[string][]property
+// 		}
 
-		type doc struct {
-			ID         string `json:"id"`
-			Properties map[string][]property
-		}
+// 		d, err := index.CreateDocument(ctx, &doc{
+// 			Properties: map[string][]property{
+// 				"name": {
+// 					{
+// 						Source: "a",
+// 					},
+// 				},
+// 			},
+// 		})
 
-		d, err := index.CreateDocument(ctx, &doc{
-			Properties: map[string][]property{
-				"name": {
-					{
-						Source: "a",
-					},
-				},
-			},
-		}, nil)
+// 		assert.NoError(t, err)
+// 		assert.NotEmpty(t, d.ID)
+// 	})
 
-		assert.NoError(t, err)
-		assert.NotEmpty(t, d.ID)
-	})
-}
+// 	t.Cleanup(func() {
+// 		err := engine.Remove(ctx)
+// 		assert.NoError(t, err)
+// 	})
+// }

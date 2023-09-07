@@ -4,12 +4,14 @@ package migrate
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/clinia/x/elasticx"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/core/search"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/dynamicmapping"
+	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/refresh"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/sortorder"
 )
 
@@ -55,8 +57,8 @@ func (m *Migrator) SetMigrationsIndex(name string) {
 	m.migrationsIndex = name
 }
 
-func (m *Migrator) indexExist(name string) (isExist bool, err error) {
-	indexes, err := m.getIndexes()
+func (m *Migrator) indexExist(ctx context.Context, name string) (isExist bool, err error) {
+	indexes, err := m.getIndexes(ctx)
 	if err != nil {
 		return false, err
 	}
@@ -69,8 +71,8 @@ func (m *Migrator) indexExist(name string) (isExist bool, err error) {
 	return false, nil
 }
 
-func (m *Migrator) createIndexIfNotExist(name string) error {
-	exist, err := m.indexExist(name)
+func (m *Migrator) createIndexIfNotExist(ctx context.Context, name string) error {
+	exist, err := m.indexExist(ctx, name)
 	if err != nil {
 		return err
 	}
@@ -78,7 +80,7 @@ func (m *Migrator) createIndexIfNotExist(name string) error {
 		return nil
 	}
 
-	_, err = m.engine.CreateIndex(context.Background(), name, &elasticx.CreateIndexOptions{
+	_, err = m.engine.CreateIndex(ctx, name, &elasticx.CreateIndexOptions{
 		Mappings: &types.TypeMapping{
 			Dynamic: &dynamicmapping.Strict,
 			Properties: map[string]types.Property{
@@ -95,15 +97,15 @@ func (m *Migrator) createIndexIfNotExist(name string) error {
 	return nil
 }
 
-func (m *Migrator) getIndexes() (indices []indexSpecification, err error) {
-	indexes, err := m.engine.Indexes(context.Background())
+func (m *Migrator) getIndexes(ctx context.Context) (indices []indexSpecification, err error) {
+	indexes, err := m.engine.Indexes(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	for _, index := range indexes {
 		indices = append(indices, indexSpecification{
-			Name: index.Name(),
+			Name: index.Name,
 		})
 	}
 
@@ -112,11 +114,11 @@ func (m *Migrator) getIndexes() (indices []indexSpecification, err error) {
 
 // Version returns current engine version and comment.
 func (m *Migrator) Version(ctx context.Context) (uint64, string, error) {
-	if err := m.createIndexIfNotExist(m.migrationsIndex); err != nil {
+	if err := m.createIndexIfNotExist(ctx, m.migrationsIndex); err != nil {
 		return 0, "", err
 	}
 
-	query, err := json.Marshal(&search.Request{
+	searchResponse, err := m.engine.Query(ctx, &search.Request{
 		Query: &types.Query{
 			MatchAll: &types.MatchAllQuery{},
 		},
@@ -129,12 +131,7 @@ func (m *Migrator) Version(ctx context.Context) (uint64, string, error) {
 				},
 			},
 		},
-	})
-	if err != nil {
-		return 0, "", err
-	}
-
-	searchResponse, err := m.engine.Query(ctx, string(query), m.migrationsIndex)
+	}, m.migrationsIndex)
 
 	if err != nil {
 		return 0, "", err
@@ -145,7 +142,7 @@ func (m *Migrator) Version(ctx context.Context) (uint64, string, error) {
 	}
 
 	var rec versionRecord
-	if err := json.Unmarshal(searchResponse.Hits.Hits[0].Source, &rec); err != nil {
+	if err := json.Unmarshal(searchResponse.Hits.Hits[0].Source_, &rec); err != nil {
 		return 0, "", err
 	}
 
@@ -153,19 +150,19 @@ func (m *Migrator) Version(ctx context.Context) (uint64, string, error) {
 }
 
 // SetVersion forcibly changes database version to provided.
-func (m *Migrator) SetVersion(version uint64, description string) error {
+func (m *Migrator) SetVersion(ctx context.Context, version uint64, description string) error {
 	rec := versionRecord{
 		Version:     version,
 		Timestamp:   time.Now().UTC(),
 		Description: description,
 	}
 
-	index, err := m.engine.Index(context.Background(), m.migrationsIndex)
+	index, err := m.engine.Index(ctx, m.migrationsIndex)
 	if err != nil {
 		return err
 	}
 
-	_, err = index.CreateDocument(context.Background(), rec, nil)
+	_, err = index.ReplaceDocument(ctx, fmt.Sprint(version), rec, elasticx.WithRefresh(refresh.Waitfor))
 	if err != nil {
 		return err
 	}
@@ -195,7 +192,7 @@ func (m *Migrator) Up(ctx context.Context, n int) error {
 		if err := migration.Up(ctx, m.engine); err != nil {
 			return err
 		}
-		if err := m.SetVersion(migration.Version, migration.Description); err != nil {
+		if err := m.SetVersion(ctx, migration.Version, migration.Description); err != nil {
 			return err
 		}
 	}
@@ -231,7 +228,7 @@ func (m *Migrator) Down(ctx context.Context, n int) error {
 		} else {
 			prevMigration = m.migrations[i-1]
 		}
-		if err := m.SetVersion(prevMigration.Version, prevMigration.Description); err != nil {
+		if err := m.SetVersion(ctx, prevMigration.Version, prevMigration.Description); err != nil {
 			return err
 		}
 	}

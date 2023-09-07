@@ -1,61 +1,19 @@
 package elasticx
 
 import (
-	"context"
-	"os"
 	"testing"
 
-	"github.com/elastic/go-elasticsearch/v8"
 	"github.com/stretchr/testify/assert"
 )
 
-func createClient(t *testing.T) (Client, *elasticsearch.Client) {
-	url := "http://localhost:9200"
-
-	urlFromEnv := os.Getenv("ELASTICSEARCH_URL")
-	if len(urlFromEnv) > 0 {
-		url = urlFromEnv
-	}
-
-	esConfig := elasticsearch.Config{
-		Addresses: []string{url},
-	}
-
-	client, err := NewClient(esConfig)
-	assert.NoError(t, err)
-
-	es, err := elasticsearch.NewClient(esConfig)
-	assert.NoError(t, err)
-
-	return client, es
-}
-
 func TestClient(t *testing.T) {
-	client, _ := createClient(t)
-
-	ctx := context.Background()
-
-	err := client.Init(ctx)
-	if err != nil {
-		t.Error(err)
-	}
-
-	t.Run("should create an engine", func(t *testing.T) {
-		ctx := context.Background()
-
-		name := "test-create-engine"
-		engine, err := client.CreateEngine(ctx, name, nil)
-		assert.NoError(t, err)
-
-		assert.Equal(t, engine.Name(), name)
-
-		err = engine.Remove(ctx)
-		assert.NoError(t, err)
-	})
+	f := newTestFixture(t)
+	ctx := f.ctx
+	client := f.client
 
 	t.Run("should return an engine", func(t *testing.T) {
-		name := "test-get-engine"
-		e, err := client.CreateEngine(ctx, name, nil)
+		name := "test-client-get-engine"
+		e, err := client.CreateEngine(ctx, name)
 		assert.NoError(t, err)
 		assert.NotNil(t, e)
 
@@ -70,9 +28,9 @@ func TestClient(t *testing.T) {
 	})
 
 	t.Run("should return exists", func(t *testing.T) {
-		name := "test-engine-exist"
+		name := "test-client-engine-exist"
 
-		engine, err := client.CreateEngine(ctx, name, nil)
+		engine, err := client.CreateEngine(ctx, name)
 		assert.NoError(t, err)
 
 		assert.Equal(t, engine.Name(), name)
@@ -89,12 +47,12 @@ func TestClient(t *testing.T) {
 	t.Run("should return all engines", func(t *testing.T) {
 		// Setup
 		names := []string{
-			"test-engines-1",
-			"test-engines-2",
-			"test-engines-3",
+			"test-client-engines-1",
+			"test-client-engines-2",
+			"test-client-engines-3",
 		}
 		for _, name := range names {
-			engine, err := client.CreateEngine(ctx, name, nil)
+			engine, err := client.CreateEngine(ctx, name)
 			assert.NotNil(t, engine)
 			assert.NoError(t, err)
 		}
@@ -108,13 +66,50 @@ func TestClient(t *testing.T) {
 			engineNames = append(engineNames, engine.Name())
 		}
 
-		assert.Contains(t, engineNames, "test-engines-1")
-		assert.Contains(t, engineNames, "test-engines-2")
-		assert.Contains(t, engineNames, "test-engines-3")
+		assert.ElementsMatch(t, names, engineNames)
 
 		for _, engine := range engines {
 			err := engine.Remove(ctx)
 			assert.NoError(t, err)
+		}
+	})
+}
+
+func TestClientCreateEngine(t *testing.T) {
+	f := newTestFixture(t)
+	ctx := f.ctx
+	client := f.client
+
+	engines := []string{}
+
+	t.Run("should create an engine", func(t *testing.T) {
+		// Act
+		name := "test-client-create-engine"
+		engine, err := client.CreateEngine(ctx, name)
+		assert.NoError(t, err)
+
+		assert.Equal(t, engine.Name(), name)
+
+		engines = append(engines, name)
+	})
+
+	t.Run("should return already exists error", func(t *testing.T) {
+		// Prepare
+		name := "test-client-create-engine-exists"
+		_, err := client.CreateEngine(ctx, name)
+		assert.NoError(t, err)
+
+		// Act
+		engine, err := client.CreateEngine(ctx, name)
+		assert.Nil(t, engine)
+		assert.EqualError(t, err, "[ALREADY_EXISTS] engine 'test-client-create-engine-exists' already exists")
+
+		engines = append(engines, name)
+	})
+
+	t.Cleanup(func() {
+		for _, name := range engines {
+			f.cleanEngine(t, name)
 		}
 	})
 }

@@ -2,6 +2,10 @@ package elasticx
 
 import (
 	"context"
+
+	"github.com/elastic/go-elasticsearch/v8/typedapi/core/msearch"
+	"github.com/elastic/go-elasticsearch/v8/typedapi/core/search"
+	"github.com/elastic/go-elasticsearch/v8/typedapi/types"
 )
 
 // Engine provides access to all indexes in a single engine.
@@ -20,21 +24,42 @@ type Engine interface {
 	EngineIndexes
 
 	// Query performs a search request to Elastic Search
-	Query(ctx context.Context, query string, index ...string) (*SearchResponse, error)
+	Query(ctx context.Context, query *search.Request, indices ...string) (*search.Response, error)
 
 	// Queries performs a multi search request to Elastic Search
-	Queries(ctx context.Context, queries ...MultiQuery) (map[string]SearchResponse, error)
+	Queries(ctx context.Context, queries ...MultiQuery) (*msearch.Response, error)
+}
+
+type MultiQuery struct {
+	IndexName string
+	Request   types.MultisearchBody
 }
 
 type EngineInfo struct {
-	// The identifier of the engine.
-	ID string `json:"id,omitempty"`
 	// The name of the engine.
 	Name string `json:"name,omitempty"`
 }
 
-type MultiQuery struct {
-	Name  string
-	Query string
-	Index []string
+// EngineIndexes provides access to all indexes in a single engine.
+type EngineIndexes interface {
+	// Index opens a connection to an exisiting index within the engine.
+	// If no index with given name exists, a NotFoundError is returned.
+	Index(ctx context.Context, name string) (Index, error)
+
+	// IndexExists returns true if an index with given name exists within the engine.
+	IndexExists(ctx context.Context, name string) (bool, error)
+
+	// Indexes returns a list of all indexes in the engine.
+	Indexes(ctx context.Context) ([]IndexInfo, error)
+
+	// CreateIndex creates a new index,
+	// with given name, and opens a connection to it.
+	CreateIndex(ctx context.Context, name string, options *CreateIndexOptions) (Index, error)
+}
+
+// CreateIndexOptions contains options that customize the creation of an index.
+type CreateIndexOptions struct {
+	Aliases  map[string]types.Alias
+	Settings *types.IndexSettings
+	Mappings *types.TypeMapping
 }

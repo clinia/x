@@ -4,34 +4,55 @@ import (
 	"context"
 	"testing"
 
+	"github.com/clinia/x/pointerx"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/dynamicmapping"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestEngine(t *testing.T) {
-	client, _ := createClient(t)
-
-	ctx := context.Background()
-
-	err := client.Init(ctx)
-	assert.NoError(t, err)
+	f := newTestFixture(t)
+	ctx := f.ctx
 
 	t.Run("should remove an engine", func(t *testing.T) {
-		ctx := context.Background()
-
-		name := "test-create-engine"
-		engine, err := client.CreateEngine(ctx, name, nil)
+		name := "test-engine-remove"
+		engine, err := f.client.CreateEngine(ctx, name)
 		assert.NoError(t, err)
 
 		assert.Equal(t, engine.Name(), name)
 
+		indexNames := []string{"index-1", "index-2"}
+		for _, index := range indexNames {
+			_, err := engine.CreateIndex(ctx, index, nil)
+			assert.NoError(t, err)
+		}
+
+		// Assert the indexes exist via es
+		for _, index := range indexNames {
+			exists, err := f.es.Indices.Exists(index).Do(ctx)
+			assert.NoError(t, err)
+			assert.True(t, exists)
+		}
+
+		// Remove the engine
 		err = engine.Remove(ctx)
 		assert.NoError(t, err)
+
+		// Assert the indexes do not exist via es
+		for _, index := range indexNames {
+			exists, err := f.es.Indices.Exists(index).Do(ctx)
+			assert.NoError(t, err)
+			assert.False(t, exists)
+		}
+
+		// Assert the engine does not exist via es
+		res, err := f.es.Get(enginesIndexName, name).Do(ctx)
+		assert.Error(t, err)
+		assert.Nil(t, res)
 	})
 
 	name := "engine-indexes"
-	engine, err := client.CreateEngine(ctx, name, nil)
+	engine, err := f.client.CreateEngine(ctx, name)
 	assert.NoError(t, err)
 
 	t.Run("should create an index", func(t *testing.T) {
@@ -63,7 +84,7 @@ func TestEngine(t *testing.T) {
 			},
 		})
 		assert.NoError(t, err)
-		assert.Equal(t, index.Name(), name)
+		assert.Equal(t, index.Info().Name, name)
 
 		err = index.Remove(ctx)
 		assert.NoError(t, err)
@@ -79,7 +100,7 @@ func TestEngine(t *testing.T) {
 		assert.NoError(t, err)
 
 		assert.NotEmpty(t, index)
-		assert.Equal(t, index.Name(), name)
+		assert.Equal(t, index.Info().Name, name)
 
 		err = index.Remove(ctx)
 		assert.NoError(t, err)
@@ -90,7 +111,7 @@ func TestEngine(t *testing.T) {
 
 		index, err := engine.CreateIndex(ctx, name, nil)
 		assert.NoError(t, err)
-		assert.Equal(t, index.Name(), name)
+		assert.Equal(t, index.Info().Name, name)
 
 		exists, err := engine.IndexExists(ctx, name)
 		assert.NoError(t, err)
@@ -114,18 +135,20 @@ func TestEngine(t *testing.T) {
 		}
 
 		// Act
-		indices, err := engine.Indexes(ctx)
+		indexInfos, err := engine.Indexes(ctx)
 		assert.NoError(t, err)
 
-		indexNames := []string{}
-		for _, index := range indices {
-			indexNames = append(indexNames, index.Name())
-		}
+		assert.ElementsMatch(t, []IndexInfo{
+			{Name: "test-indexes-1"},
+			{Name: "test-indexes-2"},
+			{Name: "test-indexes-3"},
+		}, indexInfos)
 
-		assert.ElementsMatch(t, indexNames, names)
+		for _, indexInfo := range indexInfos {
+			index, err := engine.Index(ctx, indexInfo.Name)
+			assert.NoError(t, err)
 
-		for _, index := range indices {
-			err := index.Remove(ctx)
+			err = index.Remove(ctx)
 			assert.NoError(t, err)
 		}
 	})
@@ -134,7 +157,7 @@ func TestEngine(t *testing.T) {
 		ctx := context.Background()
 
 		name := "test-engine-queries"
-		engine, err := client.CreateEngine(ctx, name, nil)
+		engine, err := f.client.CreateEngine(ctx, name)
 		assert.NoError(t, err)
 
 		index, err := engine.CreateIndex(ctx, "index-1", nil)
@@ -142,23 +165,21 @@ func TestEngine(t *testing.T) {
 
 		res, err := engine.Queries(ctx, []MultiQuery{
 			{
-				Index: []string{index.Name()},
-				Name:  "query-1",
-				Query: `{
-					"query": {
-						"match_all": {}
-					}
-				}`,
+				IndexName: index.Info().Name,
+				Request: types.MultisearchBody{
+					Query: &types.Query{
+						MatchAll: &types.MatchAllQuery{},
+					},
+				},
 			},
 			{
-				Index: []string{index.Name()},
-				Name:  "query-2",
-				Query: `{
-					"query": {
-						"match_all": {}
+				IndexName: index.Info().Name,
+				Request: types.MultisearchBody{
+					Query: &types.Query{
+						MatchAll: &types.MatchAllQuery{},
 					},
-					"from": 0
-				}`,
+					From: pointerx.Ptr(0),
+				},
 			},
 		}...)
 
