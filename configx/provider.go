@@ -457,12 +457,13 @@ func (p *Provider) CORS(prefix string, defaults cors.Options) (cors.Options, boo
 	}, p.Bool(prefix + "cors.enabled")
 }
 
-func (p *Provider) TracingConfig(serviceName string, attrs ...attribute.KeyValue) *otelx.Config {
-	return &otelx.Config{
+func (p *Provider) TracingConfig(serviceName string, attrs ...attribute.KeyValue) *otelx.TracerConfig {
+	return &otelx.TracerConfig{
 		ResourceAttributes: attrs,
 		ServiceName:        p.StringF("tracing.service_name", serviceName),
+		TracerName:         p.String("tracing.tracer_name"),
 		Provider:           p.String("tracing.provider"),
-		Providers: otelx.ProvidersConfig{
+		Providers: otelx.TracerProvidersConfig{
 			Jaeger: otelx.JaegerConfig{
 				LocalAgentAddress: p.String("tracing.providers.jaeger.local_agent_address"),
 				Sampling: otelx.JaegerSampling{
@@ -483,6 +484,26 @@ func (p *Provider) TracingConfig(serviceName string, attrs ...attribute.KeyValue
 		},
 	}
 }
+
+// // TODO: Change source
+// func (p *Provider) MeterConfig(serviceName string, attrs ...attribute.KeyValue) *otelx.MeterConfig {
+// 	return &otelx.MeterConfig{
+// 		Provider: p.String("tracing.provider"),
+// 		Providers: otelx.MeterProvidersConfig{
+// 			OTLP: otelx.OTLPConfig{
+// 				Protocol:  p.String("tracing.providers.otlp.protocol"),
+// 				ServerURL: p.String("tracing.providers.otlp.server_url"),
+// 				Insecure:  p.Bool("tracing.providers.otlp.insecure"),
+// 				Sampling: otelx.OTLPSampling{
+// 					SamplingRatio: p.Float64("tracing.providers.otlp.sampling.sampling_ratio"),
+// 				},
+// 			},
+// 			Stdout: otelx.StdoutConfig{
+// 				Pretty: p.Bool("tracing.providers.stdout.pretty"),
+// 			},
+// 		},
+// 	}
+// }
 
 func (p *Provider) PubSubConfig() *pubsubx.Config {
 	return &pubsubx.Config{

@@ -1,20 +1,25 @@
 {
     "$schema": "http://json-schema.org/draft-07/schema#",
-    "$id": "clinia://tracing-config",
+    "$id": "clinia://tracer-config",
     "type": "object",
     "additionalProperties": false,
-    "description": "Configure distributed tracing using OpenTelemetry",
+    "description": "Configure distributed tracer using OpenTelemetry",
     "properties": {
       "provider": {
         "type": "string",
-        "description": "Set this to the tracing backend you wish to use. Supports OTEL.",
-        "enum": ["otlp", "stdout", "jaeger"],
-        "examples": ["otlp"]
+        "description": "Set this to the tracer backend you wish to use. Supports OTEL.",
+        "enum": ["otel", "stdout", "jaeger"],
+        "examples": ["otel"]
       },
       "service_name": {
         "type": "string",
         "description": "Specifies the service name to use on the tracer.",
-        "examples": ["Clinia Data Fabric", "Clinia Health Grade Search", "Clinia Care Paths"]
+        "examples": ["Clinia Atlas", "Clinia Health Grade Search", "Clinia Care Paths"]
+      },
+      "tracer_name": {
+        "type": "string",
+        "description": "Specifies the tracer name.",
+        "examples": ["Clinia Atlas"]
       },
       "providers": {
         "type": "object",
@@ -23,7 +28,7 @@
           "jaeger": {
             "type": "object",
             "additionalProperties": false,
-            "description": "Configures the jaeger tracing backend.",
+            "description": "Configures the jaeger tracer backend.",
             "properties": {
               "local_agent_address": {
                 "type": "string",
@@ -64,7 +69,7 @@
           "otlp": {
             "type": "object",
             "additionalProperties": false,
-            "description": "Configures the OTLP tracing backend.",
+            "description": "Configures the OTLP tracer backend.",
             "properties": {
               "protocol": {
                 "type": "string",
@@ -114,7 +119,7 @@
           "stdout": {
             "type": "object",
             "additionalProperties": false,
-            "description": "Configures the Stdout tracing backend.",
+            "description": "Configures the Stdout tracer backend.",
             "properties": {
               "pretty": {
                 "type": "boolean",

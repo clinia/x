@@ -20,7 +20,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-func SetupOTLPTracer(tracerName string, c *Config) (trace.Tracer, propagation.TextMapPropagator, error) {
+func SetupOTLPTracer(tracerName string, c *TracerConfig) (trace.Tracer, propagation.TextMapPropagator, error) {
 	exp, err := getExporter(c)
 	if err != nil {
 		return nil, nil, errors.WithStack(err)
@@ -50,7 +50,7 @@ func SetupOTLPTracer(tracerName string, c *Config) (trace.Tracer, propagation.Te
 	return tp.Tracer(tracerName), prop, nil
 }
 
-func getExporter(c *Config) (*otlptrace.Exporter, error) {
+func getExporter(c *TracerConfig) (*otlptrace.Exporter, error) {
 	ctx := context.Background()
 
 	if c.Providers.OTLP.Protocol == "http" {

@@ -24,8 +24,6 @@ import (
 	"github.com/clinia/x/logrusx"
 )
 
-const testTracingComponent = "github.com/clinia/x/otelx"
-
 func decodeResponseBody(t *testing.T, r *http.Request) []byte {
 	var reader io.ReadCloser
 	switch r.Header.Get("Content-Encoding") {
@@ -77,10 +75,12 @@ func TestOTLPTracer(t *testing.T) {
 	tsu, err := url.Parse(ts.URL)
 	require.NoError(t, err)
 
-	ot, err := New(testTracingComponent, logrusx.New("clinia/x", "1"), &Config{
+	opts := &OtelOptions{}
+	opts.TracerConfig = &TracerConfig{
 		ServiceName: "Clinia X",
+		TracerName:  "X",
 		Provider:    "otel",
-		Providers: ProvidersConfig{
+		Providers: TracerProvidersConfig{
 			OTLP: OTLPConfig{
 				Protocol:  "http",
 				ServerURL: tsu.Host,
@@ -90,10 +90,12 @@ func TestOTLPTracer(t *testing.T) {
 				},
 			},
 		},
-	})
+	}
+
+	ot, err := New(logrusx.New("clinia/x", "1"), *opts)
 	assert.NoError(t, err)
 
-	trc := ot.Tracer()
+	trc := ot.t.Tracer()
 	_, span := trc.Start(context.Background(), "testSpan")
 	span.SetAttributes(attribute.Bool("testAttribute", true))
 	span.End()

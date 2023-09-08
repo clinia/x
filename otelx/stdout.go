@@ -10,7 +10,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-func SetupStdoutTracer(tracerName string, c *Config) (trace.Tracer, propagation.TextMapPropagator, error) {
+func SetupStdoutTracer(tracerName string, c *TracerConfig) (trace.Tracer, propagation.TextMapPropagator, error) {
 	opts := []stdouttrace.Option{}
 
 	if c.Providers.Stdout.Pretty {
