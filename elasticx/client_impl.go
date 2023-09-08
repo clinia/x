@@ -126,9 +126,16 @@ func (c *client) Clean(ctx context.Context) error {
 // Engine opens a connection to an existing engine.
 // If no engine with given name exists, a NotFoundError is returned.
 func (c *client) Engine(ctx context.Context, name string) (Engine, error) {
-	_, err := c.es.Get(enginesIndexName, name).Do(ctx)
+	res, err := c.es.Get(enginesIndexName, name).Do(ctx)
 	if err != nil {
+		if isElasticNotFoundError(err) {
+			return nil, errorx.NotFoundErrorf("engine '%s' does not exist", name)
+		}
 		return nil, err
+	}
+
+	if !res.Found {
+		return nil, errorx.NotFoundErrorf("engine '%s' does not exist", name)
 	}
 
 	return &engine{
@@ -142,8 +149,8 @@ func (c *client) EngineExists(ctx context.Context, name string) (bool, error) {
 	return c.es.Exists(enginesIndexName, name).Do(ctx)
 }
 
-// Engines returns a list of all engines found by the client.
-func (c *client) Engines(ctx context.Context) ([]Engine, error) {
+// Engines returns a list of all engine infos found by the client.
+func (c *client) Engines(ctx context.Context) ([]EngineInfo, error) {
 	res, err := c.es.Search().
 		Index(enginesIndexName).
 		Query(&types.Query{
@@ -166,7 +173,7 @@ func (c *client) Engines(ctx context.Context) ([]Engine, error) {
 		return nil, err
 	}
 
-	engines := []Engine{}
+	engines := []EngineInfo{}
 	for _, hit := range res.Hits.Hits {
 		var engineInfo EngineInfo
 		err := json.Unmarshal(hit.Source_, &engineInfo)
@@ -174,10 +181,7 @@ func (c *client) Engines(ctx context.Context) ([]Engine, error) {
 			return nil, err
 		}
 
-		engines = append(engines, &engine{
-			name: engineInfo.Name,
-			es:   c.es,
-		})
+		engines = append(engines, engineInfo)
 	}
 
 	return engines, nil

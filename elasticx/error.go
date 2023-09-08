@@ -19,5 +19,22 @@ func isElasticAlreadyExistsError(err error) bool {
 		return false
 	}
 
-	return eserror.Status == 409
+	if eserror.Status == 409 {
+		return true
+	}
+
+	if eserror.Status == 400 && eserror.ErrorCause.Type == "resource_already_exists_exception" {
+		return true
+	}
+
+	return false
+}
+
+func isElasticNotFoundError(err error) bool {
+	eserror, ok := isElasticError(err)
+	if !ok {
+		return false
+	}
+
+	return eserror.Status == 404
 }

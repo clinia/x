@@ -5,8 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/clinia/x/errorx"
 	"github.com/elastic/go-elasticsearch/v8"
+	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/result"
 	"github.com/segmentio/ksuid"
+)
+
+const (
+	elasticStrictDynamicMappingErrorType = "strict_dynamic_mapping_exception"
 )
 
 type index struct {
@@ -82,18 +88,20 @@ func (i *index) CreateDocument(ctx context.Context, document interface{}, opts .
 		opt(options)
 	}
 
-	res, err := i.es.Index(i.indexName().String()).
-		Id(ksuid.New().String()).
+	res, err := i.es.Create(i.indexName().String(), ksuid.New().String()).
 		Document(document).
 		Refresh(options.refresh).
 		Do(ctx)
 	if err != nil {
+		if eserr, ok := isElasticError(err); ok && eserr.ErrorCause.Type == elasticStrictDynamicMappingErrorType {
+			return nil, errorx.FailedPreconditionErrorf("document contains fields that are not allowed by the index mapping: %s", *eserr.ErrorCause.Reason)
+		}
 		return nil, err
 	}
 
 	return &DocumentMeta{
 		ID:      res.Id_,
-		Index:   res.Index_,
+		Index:   IndexName(res.Index_).Name(),
 		Version: res.Version_,
 	}, nil
 }
@@ -110,12 +118,15 @@ func (i *index) ReplaceDocument(ctx context.Context, key string, document interf
 		Refresh(options.refresh).
 		Do(ctx)
 	if err != nil {
+		if eserr, ok := isElasticError(err); ok && eserr.ErrorCause.Type == elasticStrictDynamicMappingErrorType {
+			return nil, errorx.FailedPreconditionErrorf("document contains fields that are not allowed by the index mapping: %s", *eserr.ErrorCause.Reason)
+		}
 		return nil, err
 	}
 
 	return &DocumentMeta{
 		ID:      res.Id_,
-		Index:   res.Index_,
+		Index:   IndexName(res.Index_).Name(),
 		Version: res.Version_,
 	}, nil
 }
@@ -126,11 +137,18 @@ func (i *index) DeleteDocument(ctx context.Context, key string, opts ...Document
 		opt(options)
 	}
 
-	_, err := i.es.Delete(i.indexName().String(), key).
+	res, err := i.es.Delete(i.indexName().String(), key).
 		Refresh(options.refresh).
 		Do(ctx)
 	if err != nil {
+		if isElasticNotFoundError(err) {
+			return errorx.NotFoundErrorf("document with key '%s' does not exist", key)
+		}
 		return err
+	}
+
+	if res.Result != result.Deleted {
+		return errorx.NotFoundErrorf("document with key '%s' does not exist", key)
 	}
 
 	return nil

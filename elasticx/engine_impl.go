@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/clinia/x/errorx"
 	"github.com/elastic/go-elasticsearch/v8"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/core/msearch"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/core/search"
@@ -92,10 +93,8 @@ func (e *engine) Remove(ctx context.Context) error {
 		return err
 	}
 
-	json, _ := json.Marshal(res)
-	fmt.Print(string(json))
 	if res.Deleted != nil && *res.Deleted != 1 {
-		return fmt.Errorf("failed to delete the engine info inside the server name=%s", e.name)
+		return errorx.InternalErrorf("failed to delete the engine info with name '%s' inside the server", e.name)
 	}
 
 	return nil
@@ -125,7 +124,12 @@ func (e *engine) Queries(ctx context.Context, queries ...MultiQuery) (*msearch.R
 		items = append(items, query.Request)
 	}
 
-	return e.es.Msearch().Request(items).Do(ctx)
+	res, err := e.es.Msearch().Request(items).Do(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return res, nil
 }
 
 // Index opens a connection to an exisiting index within the engine.
@@ -136,6 +140,9 @@ func (e *engine) Index(ctx context.Context, name string) (Index, error) {
 	// Check if index exists
 	_, err := e.es.Indices.Get(indexName.String()).Do(ctx)
 	if err != nil {
+		if isElasticNotFoundError(err) {
+			return nil, errorx.NotFoundErrorf("index with name '%s' does not exist", name)
+		}
 		return nil, err
 	}
 
@@ -196,7 +203,7 @@ func (e *engine) CreateIndex(ctx context.Context, name string, options *CreateIn
 	_, err = e.es.Indices.Create(index.indexName().String()).Request(request).Do(ctx)
 	if err != nil {
 		if isElasticAlreadyExistsError(err) {
-			return nil, fmt.Errorf("duplicate index with name %s", name)
+			return nil, errorx.AlreadyExistsErrorf("duplicate index with name '%s'", name)
 		}
 		return nil, err
 	}

@@ -6,76 +6,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestClient(t *testing.T) {
-	f := newTestFixture(t)
-	ctx := f.ctx
-	client := f.client
-
-	t.Run("should return an engine", func(t *testing.T) {
-		name := "test-client-get-engine"
-		e, err := client.CreateEngine(ctx, name)
-		assert.NoError(t, err)
-		assert.NotNil(t, e)
-
-		engine, err := client.Engine(ctx, name)
-		assert.NoError(t, err)
-
-		assert.NotEmpty(t, engine)
-		assert.Equal(t, engine.Name(), name)
-
-		err = engine.Remove(ctx)
-		assert.NoError(t, err)
-	})
-
-	t.Run("should return exists", func(t *testing.T) {
-		name := "test-client-engine-exist"
-
-		engine, err := client.CreateEngine(ctx, name)
-		assert.NoError(t, err)
-
-		assert.Equal(t, engine.Name(), name)
-
-		exists, err := client.EngineExists(ctx, name)
-		assert.NoError(t, err)
-
-		assert.True(t, exists)
-
-		err = engine.Remove(ctx)
-		assert.NoError(t, err)
-	})
-
-	t.Run("should return all engines", func(t *testing.T) {
-		// Setup
-		names := []string{
-			"test-client-engines-1",
-			"test-client-engines-2",
-			"test-client-engines-3",
-		}
-		for _, name := range names {
-			engine, err := client.CreateEngine(ctx, name)
-			assert.NotNil(t, engine)
-			assert.NoError(t, err)
-		}
-
-		// Act
-		engines, err := client.Engines(ctx)
-		assert.NoError(t, err)
-
-		engineNames := []string{}
-		for _, engine := range engines {
-			engineNames = append(engineNames, engine.Name())
-		}
-
-		assert.ElementsMatch(t, names, engineNames)
-
-		for _, engine := range engines {
-			err := engine.Remove(ctx)
-			assert.NoError(t, err)
-		}
-	})
-}
-
 func TestClientCreateEngine(t *testing.T) {
+	t.Parallel()
+
 	f := newTestFixture(t)
 	ctx := f.ctx
 	client := f.client
@@ -88,7 +21,13 @@ func TestClientCreateEngine(t *testing.T) {
 		engine, err := client.CreateEngine(ctx, name)
 		assert.NoError(t, err)
 
+		// Assert
 		assert.Equal(t, engine.Name(), name)
+
+		// Check that doc exists in es engines index
+		doc, err := f.es.Get(enginesIndexName, name).Do(ctx)
+		assert.NoError(t, err)
+		assert.True(t, doc.Found)
 
 		engines = append(engines, name)
 	})
@@ -105,6 +44,120 @@ func TestClientCreateEngine(t *testing.T) {
 		assert.EqualError(t, err, "[ALREADY_EXISTS] engine 'test-client-create-engine-exists' already exists")
 
 		engines = append(engines, name)
+	})
+
+	t.Cleanup(func() {
+		for _, name := range engines {
+			f.cleanEngine(t, name)
+		}
+	})
+}
+
+func TestClientGetEngine(t *testing.T) {
+	t.Parallel()
+
+	f := newTestFixture(t)
+	ctx := f.ctx
+	client := f.client
+
+	engines := []string{}
+
+	t.Run("should return an engine", func(t *testing.T) {
+		// Prepare
+		name := "test-client-get-engine"
+		_, err := client.CreateEngine(ctx, name)
+		assert.NoError(t, err)
+
+		// Act
+		engine, err := client.Engine(ctx, name)
+		assert.NoError(t, err)
+		assert.Equal(t, name, engine.Name())
+
+		engines = append(engines, name)
+	})
+
+	t.Run("should return not found error", func(t *testing.T) {
+		// Act
+		engine, err := client.Engine(ctx, "test-client-get-engine-not-found")
+		assert.Nil(t, engine)
+		assert.EqualError(t, err, "[NOT_FOUND] engine 'test-client-get-engine-not-found' does not exist")
+	})
+
+	t.Cleanup(func() {
+		for _, name := range engines {
+			f.cleanEngine(t, name)
+		}
+	})
+}
+
+func TestClientEngineExists(t *testing.T) {
+	t.Parallel()
+
+	f := newTestFixture(t)
+	ctx := f.ctx
+	client := f.client
+
+	engines := []string{}
+
+	t.Run("should return true", func(t *testing.T) {
+		// Prepare
+		name := "test-client-engine-exists"
+		_, err := client.CreateEngine(ctx, name)
+		assert.NoError(t, err)
+
+		// Act
+		exists, err := client.EngineExists(ctx, name)
+		assert.NoError(t, err)
+		assert.True(t, exists)
+
+		engines = append(engines, name)
+	})
+
+	t.Run("should return false", func(t *testing.T) {
+		// Act
+		exists, err := client.EngineExists(ctx, "test-client-engine-exists-not-found")
+		assert.NoError(t, err)
+		assert.False(t, exists)
+	})
+
+	t.Cleanup(func() {
+		for _, name := range engines {
+			f.cleanEngine(t, name)
+		}
+	})
+}
+
+func TestClientEngines(t *testing.T) {
+	t.Parallel()
+
+	f := newTestFixture(t)
+	ctx := f.ctx
+	client := f.client
+
+	engines := []string{}
+
+	t.Run("should return all engines", func(t *testing.T) {
+		// Prepare
+		names := []string{
+			"test-client-engines-1",
+			"test-client-engines-2",
+			"test-client-engines-3",
+		}
+		for _, name := range names {
+			engine, err := client.CreateEngine(ctx, name)
+			assert.NotNil(t, engine)
+			assert.NoError(t, err)
+		}
+
+		// Act
+		enginInfos, err := client.Engines(ctx)
+		assert.NoError(t, err)
+
+		for _, name := range names {
+			assert.Contains(t, enginInfos, EngineInfo{Name: name})
+		}
+
+		engines = append(engines, names...)
 	})
 
 	t.Cleanup(func() {

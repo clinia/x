@@ -23,7 +23,7 @@ type ClientEngines interface {
 	EngineExists(ctx context.Context, name string) (bool, error)
 
 	// Engines returns a list of all engines found by the client.
-	Engines(ctx context.Context) ([]Engine, error)
+	Engines(ctx context.Context) ([]EngineInfo, error)
 
 	// CreateEngine creates a new engine with given name and opens a connection to it.
 	// If the a database with given name already exists, a DuplicateError is returned.
