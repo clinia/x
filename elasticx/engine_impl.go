@@ -3,19 +3,19 @@ package elasticx
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"regexp"
 	"strings"
 
-	"github.com/clinia/x/stringsx"
+	"github.com/clinia/x/errorx"
+	"github.com/clinia/x/pointerx"
 	"github.com/elastic/go-elasticsearch/v8"
-	"github.com/elastic/go-elasticsearch/v8/esapi"
+	"github.com/elastic/go-elasticsearch/v8/typedapi/core/bulk"
+	"github.com/elastic/go-elasticsearch/v8/typedapi/core/msearch"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/core/search"
+	"github.com/elastic/go-elasticsearch/v8/typedapi/indices/create"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types"
 )
-
-const pathSeparator = "~"
 
 var isValidEngineName = regexp.MustCompile("^[a-zA-Z0-9_-]*$").MatchString
 
@@ -45,19 +45,6 @@ func newEngine(name string, es *elasticsearch.TypedClient) (Engine, error) {
 	}, nil
 }
 
-func join(elem ...string) string {
-	return strings.Join(elem, pathSeparator)
-}
-
-func split(name string) []string {
-	return strings.Split(name, pathSeparator)
-}
-
-func (e *engine) relPath() string {
-	escapedName := pathEscape(e.name)
-	return join(".clinia-engine", escapedName)
-}
-
 // Name returns the of the engine.
 func (e *engine) Name() string {
 	return e.name
@@ -65,29 +52,14 @@ func (e *engine) Name() string {
 
 // Info fetches the information about the engine.
 func (e *engine) Info(ctx context.Context) (*EngineInfo, error) {
-	res, err := e.es.Search().
-		Index(enginesIndexName).
-		Request(&search.Request{
-			Query: &types.Query{
-				Term: map[string]types.TermQuery{
-					"name": {
-						Value: e.name,
-					},
-				},
-			},
-		}).
-		Do(ctx)
+	res, err := e.es.Get(enginesIndexName, e.name).Do(ctx)
 
 	if err != nil {
 		return nil, err
 	}
 
-	if res.Hits.Total.Value != 1 {
-		return nil, errors.New("engine not found")
-	}
-
 	var engineInfo EngineInfo
-	if err := json.Unmarshal(res.Hits.Hits[0].Source_, &engineInfo); err != nil {
+	if err := json.Unmarshal(res.Source_, &engineInfo); err != nil {
 		return nil, err
 	}
 
@@ -95,161 +67,207 @@ func (e *engine) Info(ctx context.Context) (*EngineInfo, error) {
 }
 
 // Remove removes the entire engine.
-// If the engine does not exists, a NotFoundError us returned
+// If the engine does not exists, a NotFoundError is returned
 func (e *engine) Remove(ctx context.Context) error {
 	// Fetch all clinia engine indices
-	catIndicesResponse, err := esapi.CatIndicesRequest{
-		Index:  []string{e.relPath() + "*"},
-		Format: "json",
-	}.Do(ctx, e.es)
-
+	indexName := NewIndexName(enginesIndexName, pathEscape(e.name), "*").String()
+	indices, err := e.es.Cat.Indices().Index(indexName).Do(ctx)
 	if err != nil {
-		return err
-	}
-
-	defer catIndicesResponse.Body.Close()
-
-	if catIndicesResponse.IsError() {
-		return withElasticError(catIndicesResponse)
-	}
-
-	var catIndices []CatIndex
-	if err := json.NewDecoder(catIndicesResponse.Body).Decode(&catIndices); err != nil {
 		return err
 	}
 
 	// Delete all engine indices
-	indexNames := []string{}
-	for _, catIndex := range catIndices {
-		indexNames = append(indexNames, catIndex.Index)
-	}
-
-	if len(indexNames) > 0 {
-		indicesDeleteResponse, err := esapi.IndicesDeleteRequest{
-			Index: indexNames,
-		}.Do(ctx, e.es)
-
-		if err != nil {
-			return err
-		}
-
-		defer indicesDeleteResponse.Body.Close()
-
-		if indicesDeleteResponse.IsError() {
-			return withElasticError(indicesDeleteResponse)
-		}
+	for _, catIndex := range indices {
+		e.es.Indices.Delete(*catIndex.Index).Do(ctx)
 	}
 
 	// Remove engine info from server
-	deleteQuery := fmt.Sprintf(`{
-		"query": {
-			"term": {
-				"name": %q 
-			}
-		}
-	}`, e.name)
-	wait := true
-	refresh := true
-	dbqr, err := esapi.DeleteByQueryRequest{
-		Index:             []string{enginesIndexName},
-		Body:              strings.NewReader(deleteQuery),
-		WaitForCompletion: &wait,
-		Refresh:           &refresh,
-	}.Do(ctx, e.es)
-
+	res, err := e.es.DeleteByQuery(enginesIndexName).
+		Query(&types.Query{
+			Term: map[string]types.TermQuery{
+				"name": {
+					Value: e.name,
+				},
+			},
+		}).
+		Do(ctx)
 	if err != nil {
 		return err
 	}
 
-	defer dbqr.Body.Close()
-
-	if dbqr.IsError() {
-		return withElasticError(dbqr)
-	}
-
-	var deleteByQueryResponse DeleteByQueryResponse
-	if err := json.NewDecoder(dbqr.Body).Decode(&deleteByQueryResponse); err != nil {
-		return err
-	}
-
-	if deleteByQueryResponse.Deleted != 1 {
-		return errors.New("failed to delete the engine info inside the server")
+	if res.Deleted != nil && *res.Deleted != 1 {
+		return errorx.InternalErrorf("failed to delete the engine info with name '%s' inside the server", e.name)
 	}
 
 	return nil
 }
 
-func (e *engine) Query(ctx context.Context, query string, indices ...string) (*SearchResponse, error) {
+func (e *engine) Query(ctx context.Context, request *search.Request, indices ...string) (*search.Response, error) {
 	indexPaths := []string{}
-	for _, i := range indices {
-		indexPaths = append(indexPaths, join(e.relPath(), i))
+	for _, name := range indices {
+		indexPaths = append(indexPaths, NewIndexName(enginesIndexName, pathEscape(e.name), pathEscape(name)).String())
 	}
 
-	res, err := esapi.SearchRequest{
-		Index: indexPaths,
-		Body:  strings.NewReader(query),
-	}.Do(ctx, e.es)
-
-	if err != nil {
-		return nil, err
-	}
-
-	defer res.Body.Close()
-
-	if res.IsError() {
-		return nil, withElasticError(res)
-	}
-
-	var searchResponse SearchResponse
-	if err := json.NewDecoder(res.Body).Decode(&searchResponse); err != nil {
-		return nil, err
-	}
-
-	return &searchResponse, nil
+	return e.es.Search().
+		Index(strings.Join(indexPaths, ",")).
+		Request(request).
+		Do(ctx)
 }
 
-func (e *engine) Queries(ctx context.Context, queries ...MultiQuery) (map[string]SearchResponse, error) {
-
-	requests := []string{}
-
+func (e *engine) Queries(ctx context.Context, queries ...MultiQuery) (*msearch.Response, error) {
+	items := []types.MsearchRequestItem{}
 	for _, query := range queries {
 		// Append header
-		requests = append(requests, stringsx.SingleLine(fmt.Sprintf(`{
-			"index":%q
-		}`, join(e.relPath(), strings.Join(query.Index, ",")))))
+		items = append(items, types.MultisearchHeader{
+			Index: []string{NewIndexName(enginesIndexName, pathEscape(e.name), pathEscape(query.IndexName)).String()},
+		})
 
 		// Append body
-		requests = append(requests, stringsx.SingleLine(query.Query))
+		items = append(items, query.Request)
 	}
 
-	body := strings.Join(requests, "\n") + "\n"
-	res, err := esapi.MsearchRequest{
-		Body: strings.NewReader(body),
-	}.Do(ctx, e.es)
-
+	res, err := e.es.Msearch().Request(items).Do(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	if res.IsError() {
-		return nil, withElasticError(res)
+	return res, nil
+}
+
+func (e *engine) Bulk(ctx context.Context, actions []BulkOperation) (*bulk.Response, error) {
+	request := []interface{}{}
+	for _, action := range actions {
+		indexName := NewIndexName(enginesIndexName, pathEscape(e.name), pathEscape(action.IndexName)).String()
+		op := types.OperationContainer{}
+
+		switch action.Action {
+		case BulkActionCreate:
+			op.Create = &types.CreateOperation{
+				Index_: pointerx.Ptr(indexName),
+			}
+			request = append(request, op)
+			request = append(request, action.Doc)
+		case BulkActionIndex:
+			op.Index = &types.IndexOperation{
+				Index_: pointerx.Ptr(indexName),
+				Id_:    pointerx.Ptr(action.DocumentID),
+			}
+			request = append(request, op)
+			request = append(request, action.Doc)
+		case BulkActionUpdate:
+			op.Update = &types.UpdateOperation{
+				Index_: pointerx.Ptr(indexName),
+				Id_:    pointerx.Ptr(action.DocumentID),
+			}
+			request = append(request, op)
+			request = append(request, action.Doc)
+		case BulkActionDelete:
+			op.Delete = &types.DeleteOperation{
+				Index_: pointerx.Ptr(indexName),
+				Id_:    pointerx.Ptr(action.DocumentID),
+			}
+			request = append(request, op)
+
+		default:
+			return nil, errorx.FailedPreconditionErrorf("unknown bulk action '%s'", action.Action)
+		}
+
 	}
 
-	type mSearchResponse struct {
-		Responses []SearchResponse `json:"responses"`
-	}
-
-	var mresponse mSearchResponse
-	if err := json.NewDecoder(res.Body).Decode(&mresponse); err != nil {
+	res, err := e.es.Bulk().Request(request).Do(ctx)
+	if err != nil {
 		return nil, err
 	}
 
-	results := map[string]SearchResponse{}
-
-	for i := 0; i < len(mresponse.Responses); i++ {
-		query := queries[i]
-		results[query.Name] = mresponse.Responses[i]
+	for _, item := range res.Items {
+		for _, op := range item {
+			op.Index_ = IndexName(op.Index_).Name()
+		}
 	}
 
-	return results, nil
+	return res, nil
+}
+
+// Index opens a connection to an exisiting index within the engine.
+// If no index with given name exists, a NotFoundError is returned.
+func (e *engine) Index(ctx context.Context, name string) (Index, error) {
+	indexName := NewIndexName(enginesIndexName, pathEscape(e.name), pathEscape(name))
+
+	// Check if index exists
+	_, err := e.es.Indices.Get(indexName.String()).Do(ctx)
+	if err != nil {
+		if isElasticNotFoundError(err) {
+			return nil, errorx.NotFoundErrorf("index with name '%s' does not exist", name)
+		}
+		return nil, err
+	}
+
+	index, err := newIndex(name, e)
+	if err != nil {
+		return nil, err
+	}
+
+	return index, nil
+}
+
+// IndexExists returns true if an index with given name exists within the engine.
+func (e *engine) IndexExists(ctx context.Context, name string) (bool, error) {
+	indexName := NewIndexName(enginesIndexName, pathEscape(e.name), pathEscape(name))
+	return e.es.Indices.Exists(indexName.String()).Do(ctx)
+}
+
+// Indexes returns a list of all indexes in the engine.
+func (e *engine) Indexes(ctx context.Context) ([]IndexInfo, error) {
+	indexPath := NewIndexName(enginesIndexName, pathEscape(e.name), "*").String()
+	indices, err := e.es.Cat.Indices().Index(indexPath).Do(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	indexes := []IndexInfo{}
+	for _, catIndex := range indices {
+		indexes = append(indexes, IndexInfo{IndexName(*catIndex.Index).Name()})
+	}
+
+	return indexes, nil
+}
+
+// CreateIndex creates a new index,
+// with given name, and opens a connection to it.
+func (e *engine) CreateIndex(ctx context.Context, name string, options *CreateIndexOptions) (Index, error) {
+	index, err := newIndex(name, e)
+	if err != nil {
+		return nil, err
+	}
+
+	request := &create.Request{}
+	if options != nil {
+
+		aliases := map[string]types.Alias{}
+
+		if len(options.Aliases) > 0 {
+			for key, alias := range options.Aliases {
+				aliases[NewIndexName(enginesIndexName, pathEscape(e.name), pathEscape(key)).String()] = alias
+			}
+		}
+
+		request.Aliases = aliases
+		request.Settings = options.Settings
+		request.Mappings = options.Mappings
+	}
+
+	_, err = e.es.Indices.Create(index.indexName().String()).Request(request).Do(ctx)
+	if err != nil {
+		if isElasticAlreadyExistsError(err) {
+			return nil, errorx.AlreadyExistsErrorf("duplicate index with name '%s'", name)
+		}
+		return nil, err
+	}
+
+	return index, nil
+}
+
+func (e *engine) indexName() IndexName {
+	escapedName := pathEscape(e.name)
+	return NewIndexName(enginesIndexName, escapedName)
 }
