@@ -3,6 +3,7 @@ package elasticx
 import (
 	"context"
 
+	"github.com/elastic/go-elasticsearch/v8/typedapi/core/bulk"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/core/msearch"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/core/search"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types"
@@ -28,12 +29,31 @@ type Engine interface {
 
 	// Queries performs a multi search request to Elastic Search
 	Queries(ctx context.Context, queries ...MultiQuery) (*msearch.Response, error)
+
+	// Bulk performs a bulk request to Elastic Search
+	Bulk(ctx context.Context, ops []BulkOperation) (*bulk.Response, error)
 }
 
 type MultiQuery struct {
 	IndexName string
 	Request   types.MultisearchBody
 }
+
+type BulkOperation struct {
+	IndexName  string
+	Action     BulkAction
+	DocumentID string
+	Doc        interface{}
+}
+
+type BulkAction string
+
+const (
+	BulkActionIndex  BulkAction = "index"
+	BulkActionCreate BulkAction = "create"
+	BulkActionUpdate BulkAction = "update"
+	BulkActionDelete BulkAction = "delete"
+)
 
 type EngineInfo struct {
 	// The name of the engine.

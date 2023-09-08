@@ -8,7 +8,9 @@ import (
 	"strings"
 
 	"github.com/clinia/x/errorx"
+	"github.com/clinia/x/pointerx"
 	"github.com/elastic/go-elasticsearch/v8"
+	"github.com/elastic/go-elasticsearch/v8/typedapi/core/bulk"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/core/msearch"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/core/search"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/indices/create"
@@ -127,6 +129,60 @@ func (e *engine) Queries(ctx context.Context, queries ...MultiQuery) (*msearch.R
 	res, err := e.es.Msearch().Request(items).Do(ctx)
 	if err != nil {
 		return nil, err
+	}
+
+	return res, nil
+}
+
+func (e *engine) Bulk(ctx context.Context, actions []BulkOperation) (*bulk.Response, error) {
+	request := []interface{}{}
+	for _, action := range actions {
+		indexName := NewIndexName(enginesIndexName, pathEscape(e.name), pathEscape(action.IndexName)).String()
+		op := types.OperationContainer{}
+
+		switch action.Action {
+		case BulkActionCreate:
+			op.Create = &types.CreateOperation{
+				Index_: pointerx.Ptr(indexName),
+			}
+			request = append(request, op)
+			request = append(request, action.Doc)
+		case BulkActionIndex:
+			op.Index = &types.IndexOperation{
+				Index_: pointerx.Ptr(indexName),
+				Id_:    pointerx.Ptr(action.DocumentID),
+			}
+			request = append(request, op)
+			request = append(request, action.Doc)
+		case BulkActionUpdate:
+			op.Update = &types.UpdateOperation{
+				Index_: pointerx.Ptr(indexName),
+				Id_:    pointerx.Ptr(action.DocumentID),
+			}
+			request = append(request, op)
+			request = append(request, action.Doc)
+		case BulkActionDelete:
+			op.Delete = &types.DeleteOperation{
+				Index_: pointerx.Ptr(indexName),
+				Id_:    pointerx.Ptr(action.DocumentID),
+			}
+			request = append(request, op)
+
+		default:
+			return nil, errorx.FailedPreconditionErrorf("unknown bulk action '%s'", action.Action)
+		}
+
+	}
+
+	res, err := e.es.Bulk().Request(request).Do(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, item := range res.Items {
+		for _, op := range item {
+			op.Index_ = IndexName(op.Index_).Name()
+		}
 	}
 
 	return res, nil

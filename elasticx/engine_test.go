@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/clinia/x/assertx"
+	"github.com/clinia/x/jsonx"
 	"github.com/clinia/x/pointerx"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/core/search"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types"
@@ -331,6 +332,65 @@ func TestEngineQueries(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.Len(t, res.Responses, 2)
+	})
+
+	t.Cleanup(func() {
+		err := engine.Remove(ctx)
+		assert.NoError(t, err)
+	})
+}
+
+func TestEngineBulk(t *testing.T) {
+	f := newTestFixture(t)
+	ctx := f.ctx
+
+	name := "test-engine-bulk"
+	engine, err := f.client.CreateEngine(ctx, name)
+	assert.NoError(t, err)
+
+	t.Run("should be able to execute a bulk", func(t *testing.T) {
+		index, err := engine.CreateIndex(ctx, "index-1", nil)
+		assert.NoError(t, err)
+
+		res, err := engine.Bulk(ctx, []BulkOperation{
+			{
+				IndexName:  index.Info().Name,
+				Action:     BulkActionIndex,
+				DocumentID: "1",
+				Doc: map[string]interface{}{
+					"id":   "1",
+					"name": "test",
+				},
+			},
+			{
+				IndexName:  index.Info().Name,
+				Action:     BulkActionIndex,
+				DocumentID: "2",
+				Doc: map[string]interface{}{
+					"id":   "2",
+					"name": "test",
+				},
+			},
+		})
+
+		assert.NoError(t, err)
+		assert.Equal(t, 2, len(res.Items))
+
+		// Assert the documents exist via es
+		esIndexName := NewIndexName(enginesIndexName, engine.Name(), index.Info().Name).String()
+		doc1, err := f.es.Get(esIndexName, "1").Do(ctx)
+		assert.NoError(t, err)
+		assert.Equal(t, jsonx.RawMessage(`{
+			"id": "1",
+			"name": "test"
+		}`), doc1.Source_)
+
+		doc2, err := f.es.Get(esIndexName, "2").Do(ctx)
+		assert.NoError(t, err)
+		assert.Equal(t, jsonx.RawMessage(`{
+			"id": "2",
+			"name": "test"
+		}`), doc2.Source_)
 	})
 
 	t.Cleanup(func() {
