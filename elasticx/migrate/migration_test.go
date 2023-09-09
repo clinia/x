@@ -6,33 +6,20 @@ import (
 
 	"github.com/clinia/x/assertx"
 	"github.com/clinia/x/elasticx"
-	"github.com/elastic/go-elasticsearch/v8"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestMigration(t *testing.T) {
-	ctx := context.Background()
+	f := newTestFixture(t)
+	ctx := f.ctx
+	client := f.client
 
-	// It takes ELASTICSEARCH_URL from environment variable if it is set.
-	// else it uses default value http://localhost:9200
-	config := elasticsearch.Config{}
-
-	client, err := elasticx.NewClient(config)
-	assert.NoError(t, err)
-
-	esclient, err := elasticsearch.NewTypedClient(config)
-	assert.NoError(t, err)
-
-	// Cleanup/Create engine
-	err = client.Init(ctx)
-	assert.NoError(t, err)
-
-	err = client.Clean(ctx)
-	assert.NoError(t, err)
+	engines := []string{}
 
 	t.Run("should add migrations index if it does not exist", func(t *testing.T) {
 		engine, err := client.CreateEngine(ctx, "test-migrations-a")
 		assert.NoError(t, err)
+		engines = append(engines, engine.Name())
 
 		migrator := NewMigrator(engine, Migration{
 			Version:     uint64(1),
@@ -56,16 +43,22 @@ func TestMigration(t *testing.T) {
 		err = migrator.Up(ctx, AllAvailable)
 		assert.NoError(t, err)
 
-		exists, err := esclient.Indices.Exists("clinia-engines~test-migrations-a~migrations").Do(ctx)
+		exists, err := f.es.Indices.Exists("clinia-engines~test-migrations-a~migrations").Do(ctx)
 		assert.NoError(t, err)
 		assert.True(t, exists)
 
-		res, err := esclient.Get("clinia-engines~test-migrations-a~migrations", "1").Do(ctx)
+		res, err := f.es.Get("clinia-engines~test-migrations-a~migrations", "1").Do(ctx)
 		assert.NoError(t, err)
 		assert.True(t, res.Found)
 		assertx.EqualAsJSONExcept(t, versionRecord{
 			Version:     uint64(1),
 			Description: "Test initial migration",
 		}, res.Source_, []string{"timestamp"})
+	})
+
+	t.Cleanup(func() {
+		for _, engine := range engines {
+			f.cleanEngine(t, engine)
+		}
 	})
 }
