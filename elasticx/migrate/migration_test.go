@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/clinia/x/assertx"
 	"github.com/clinia/x/elasticx"
 	"github.com/elastic/go-elasticsearch/v8"
 	"github.com/stretchr/testify/assert"
@@ -59,8 +60,12 @@ func TestMigration(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, exists)
 
-		esclient.Get("clinia-engines~test-migrations-a~migrations", "1")
+		res, err := esclient.Get("clinia-engines~test-migrations-a~migrations", "1").Do(ctx)
+		assert.NoError(t, err)
+		assert.True(t, res.Found)
+		assertx.EqualAsJSONExcept(t, versionRecord{
+			Version:     uint64(1),
+			Description: "Test initial migration",
+		}, res.Source_, []string{"timestamp"})
 	})
-
-	t.Run("should run migrations for a specific engine only", func(t *testing.T) {})
 }
