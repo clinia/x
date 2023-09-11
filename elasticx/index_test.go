@@ -221,3 +221,56 @@ func TestIndexDeleteDocument(t *testing.T) {
 		assert.NoError(t, err)
 	})
 }
+
+func TestIndexReadDocument(t *testing.T) {
+	t.Parallel()
+
+	f := newTestFixture(t)
+	ctx := f.ctx
+
+	engine, err := f.client.CreateEngine(ctx, "test-index-delete-document")
+	assert.NoError(t, err)
+
+	index, err := engine.CreateIndex(ctx, "index-1", &CreateIndexOptions{
+		Mappings: &types.TypeMapping{
+			Dynamic: &dynamicmapping.Strict,
+			Properties: map[string]types.Property{
+				"foo": types.NewKeywordProperty(),
+			},
+		},
+	})
+	assert.NoError(t, err)
+
+	t.Run("should return not found error when reading a non existing document", func(t *testing.T) {
+		_, err := index.ReadDocument(ctx, "unknown", nil)
+		assert.EqualError(t, err, "[NOT_FOUND] document with key 'unknown' does not exist")
+	})
+
+	t.Run("should read a document", func(t *testing.T) {
+		// Prepare
+		meta, err := index.CreateDocument(ctx, map[string]interface{}{
+			"foo": "bar",
+		})
+		assert.NoError(t, err)
+
+		// Act
+		var document map[string]interface{}
+		meta, err = index.ReadDocument(ctx, meta.ID, &document)
+		assert.NoError(t, err)
+
+		// Assert
+		assertx.Equal(t, &DocumentMeta{
+			ID:      meta.ID,
+			Index:   "index-1",
+			Version: 1,
+		}, meta)
+		assert.Equal(t, map[string]interface{}{
+			"foo": "bar",
+		}, document)
+	})
+
+	t.Cleanup(func() {
+		err := engine.Remove(ctx)
+		assert.NoError(t, err)
+	})
+}

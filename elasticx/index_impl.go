@@ -67,7 +67,14 @@ func (i *index) ReadDocument(ctx context.Context, id string, result interface{})
 	res, err := i.es.Get(i.indexName().String(), id).Do(ctx)
 
 	if err != nil {
+		if isElasticNotFoundError(err) {
+			return nil, errorx.NotFoundErrorf("document with key '%s' does not exist", id)
+		}
 		return nil, err
+	}
+
+	if res.Found == false {
+		return nil, errorx.NotFoundErrorf("document with key '%s' does not exist", id)
 	}
 
 	err = json.Unmarshal(res.Source_, &result)
@@ -77,7 +84,7 @@ func (i *index) ReadDocument(ctx context.Context, id string, result interface{})
 
 	return &DocumentMeta{
 		ID:      res.Id_,
-		Index:   res.Index_,
+		Index:   IndexName(res.Index_).Name(),
 		Version: *res.Version_,
 	}, nil
 }
