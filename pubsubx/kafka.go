@@ -4,15 +4,22 @@ import (
 	"github.com/Shopify/sarama"
 	"github.com/ThreeDotsLabs/watermill-kafka/v2/pkg/kafka"
 	"github.com/clinia/x/logrusx"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/Shopify/sarama/otelsarama"
 )
 
 // TODO: add publisher configs
-func SetupKafkaPublisher(l *logrusx.Logger, c *Config) (Publisher, error) {
+func SetupKafkaPublisher(l *logrusx.Logger, c *Config, opts *pubSubOptions) (Publisher, error) {
+	conf := kafka.PublisherConfig{
+		Brokers:   c.Providers.Kafka.Brokers,
+		Marshaler: kafka.DefaultMarshaler{},
+	}
+	// Setup tracer if provided
+	if opts.tracerProvider != nil {
+		conf.Tracer = NewOTELSaramaTracer(otelsarama.WithTracerProvider(opts.tracerProvider))
+	}
+
 	publisher, err := kafka.NewPublisher(
-		kafka.PublisherConfig{
-			Brokers:   c.Providers.Kafka.Brokers,
-			Marshaler: kafka.DefaultMarshaler{},
-		},
+		conf,
 		NewLogrusLogger(l.Logger),
 	)
 	if err != nil {
@@ -23,7 +30,7 @@ func SetupKafkaPublisher(l *logrusx.Logger, c *Config) (Publisher, error) {
 }
 
 // TODO: add subscriber configs
-func SetupKafkaSubscriber(l *logrusx.Logger, c *Config, group string) (Subscriber, error) {
+func SetupKafkaSubscriber(l *logrusx.Logger, c *Config, opts *pubSubOptions, group string) (Subscriber, error) {
 	saramaSubscriberConfig := kafka.DefaultSaramaSubscriberConfig()
 	saramaSubscriberConfig.Consumer.Offsets.Initial = sarama.OffsetOldest
 
@@ -31,6 +38,10 @@ func SetupKafkaSubscriber(l *logrusx.Logger, c *Config, group string) (Subscribe
 		Brokers:               c.Providers.Kafka.Brokers,
 		Unmarshaler:           kafka.DefaultMarshaler{},
 		OverwriteSaramaConfig: saramaSubscriberConfig,
+	}
+	// Setup tracer if provided
+	if opts.tracerProvider != nil {
+		conf.Tracer = NewOTELSaramaTracer(otelsarama.WithTracerProvider(opts.tracerProvider))
 	}
 
 	if group != "" {

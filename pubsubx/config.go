@@ -4,6 +4,8 @@ import (
 	"bytes"
 	_ "embed"
 	"io"
+
+	"go.opentelemetry.io/otel/trace"
 )
 
 type Config struct {
@@ -20,6 +22,22 @@ type InMemoryConfig struct{}
 
 type KafkaConfig struct {
 	Brokers []string `json:"brokers"`
+}
+
+type pubSubOptions struct {
+	tracerProvider trace.TracerProvider
+}
+type PubSubOption func(*pubSubOptions)
+
+// WithTracerProvider specifies a tracer provider to use for creating a tracer.
+// If none is specified, no tracer is configured
+func WithTracerProvider(provider trace.TracerProvider) PubSubOption {
+	return func(opts *pubSubOptions) {
+		if provider != nil {
+			opts.tracerProvider = provider
+		}
+
+	}
 }
 
 //go:embed config.schema.json
