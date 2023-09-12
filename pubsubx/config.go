@@ -29,6 +29,8 @@ type pubSubOptions struct {
 }
 type PubSubOption func(*pubSubOptions)
 
+// WithTracerProvider specifies a tracer provider to use for creating a tracer.
+// If none is specified, no tracer is configured
 func WithTracerProvider(provider trace.TracerProvider) PubSubOption {
 	return func(opts *pubSubOptions) {
 		if provider != nil {
