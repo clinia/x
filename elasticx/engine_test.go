@@ -1,41 +1,73 @@
 package elasticx
 
 import (
-	"context"
 	"testing"
 
+	"github.com/clinia/x/assertx"
+	"github.com/clinia/x/jsonx"
+	"github.com/clinia/x/pointerx"
+	"github.com/elastic/go-elasticsearch/v8/typedapi/core/search"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/dynamicmapping"
+	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/refresh"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestEngine(t *testing.T) {
-	client, _ := createClient(t)
+func TestEngineRemove(t *testing.T) {
+	t.Parallel()
 
-	ctx := context.Background()
-
-	err := client.Init(ctx)
-	assert.NoError(t, err)
+	f := newTestFixture(t)
+	ctx := f.ctx
 
 	t.Run("should remove an engine", func(t *testing.T) {
-		ctx := context.Background()
-
-		name := "test-create-engine"
-		engine, err := client.CreateEngine(ctx, name, nil)
+		name := "test-engine-remove"
+		engine, err := f.client.CreateEngine(ctx, name)
 		assert.NoError(t, err)
 
 		assert.Equal(t, engine.Name(), name)
 
+		indexNames := []string{"index-1", "index-2"}
+		for _, index := range indexNames {
+			_, err := engine.CreateIndex(ctx, index, nil)
+			assert.NoError(t, err)
+		}
+
+		// Assert the indexes exist via es
+		for _, index := range indexNames {
+			exists, err := f.es.Indices.Exists(NewIndexName(enginesIndexName, name, index).String()).Do(ctx)
+			assert.NoError(t, err)
+			assert.True(t, exists)
+		}
+
+		// Remove the engine
 		err = engine.Remove(ctx)
 		assert.NoError(t, err)
-	})
 
-	name := "engine-indexes"
-	engine, err := client.CreateEngine(ctx, name, nil)
-	assert.NoError(t, err)
+		// Assert the indexes do not exist via es
+		for _, index := range indexNames {
+			exists, err := f.es.Indices.Exists(NewIndexName(enginesIndexName, name, index).String()).Do(ctx)
+			assert.NoError(t, err)
+			assert.False(t, exists)
+		}
+
+		// Assert the engine does not exist via es
+		res, err := f.es.Get(enginesIndexName, name).Do(ctx)
+		assert.NoError(t, err)
+		assert.False(t, res.Found)
+	})
+}
+
+func TestEngineCreateIndex(t *testing.T) {
+	t.Parallel()
+
+	f := newTestFixture(t)
+	ctx := f.ctx
+
+	engine := f.setupEngine(t, "test-engine-create-index")
 
 	t.Run("should create an index", func(t *testing.T) {
-		name := "test-create-index"
+		name := "index-1"
 		index, err := engine.CreateIndex(ctx, name, &CreateIndexOptions{
 			Aliases: map[string]types.Alias{
 				"test": {},
@@ -48,6 +80,7 @@ func TestEngine(t *testing.T) {
 				Analysis: &types.IndexSettingsAnalysis{
 					Analyzer: map[string]types.Analyzer{
 						"my_custom_analyzer": types.CustomAnalyzer{
+							Type:       "custom",
 							Tokenizer:  "standard",
 							CharFilter: []string{"html_strip"},
 							Filter:     []string{"lowercase", "asciifolding"},
@@ -62,110 +95,306 @@ func TestEngine(t *testing.T) {
 				},
 			},
 		})
-		assert.NoError(t, err)
-		assert.Equal(t, index.Name(), name)
 
-		err = index.Remove(ctx)
 		assert.NoError(t, err)
+		assert.Equal(t, index.Info().Name, name)
+
+		// Assert the index exists via es
+		esIndexName := NewIndexName(enginesIndexName, engine.Name(), name).String()
+		esIndices, err := f.es.Indices.Get(esIndexName).Do(ctx)
+		assert.NoError(t, err)
+		assert.Len(t, esIndices, 1)
+
+		esindex := esIndices[esIndexName]
+
+		assertx.Equal(t, types.IndexState{
+			Aliases: map[string]types.Alias{
+				NewIndexName(enginesIndexName, engine.Name(), "test").String(): {},
+			},
+			Settings: &types.IndexSettings{
+				Index: &types.IndexSettings{
+					NumberOfShards:   "1",
+					NumberOfReplicas: "2",
+					Analysis: &types.IndexSettingsAnalysis{
+						Analyzer: map[string]types.Analyzer{
+							"my_custom_analyzer": &types.CustomAnalyzer{
+								Type:       "custom",
+								Tokenizer:  "standard",
+								CharFilter: []string{"html_strip"},
+								Filter:     []string{"lowercase", "asciifolding"},
+							},
+						},
+					},
+				},
+			},
+			Mappings: &types.TypeMapping{
+				Dynamic: &dynamicmapping.Strict,
+				Properties: map[string]types.Property{
+					"id": &types.KeywordProperty{
+						Type:       "keyword",
+						Fields:     map[string]types.Property{},
+						Meta:       map[string]string{},
+						Properties: map[string]types.Property{},
+					},
+				},
+			},
+		}, esindex,
+			cmpopts.IgnoreFields(types.IndexSettings{}, "CreationDate", "ProvidedName", "Routing", "Uuid", "Version"),
+		)
 	})
 
-	t.Run("should return an index", func(t *testing.T) {
-		name := "test-get-index"
-		i, err := engine.CreateIndex(ctx, name, nil)
-		assert.NoError(t, err)
-		assert.NotNil(t, i)
-
-		index, err := engine.Index(ctx, name)
+	t.Run("should return already exists error", func(t *testing.T) {
+		name := "index-2"
+		_, err := engine.CreateIndex(ctx, name, nil)
 		assert.NoError(t, err)
 
-		assert.NotEmpty(t, index)
-		assert.Equal(t, index.Name(), name)
-
-		err = index.Remove(ctx)
-		assert.NoError(t, err)
+		_, err = engine.CreateIndex(ctx, name, nil)
+		assert.EqualError(t, err, "[ALREADY_EXISTS] duplicate index with name 'index-2'")
 	})
 
-	t.Run("should return exists", func(t *testing.T) {
-		name := "test-index-exist"
-
-		index, err := engine.CreateIndex(ctx, name, nil)
+	t.Cleanup(func() {
+		err := engine.Remove(ctx)
 		assert.NoError(t, err)
-		assert.Equal(t, index.Name(), name)
+	})
+}
+
+func TestEngineIndexExists(t *testing.T) {
+	t.Parallel()
+
+	f := newTestFixture(t)
+	ctx := f.ctx
+
+	engine := f.setupEngine(t, "test-engine-index-exists")
+
+	t.Run("should return true if index exists", func(t *testing.T) {
+		name := "index-1"
+		_, err := engine.CreateIndex(ctx, name, nil)
+		assert.NoError(t, err)
 
 		exists, err := engine.IndexExists(ctx, name)
 		assert.NoError(t, err)
 		assert.True(t, exists)
+	})
 
-		err = index.Remove(ctx)
+	t.Run("should return false if index does not exists", func(t *testing.T) {
+		exists, err := engine.IndexExists(ctx, "index-2")
+		assert.NoError(t, err)
+		assert.False(t, exists)
+	})
+
+	t.Cleanup(func() {
+		err := engine.Remove(ctx)
 		assert.NoError(t, err)
 	})
+}
+
+func TestEngineGetIndex(t *testing.T) {
+	t.Parallel()
+
+	f := newTestFixture(t)
+	ctx := f.ctx
+
+	engine := f.setupEngine(t, "test-engine-get-index")
+
+	t.Run("should return an index", func(t *testing.T) {
+		name := "index-1"
+		index, err := engine.CreateIndex(ctx, name, nil)
+		assert.NoError(t, err)
+
+		res, err := engine.Index(ctx, name)
+		assert.NoError(t, err)
+		assert.Equal(t, index, res)
+	})
+
+	t.Run("should return not found error", func(t *testing.T) {
+		_, err := engine.Index(ctx, "index-2")
+		assert.EqualError(t, err, "[NOT_FOUND] index with name 'index-2' does not exist")
+	})
+
+	t.Cleanup(func() {
+		err := engine.Remove(ctx)
+		assert.NoError(t, err)
+	})
+}
+
+func TestEngineIndexes(t *testing.T) {
+	t.Parallel()
+
+	f := newTestFixture(t)
+	ctx := f.ctx
+
+	engine := f.setupEngine(t, "test-engine-indexes")
 
 	t.Run("should return all indexes", func(t *testing.T) {
-		// Setup
 		names := []string{
-			"test-indexes-1",
-			"test-indexes-2",
-			"test-indexes-3",
+			"index-1",
+			"index-2",
+			"index-3",
 		}
 		for _, name := range names {
-			index, err := engine.CreateIndex(ctx, name, nil)
-			assert.NotNil(t, index)
+			_, err := engine.CreateIndex(ctx, name, nil)
 			assert.NoError(t, err)
 		}
 
-		// Act
-		indices, err := engine.Indexes(ctx)
+		indexes, err := engine.Indexes(ctx)
 		assert.NoError(t, err)
 
-		indexNames := []string{}
-		for _, index := range indices {
-			indexNames = append(indexNames, index.Name())
-		}
-
-		assert.ElementsMatch(t, indexNames, names)
-
-		for _, index := range indices {
-			err := index.Remove(ctx)
-			assert.NoError(t, err)
-		}
+		assert.ElementsMatch(t, []IndexInfo{
+			{Name: "index-1"},
+			{Name: "index-2"},
+			{Name: "index-3"},
+		}, indexes)
 	})
 
-	t.Run("should be able to execute queries", func(t *testing.T) {
-		ctx := context.Background()
+	t.Cleanup(func() {
+		err := engine.Remove(ctx)
+		assert.NoError(t, err)
+	})
+}
 
-		name := "test-engine-queries"
-		engine, err := client.CreateEngine(ctx, name, nil)
+func TestEngineQuery(t *testing.T) {
+	f := newTestFixture(t)
+	ctx := f.ctx
+
+	name := "test-engine-query"
+	engine, err := f.client.CreateEngine(ctx, name)
+	assert.NoError(t, err)
+
+	t.Run("should be able to execute a query", func(t *testing.T) {
+		index, err := engine.CreateIndex(ctx, "index-1", nil)
 		assert.NoError(t, err)
 
+		_, err = f.es.Index(NewIndexName(enginesIndexName, name, index.Info().Name).String()).
+			Document(map[string]interface{}{
+				"id":   "1",
+				"name": "test",
+			}).
+			Refresh(refresh.Waitfor).
+			Do(ctx)
+		assert.NoError(t, err)
+
+		res, err := engine.Query(ctx, &search.Request{
+			Query: &types.Query{
+				MatchAll: &types.MatchAllQuery{},
+			},
+		}, index.Info().Name)
+
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(res.Hits.Hits))
+	})
+
+	t.Cleanup(func() {
+		err := engine.Remove(ctx)
+		assert.NoError(t, err)
+	})
+}
+
+func TestEngineQueries(t *testing.T) {
+	f := newTestFixture(t)
+	ctx := f.ctx
+
+	name := "test-engine-queries"
+	engine, err := f.client.CreateEngine(ctx, name)
+	assert.NoError(t, err)
+
+	t.Run("should be able to execute queries", func(t *testing.T) {
 		index, err := engine.CreateIndex(ctx, "index-1", nil)
+		assert.NoError(t, err)
+
+		_, err = f.es.Index(NewIndexName(enginesIndexName, name, index.Info().Name).String()).
+			Document(map[string]interface{}{
+				"id":   "1",
+				"name": "test",
+			}).
+			Refresh(refresh.Waitfor).
+			Do(ctx)
 		assert.NoError(t, err)
 
 		res, err := engine.Queries(ctx, []MultiQuery{
 			{
-				Index: []string{index.Name()},
-				Name:  "query-1",
-				Query: `{
-					"query": {
-						"match_all": {}
-					}
-				}`,
+				IndexName: index.Info().Name,
+				Request: types.MultisearchBody{
+					Query: &types.Query{
+						MatchAll: &types.MatchAllQuery{},
+					},
+				},
 			},
 			{
-				Index: []string{index.Name()},
-				Name:  "query-2",
-				Query: `{
-					"query": {
-						"match_all": {}
+				IndexName: index.Info().Name,
+				Request: types.MultisearchBody{
+					Query: &types.Query{
+						MatchAll: &types.MatchAllQuery{},
 					},
-					"from": 0
-				}`,
+					From: pointerx.Ptr(0),
+				},
 			},
 		}...)
 
 		assert.NoError(t, err)
-		assert.Len(t, res, 2)
+		assert.Len(t, res.Responses, 2)
+	})
 
-		err = engine.Remove(ctx)
+	t.Cleanup(func() {
+		err := engine.Remove(ctx)
+		assert.NoError(t, err)
+	})
+}
+
+func TestEngineBulk(t *testing.T) {
+	f := newTestFixture(t)
+	ctx := f.ctx
+
+	name := "test-engine-bulk"
+	engine, err := f.client.CreateEngine(ctx, name)
+	assert.NoError(t, err)
+
+	t.Run("should be able to execute a bulk", func(t *testing.T) {
+		index, err := engine.CreateIndex(ctx, "index-1", nil)
+		assert.NoError(t, err)
+
+		res, err := engine.Bulk(ctx, []BulkOperation{
+			{
+				IndexName:  index.Info().Name,
+				Action:     BulkActionIndex,
+				DocumentID: "1",
+				Doc: map[string]interface{}{
+					"id":   "1",
+					"name": "test",
+				},
+			},
+			{
+				IndexName:  index.Info().Name,
+				Action:     BulkActionIndex,
+				DocumentID: "2",
+				Doc: map[string]interface{}{
+					"id":   "2",
+					"name": "test",
+				},
+			},
+		})
+
+		assert.NoError(t, err)
+		assert.Equal(t, 2, len(res.Items))
+
+		// Assert the documents exist via es
+		esIndexName := NewIndexName(enginesIndexName, engine.Name(), index.Info().Name).String()
+		doc1, err := f.es.Get(esIndexName, "1").Do(ctx)
+		assert.NoError(t, err)
+		assert.Equal(t, jsonx.RawMessage(`{
+			"id": "1",
+			"name": "test"
+		}`), doc1.Source_)
+
+		doc2, err := f.es.Get(esIndexName, "2").Do(ctx)
+		assert.NoError(t, err)
+		assert.Equal(t, jsonx.RawMessage(`{
+			"id": "2",
+			"name": "test"
+		}`), doc2.Source_)
+	})
+
+	t.Cleanup(func() {
+		err := engine.Remove(ctx)
 		assert.NoError(t, err)
 	})
 }
