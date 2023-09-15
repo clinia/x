@@ -15,7 +15,7 @@ func SetupKafkaPublisher(l *logrusx.Logger, c *Config, opts *pubSubOptions) (Pub
 	}
 	// Setup tracer if provided
 	if opts.tracerProvider != nil {
-		conf.Tracer = NewOTELSaramaTracer(otelsarama.WithTracerProvider(opts.tracerProvider))
+		conf.Tracer = NewOTELSaramaTracer(otelsarama.WithTracerProvider(opts.tracerProvider), otelsarama.WithPropagators(opts.propagator))
 	}
 
 	publisher, err := kafka.NewPublisher(
@@ -38,10 +38,11 @@ func SetupKafkaSubscriber(l *logrusx.Logger, c *Config, opts *pubSubOptions, gro
 		Brokers:               c.Providers.Kafka.Brokers,
 		Unmarshaler:           kafka.DefaultMarshaler{},
 		OverwriteSaramaConfig: saramaSubscriberConfig,
+		Tracer:                NewOTELSaramaTracer(otelsarama.WithTracerProvider(opts.tracerProvider)),
 	}
 	// Setup tracer if provided
 	if opts.tracerProvider != nil {
-		conf.Tracer = NewOTELSaramaTracer(otelsarama.WithTracerProvider(opts.tracerProvider))
+		conf.Tracer = NewOTELSaramaTracer(otelsarama.WithTracerProvider(opts.tracerProvider), otelsarama.WithPropagators(opts.propagator))
 	}
 
 	if group != "" {

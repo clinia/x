@@ -9,7 +9,6 @@ import (
 	"go.opentelemetry.io/contrib/propagators/b3"
 	jaegerPropagator "go.opentelemetry.io/contrib/propagators/jaeger"
 	"go.opentelemetry.io/contrib/samplers/jaegerremote"
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/jaeger"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
@@ -21,10 +20,10 @@ import (
 // Optionally, Config.Providers.Jaeger.LocalAgentAddress can be set.
 // NOTE: If Config.Providers.Jaeger.Sampling.ServerURL is not specfied,
 // AlwaysSample is used.
-func SetupJaeger(t *Tracer, tracerName string, c *Config) (trace.Tracer, error) {
+func SetupJaegerTracer(tracerName string, c *Config) (trace.Tracer, propagation.TextMapPropagator, error) {
 	host, port, err := net.SplitHostPort(c.Providers.Jaeger.LocalAgentAddress)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	exp, err := jaeger.New(
@@ -33,7 +32,7 @@ func SetupJaeger(t *Tracer, tracerName string, c *Config) (trace.Tracer, error) 
 		),
 	)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	tpOpts := []sdktrace.TracerProviderOption{
@@ -57,7 +56,6 @@ func SetupJaeger(t *Tracer, tracerName string, c *Config) (trace.Tracer, error) 
 		tpOpts = append(tpOpts, sdktrace.WithSampler(sdktrace.AlwaysSample()))
 	}
 	tp := sdktrace.NewTracerProvider(tpOpts...)
-	otel.SetTracerProvider(tp)
 
 	// At the moment, software across our cloud stack only support Zipkin (B3)
 	// and Jaeger propagation formats. Proposals for standardized formats for
@@ -70,6 +68,5 @@ func SetupJaeger(t *Tracer, tracerName string, c *Config) (trace.Tracer, error) 
 		jaegerPropagator.Jaeger{},
 		b3.New(b3.WithInjectEncoding(b3.B3MultipleHeader|b3.B3SingleHeader)),
 	)
-	otel.SetTextMapPropagator(prop)
-	return tp.Tracer(tracerName), nil
+	return tp.Tracer(tracerName), prop, nil
 }
