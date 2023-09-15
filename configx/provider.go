@@ -457,12 +457,12 @@ func (p *Provider) CORS(prefix string, defaults cors.Options) (cors.Options, boo
 	}, p.Bool(prefix + "cors.enabled")
 }
 
-func (p *Provider) TracingConfig(serviceName string, attrs ...attribute.KeyValue) *otelx.TracerConfig {
+func (p *Provider) TracerConfig(serviceName string, attrs ...attribute.KeyValue) *otelx.TracerConfig {
 	return &otelx.TracerConfig{
 		ResourceAttributes: attrs,
-		ServiceName:        p.StringF("tracing.service_name", serviceName),
-		Name:               p.String("tracing.name"),
-		Provider:           p.String("tracing.provider"),
+		ServiceName:        p.StringF("tracer.service_name", serviceName),
+		Name:               p.String("tracer.name"),
+		Provider:           p.String("tracer.provider"),
 		Providers: otelx.TracerProvidersConfig{
 			Jaeger: otelx.JaegerConfig{
 				LocalAgentAddress: p.String("tracer.providers.jaeger.local_agent_address"),
