@@ -4,9 +4,6 @@
 package otelx
 
 import (
-	"go.opentelemetry.io/otel/propagation"
-	"go.opentelemetry.io/otel/trace"
-
 	"github.com/clinia/x/logrusx"
 )
 
@@ -20,28 +17,41 @@ type OtelOptions struct {
 	// MeterConfig  *MeterConfig
 }
 
-// Creates a new tracer. If name is empty, a default tracer name is used
-// instead. See: https://godocs.io/go.opentelemetry.io/otel/sdk/trace#TracerProvider.Tracer
-func New(l *logrusx.Logger, opts OtelOptions) (*Otel, error) {
-	t := &Tracer{}
-	if opts.TracerConfig != nil {
-		if err := t.setup(l, opts.TracerConfig); err != nil {
-			return nil, err
-		}
-	} else {
-		t.tracer = trace.NewNoopTracerProvider().Tracer("NoopTracer")
-		t.propagator = propagation.NewCompositeTextMapPropagator()
+type OtelOption func(*OtelOptions)
+
+// Creates opentelemetry tools (meter and tracer). Leaving
+func New(l *logrusx.Logger, opts ...OtelOption) (*Otel, error) {
+	otelOpts := &OtelOptions{}
+	for _, opt := range opts {
+		opt(otelOpts)
 	}
 
 	o := &Otel{
-		t: t,
+		t: &Tracer{},
 	}
+	if otelOpts.TracerConfig != nil {
+		if err := o.t.setup(l, otelOpts.TracerConfig); err != nil {
+			return nil, err
+		}
+	} else {
+		l.Infof("Tracing config is missing! - skipping tracing setup")
+		o.t = NewNoopTracer()
+	}
+
 	return o, nil
+}
+
+func WithTracer(config *TracerConfig) OtelOption {
+	return func(opts *OtelOptions) {
+		if config != nil {
+			opts.TracerConfig = config
+		}
+	}
 }
 
 // Creates a new no-op tracer and meter.
 func NewNoop() *Otel {
-	t := &Tracer{tracer: trace.NewNoopTracerProvider().Tracer("NoopTracer")}
+	t := NewNoopTracer()
 
 	// mp := sdk.NewMeterProvider()
 	// m := &Meter{meter: mp.Meter("")}
@@ -50,4 +60,9 @@ func NewNoop() *Otel {
 		t: t,
 		// Metric: m,
 	}
+}
+
+// Tracer returns the underlying OpenTelemetry tracer.
+func (o *Otel) Tracer() *Tracer {
+	return o.t
 }

@@ -461,25 +461,25 @@ func (p *Provider) TracingConfig(serviceName string, attrs ...attribute.KeyValue
 	return &otelx.TracerConfig{
 		ResourceAttributes: attrs,
 		ServiceName:        p.StringF("tracing.service_name", serviceName),
-		TracerName:         p.String("tracing.tracer_name"),
+		Name:               p.String("tracing.name"),
 		Provider:           p.String("tracing.provider"),
 		Providers: otelx.TracerProvidersConfig{
 			Jaeger: otelx.JaegerConfig{
-				LocalAgentAddress: p.String("tracing.providers.jaeger.local_agent_address"),
+				LocalAgentAddress: p.String("tracer.providers.jaeger.local_agent_address"),
 				Sampling: otelx.JaegerSampling{
-					ServerURL: p.String("tracing.providers.jaeger.sampling.server_url"),
+					ServerURL: p.String("tracer.providers.jaeger.sampling.server_url"),
 				},
 			},
 			OTLP: otelx.OTLPConfig{
-				Protocol:  p.String("tracing.providers.otlp.protocol"),
-				ServerURL: p.String("tracing.providers.otlp.server_url"),
-				Insecure:  p.Bool("tracing.providers.otlp.insecure"),
+				Protocol:  p.String("tracer.providers.otlp.protocol"),
+				ServerURL: p.String("tracer.providers.otlp.server_url"),
+				Insecure:  p.Bool("tracer.providers.otlp.insecure"),
 				Sampling: otelx.OTLPSampling{
-					SamplingRatio: p.Float64("tracing.providers.otlp.sampling.sampling_ratio"),
+					SamplingRatio: p.Float64("tracer.providers.otlp.sampling.sampling_ratio"),
 				},
 			},
 			Stdout: otelx.StdoutConfig{
-				Pretty: p.Bool("tracing.providers.stdout.pretty"),
+				Pretty: p.Bool("tracer.providers.stdout.pretty"),
 			},
 		},
 	}

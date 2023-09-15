@@ -32,7 +32,7 @@ func TestConfigSchema(t *testing.T) {
 
 		conf := TracerConfig{
 			ServiceName: "Clinia X",
-			TracerName:  "X",
+			Name:        "X",
 			Provider:    "otel",
 			Providers: TracerProvidersConfig{
 				OTLP: OTLPConfig{

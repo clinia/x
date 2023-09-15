@@ -44,7 +44,7 @@ type TracerProvidersConfig struct {
 
 type TracerConfig struct {
 	ServiceName        string                `json:"service_name"`
-	TracerName         string                `json:"tracer_name"`
+	Name               string                `json:"name"`
 	Provider           string                `json:"provider"`
 	Providers          TracerProvidersConfig `json:"tracer_providers"`
 	ResourceAttributes []attribute.KeyValue  `json:"resource_attributes"`
