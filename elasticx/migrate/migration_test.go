@@ -63,7 +63,7 @@ func TestMigration(t *testing.T) {
 
 		verInfo, err := migrator.Version(ctx)
 		assert.NoError(t, err)
-		assert.Equal(t, versionRecord{
+		assert.Equal(t, migrationVersionInfo{
 			Version:     uint64(1),
 			Description: "Test initial migration",
 		}, verInfo)
