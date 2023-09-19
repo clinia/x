@@ -162,8 +162,8 @@ func (m *Migrator) Version(ctx context.Context) (uint64, string, error) {
 	return rec.Version, rec.Description, nil
 }
 
-// SetVersion forcibly changes database version to provided.
-func (m *Migrator) SetVersion(ctx context.Context, version uint64, description string) error {
+// setVersion forcibly changes database version to provided.
+func (m *Migrator) setVersion(ctx context.Context, version uint64, description string) error {
 	rec := versionRecord{
 		Version:     version,
 		Package:     m.pkg,
@@ -206,7 +206,7 @@ func (m *Migrator) Up(ctx context.Context, n int) error {
 		if err := migration.Up(ctx, m.db); err != nil {
 			return err
 		}
-		if err := m.SetVersion(ctx, migration.Version, migration.Description); err != nil {
+		if err := m.setVersion(ctx, migration.Version, migration.Description); err != nil {
 			return err
 		}
 	}
@@ -242,7 +242,7 @@ func (m *Migrator) Down(ctx context.Context, n int) error {
 		} else {
 			prevMigration = m.migrations[i-1]
 		}
-		if err := m.SetVersion(ctx, prevMigration.Version, prevMigration.Description); err != nil {
+		if err := m.setVersion(ctx, prevMigration.Version, prevMigration.Description); err != nil {
 			return err
 		}
 	}

@@ -5,9 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/clinia/x/elasticx"
+	"github.com/clinia/x/errorx"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/core/search"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/dynamicmapping"
@@ -15,15 +17,22 @@ import (
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/sortorder"
 )
 
-type indexSpecification struct {
-	Name string `json:"name"`
-}
+type (
+	indexSpecification struct {
+		Name string `json:"name"`
+	}
 
-type versionRecord struct {
-	Version     uint64    `json:"version"`
-	Description string    `json:"description,omitempty"`
-	Timestamp   time.Time `json:"timestamp"`
-}
+	versionRecord struct {
+		Version     uint64    `json:"version"`
+		Description string    `json:"description,omitempty"`
+		Package     string    `json:"package"`
+		Timestamp   time.Time `json:"timestamp"`
+	}
+	migrationVersionInfo struct {
+		Version     uint64 `json:"version"`
+		Description string `json:"description"`
+	}
+)
 
 const defaultMigrationsIndex = "migrations"
 
@@ -37,15 +46,34 @@ const AllAvailable = -1
 // Current database version determined as version in latest added document (biggest "_key") from collection mentioned above.
 type Migrator struct {
 	engine          elasticx.Engine
+	pkg             string
 	migrations      []Migration
 	migrationsIndex string
 }
 
-func NewMigrator(engine elasticx.Engine, migrations ...Migration) *Migrator {
-	internalMigrations := make([]Migration, len(migrations))
-	copy(internalMigrations, migrations)
+type NewMigratorOptions struct {
+	Engine     elasticx.Engine
+	Package    string
+	Migrations []Migration
+}
+
+func NewMigrator(opts NewMigratorOptions) *Migrator {
+	internalMigrations := make([]Migration, len(opts.Migrations))
+	copy(internalMigrations, opts.Migrations)
+	vers := map[uint64]bool{}
+	for _, m := range opts.Migrations {
+		if vers[m.Version] {
+			panic(fmt.Sprintf("duplicated migration version %v", m.Version))
+		}
+		vers[m.Version] = true
+	}
+
+	// To be valid index name, package name should be replaced with ":".
+	pkg := strings.ReplaceAll(opts.Package, "/", ":")
+
 	return &Migrator{
-		engine:          engine,
+		engine:          opts.Engine,
+		pkg:             pkg,
 		migrations:      internalMigrations,
 		migrationsIndex: defaultMigrationsIndex,
 	}
@@ -86,6 +114,7 @@ func (m *Migrator) createIndexIfNotExist(ctx context.Context, name string) error
 			Properties: map[string]types.Property{
 				"version":     types.NewLongNumberProperty(),
 				"description": types.NewKeywordProperty(),
+				"package":     types.NewKeywordProperty(),
 				"timestamp":   types.NewDateProperty(),
 			},
 		},
@@ -113,14 +142,21 @@ func (m *Migrator) getIndexes(ctx context.Context) (indices []indexSpecification
 }
 
 // Version returns current engine version and comment.
-func (m *Migrator) Version(ctx context.Context) (uint64, string, error) {
+func (m *Migrator) Version(ctx context.Context) (migrationVersionInfo, error) {
 	if err := m.createIndexIfNotExist(ctx, m.migrationsIndex); err != nil {
-		return 0, "", err
+		return migrationVersionInfo{
+			Version:     0,
+			Description: "",
+		}, err
 	}
 
 	searchResponse, err := m.engine.Query(ctx, &search.Request{
 		Query: &types.Query{
-			MatchAll: &types.MatchAllQuery{},
+			Term: map[string]types.TermQuery{
+				"package": {
+					Value: m.pkg,
+				},
+			},
 		},
 		Sort: types.Sort{
 			types.SortOptions{
@@ -134,25 +170,38 @@ func (m *Migrator) Version(ctx context.Context) (uint64, string, error) {
 	}, m.migrationsIndex)
 
 	if err != nil {
-		return 0, "", err
+		return migrationVersionInfo{
+			Version:     0,
+			Description: "",
+		}, err
 	}
 
 	if searchResponse.Hits.Total.Value == 0 {
-		return 0, "", err
+		return migrationVersionInfo{
+			Version:     0,
+			Description: "",
+		}, err
 	}
 
 	var rec versionRecord
 	if err := json.Unmarshal(searchResponse.Hits.Hits[0].Source_, &rec); err != nil {
-		return 0, "", err
+		return migrationVersionInfo{
+			Version:     0,
+			Description: "",
+		}, err
 	}
 
-	return rec.Version, rec.Description, nil
+	return migrationVersionInfo{
+		Version:     rec.Version,
+		Description: rec.Description,
+	}, nil
 }
 
-// SetVersion forcibly changes database version to provided.
-func (m *Migrator) SetVersion(ctx context.Context, version uint64, description string) error {
+// setVersion forcibly changes database version to provided.
+func (m *Migrator) setVersion(ctx context.Context, version uint64, description string) error {
 	rec := versionRecord{
 		Version:     version,
+		Package:     m.pkg,
 		Timestamp:   time.Now().UTC(),
 		Description: description,
 	}
@@ -162,7 +211,19 @@ func (m *Migrator) SetVersion(ctx context.Context, version uint64, description s
 		return err
 	}
 
-	_, err = index.ReplaceDocument(ctx, fmt.Sprint(version), rec, elasticx.WithRefresh(refresh.Waitfor))
+	id := fmt.Sprintf("%s:%d", m.pkg, version)
+	exists, err := index.DocumentExists(ctx, id)
+	if err != nil {
+		return err
+	} else if exists {
+		pkgStr := ""
+		if m.pkg != "" {
+			pkgStr = fmt.Sprintf("with package %s and ", m.pkg)
+		}
+		return errorx.AlreadyExistsErrorf("migration %sversion %v already exists", pkgStr, version)
+	}
+
+	_, err = index.ReplaceDocument(ctx, id, rec, elasticx.WithRefresh(refresh.Waitfor))
 	if err != nil {
 		return err
 	}
@@ -174,7 +235,7 @@ func (m *Migrator) SetVersion(ctx context.Context, version uint64, description s
 // If n<=0 all "up" migrations with newer versions will be performed.
 // If n>0 only n migrations with newer version will be performed.
 func (m *Migrator) Up(ctx context.Context, n int) error {
-	currentVersion, _, err := m.Version(ctx)
+	currentVersion, err := m.Version(ctx)
 	if err != nil {
 		return err
 	}
@@ -185,14 +246,14 @@ func (m *Migrator) Up(ctx context.Context, n int) error {
 
 	for i, p := 0, 0; i < len(m.migrations) && p < n; i++ {
 		migration := m.migrations[i]
-		if migration.Version <= currentVersion || migration.Up == nil {
+		if migration.Version <= currentVersion.Version || migration.Up == nil {
 			continue
 		}
 		p++
 		if err := migration.Up(ctx, m.engine); err != nil {
 			return err
 		}
-		if err := m.SetVersion(ctx, migration.Version, migration.Description); err != nil {
+		if err := m.setVersion(ctx, migration.Version, migration.Description); err != nil {
 			return err
 		}
 	}
@@ -203,7 +264,7 @@ func (m *Migrator) Up(ctx context.Context, n int) error {
 // If n<=0 all "down" migrations with older version will be performed.
 // If n>0 only n migrations with older version will be performed.
 func (m *Migrator) Down(ctx context.Context, n int) error {
-	currentVersion, _, err := m.Version(ctx)
+	currentVersion, err := m.Version(ctx)
 	if err != nil {
 		return err
 	}
@@ -214,7 +275,7 @@ func (m *Migrator) Down(ctx context.Context, n int) error {
 
 	for i, p := len(m.migrations)-1, 0; i >= 0 && p < n; i-- {
 		migration := m.migrations[i]
-		if migration.Version > currentVersion || migration.Down == nil {
+		if migration.Version > currentVersion.Version || migration.Down == nil {
 			continue
 		}
 		p++
@@ -228,7 +289,7 @@ func (m *Migrator) Down(ctx context.Context, n int) error {
 		} else {
 			prevMigration = m.migrations[i-1]
 		}
-		if err := m.SetVersion(ctx, prevMigration.Version, prevMigration.Description); err != nil {
+		if err := m.setVersion(ctx, prevMigration.Version, prevMigration.Description); err != nil {
 			return err
 		}
 	}

@@ -228,7 +228,7 @@ func TestIndexReadDocument(t *testing.T) {
 	f := newTestFixture(t)
 	ctx := f.ctx
 
-	engine, err := f.client.CreateEngine(ctx, "test-index-delete-document")
+	engine, err := f.client.CreateEngine(ctx, "test-index-read-document")
 	assert.NoError(t, err)
 
 	index, err := engine.CreateIndex(ctx, "index-1", &CreateIndexOptions{
