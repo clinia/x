@@ -8,14 +8,14 @@ import (
 )
 
 type PubSub interface {
-	Publisher() *OTelPublisher
+	Publisher() Publisher
 	Subscriber(group string) (Subscriber, error)
 	// CLoses all publishers and subscribers.
 	Close() error
 }
 
 type pubSub struct {
-	publisher  *OTelPublisher
+	publisher  Publisher
 	subscriber func(group string) (Subscriber, error)
 	subs       sync.Map
 }
@@ -47,7 +47,7 @@ func (ps *pubSub) setup(l *logrusx.Logger, c *Config, opts *pubSubOptions) error
 			return err
 		}
 
-		ps.publisher = NewOTelPublisher(publisher, opts.propagator)
+		ps.publisher = publisher
 		ps.subscriber = func(group string) (Subscriber, error) {
 			if ms, ok := ps.subs.Load(group); !ok {
 				s, e := SetupKafkaSubscriber(l, c, opts, group)
@@ -69,7 +69,7 @@ func (ps *pubSub) setup(l *logrusx.Logger, c *Config, opts *pubSubOptions) error
 			return err
 		}
 
-		ps.publisher = NewOTelPublisher(pubsub, nil)
+		ps.publisher = pubsub
 		ps.subscriber = pubsub.SetupSubscriber()
 		l.Infof("InMemory publisher configured! Sending & receiving messages to in-memory")
 	default:
@@ -79,7 +79,7 @@ func (ps *pubSub) setup(l *logrusx.Logger, c *Config, opts *pubSubOptions) error
 	return nil
 }
 
-func (ps *pubSub) Publisher() *OTelPublisher {
+func (ps *pubSub) Publisher() Publisher {
 	return ps.publisher
 }
 

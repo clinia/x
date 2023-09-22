@@ -8,41 +8,41 @@ import (
 	"github.com/clinia/x/logrusx"
 )
 
-type memorySubscriber struct {
-	pubsubchan *gochannel.GoChannel
-}
+// type memorySubscriber struct {
+// 	pubsubchan *gochannel.GoChannel
+// }
 
-func SetupInMemorySubscriber(l *logrusx.Logger, c *Config) (Subscriber, error) {
-	return &memorySubscriber{
-		pubsubchan: gochannel.NewGoChannel(gochannel.Config{}, NewLogrusLogger(l.Logger)),
-	}, nil
-}
+// func SetupInMemorySubscriber(l *logrusx.Logger, c *Config) (Subscriber, error) {
+// 	return &memorySubscriber{
+// 		pubsubchan: gochannel.NewGoChannel(gochannel.Config{}, NewLogrusLogger(l.Logger)),
+// 	}, nil
+// }
 
-func (s *memorySubscriber) Subscribe(ctx context.Context, topic string) (<-chan *message.Message, error) {
-	return s.pubsubchan.Subscribe(ctx, topic)
-}
+// func (s *memorySubscriber) Subscribe(ctx context.Context, topic string) (<-chan *message.Message, error) {
+// 	return s.pubsubchan.Subscribe(ctx, topic)
+// }
 
-func (s *memorySubscriber) Close() error {
-	return s.pubsubchan.Close()
-}
+// func (s *memorySubscriber) Close() error {
+// 	return s.pubsubchan.Close()
+// }
 
-type memoryPublisher struct {
-	pubsubchan *gochannel.GoChannel
-}
+// type memoryPublisher struct {
+// 	pubsubchan *gochannel.GoChannel
+// }
 
-func SetupInMemoryPublisher(l *logrusx.Logger, c *Config) (Publisher, error) {
-	return &memoryPublisher{
-		pubsubchan: gochannel.NewGoChannel(gochannel.Config{}, NewLogrusLogger(l.Logger)),
-	}, nil
-}
+// func SetupInMemoryPublisher(l *logrusx.Logger, c *Config) (Publisher, error) {
+// 	return &memoryPublisher{
+// 		pubsubchan: gochannel.NewGoChannel(gochannel.Config{}, NewLogrusLogger(l.Logger)),
+// 	}, nil
+// }
 
-func (p *memoryPublisher) Publish(topic string, messages ...*message.Message) error {
-	return p.pubsubchan.Publish(topic, messages...)
-}
+// func (p *memoryPublisher) Publish(ctx context.Context, topic string, messages ...*message.Message) error {
+// 	return p.pubsubchan.Publish(topic, messages...)
+// }
 
-func (p *memoryPublisher) Close() error {
-	return p.pubsubchan.Close()
-}
+// func (p *memoryPublisher) Close() error {
+// 	return p.pubsubchan.Close()
+// }
 
 type memoryPubSub struct {
 	pubsubchan *gochannel.GoChannel
@@ -54,7 +54,7 @@ func SetupInMemoryPubSub(l *logrusx.Logger, c *Config) (*memoryPubSub, error) {
 	}, nil
 }
 
-func (ps *memoryPubSub) Publish(topic string, messages ...*message.Message) error {
+func (ps *memoryPubSub) Publish(ctx context.Context, topic string, messages ...*message.Message) error {
 	return ps.pubsubchan.Publish(topic, messages...)
 }
 

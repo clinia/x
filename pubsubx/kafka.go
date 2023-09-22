@@ -1,10 +1,14 @@
 package pubsubx
 
 import (
+	"context"
+
 	"github.com/Shopify/sarama"
 	"github.com/ThreeDotsLabs/watermill-kafka/v2/pkg/kafka"
+	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/clinia/x/logrusx"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/Shopify/sarama/otelsarama"
+	"go.opentelemetry.io/otel/propagation"
 )
 
 // TODO: add publisher configs
@@ -26,7 +30,27 @@ func SetupKafkaPublisher(l *logrusx.Logger, c *Config, opts *pubSubOptions) (Pub
 		return nil, err
 	}
 
-	return publisher, nil
+	kafkaPub := &KafkaPublisher{publisher: *publisher, propagator: opts.propagator}
+	return kafkaPub, nil
+}
+
+type KafkaPublisher struct {
+	publisher  kafka.Publisher
+	propagator propagation.TextMapPropagator
+}
+
+func (p *KafkaPublisher) Publish(ctx context.Context, topic string, messages ...*message.Message) error {
+	if p.propagator != nil {
+		for _, msg := range messages {
+			p.propagator.Inject(ctx, propagation.MapCarrier(msg.Metadata))
+		}
+	}
+	return p.publisher.Publish(topic, messages...)
+
+}
+
+func (p *KafkaPublisher) Close() error {
+	return p.publisher.Close()
 }
 
 // TODO: add subscriber configs
