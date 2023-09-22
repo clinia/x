@@ -30,16 +30,16 @@ func SetupKafkaPublisher(l *logrusx.Logger, c *Config, opts *pubSubOptions) (Pub
 		return nil, err
 	}
 
-	kafkaPub := &KafkaPublisher{publisher: *publisher, propagator: opts.propagator}
+	kafkaPub := &kafkaPublisher{publisher: *publisher, propagator: opts.propagator}
 	return kafkaPub, nil
 }
 
-type KafkaPublisher struct {
+type kafkaPublisher struct {
 	publisher  kafka.Publisher
 	propagator propagation.TextMapPropagator
 }
 
-func (p *KafkaPublisher) Publish(ctx context.Context, topic string, messages ...*message.Message) error {
+func (p *kafkaPublisher) Publish(ctx context.Context, topic string, messages ...*message.Message) error {
 	if p.propagator != nil {
 		for _, msg := range messages {
 			p.propagator.Inject(ctx, propagation.MapCarrier(msg.Metadata))
@@ -49,7 +49,7 @@ func (p *KafkaPublisher) Publish(ctx context.Context, topic string, messages ...
 
 }
 
-func (p *KafkaPublisher) Close() error {
+func (p *kafkaPublisher) Close() error {
 	return p.publisher.Close()
 }
 
