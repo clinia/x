@@ -31,9 +31,12 @@ func newCompiler(schema []byte) (string, *jsonschema.Compiler, error) {
 	// DO NOT REMOVE THIS
 	compiler.ExtractAnnotations = true
 
-	if err := otelx.AddConfigSchema(compiler); err != nil {
+	if err := otelx.AddTracerConfigSchema(compiler); err != nil {
 		return "", nil, err
 	}
+	// if err := otelx.AddMeterConfigSchema(compiler); err != nil {
+	// 	return "", nil, err
+	// }
 	if err := logrusx.AddConfigSchema(compiler); err != nil {
 		return "", nil, err
 	}

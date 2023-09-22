@@ -36,28 +36,29 @@ type StdoutConfig struct {
 	Pretty bool `json:"pretty"`
 }
 
-type ProvidersConfig struct {
+type TracerProvidersConfig struct {
 	Jaeger JaegerConfig `json:"jaeger"`
 	OTLP   OTLPConfig   `json:"otlp"`
 	Stdout StdoutConfig `json:"stdout"`
 }
 
-type Config struct {
-	ServiceName        string               `json:"service_name"`
-	Provider           string               `json:"provider"`
-	Providers          ProvidersConfig      `json:"providers"`
-	ResourceAttributes []attribute.KeyValue `json:"resource_attributes"`
+type TracerConfig struct {
+	ServiceName        string                `json:"service_name"`
+	Name               string                `json:"name"`
+	Provider           string                `json:"provider"`
+	Providers          TracerProvidersConfig `json:"tracer_providers"`
+	ResourceAttributes []attribute.KeyValue  `json:"resource_attributes"`
 }
 
-//go:embed config.schema.json
-var ConfigSchema string
+//go:embed tracer.schema.json
+var TracerConfigSchema string
 
-const ConfigSchemaID = "clinia://tracing-config"
+const TracerConfigSchemaID = "clinia://tracer-config"
 
-// AddConfigSchema adds the tracing schema to the compiler.
+// AddTracerConfigSchema adds the tracer schema to the compiler.
 // The interface is specified instead of `jsonschema.Compiler` to allow the use of any jsonschema library fork or version.
-func AddConfigSchema(c interface {
+func AddTracerConfigSchema(c interface {
 	AddResource(url string, r io.Reader) error
 }) error {
-	return c.AddResource(ConfigSchemaID, bytes.NewBufferString(ConfigSchema))
+	return c.AddResource(TracerConfigSchemaID, bytes.NewBufferString(TracerConfigSchema))
 }

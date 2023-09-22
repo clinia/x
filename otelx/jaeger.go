@@ -20,7 +20,7 @@ import (
 // Optionally, Config.Providers.Jaeger.LocalAgentAddress can be set.
 // NOTE: If Config.Providers.Jaeger.Sampling.ServerURL is not specfied,
 // AlwaysSample is used.
-func SetupJaegerTracer(tracerName string, c *Config) (trace.Tracer, propagation.TextMapPropagator, error) {
+func SetupJaegerTracer(tracerName string, c *TracerConfig) (trace.Tracer, propagation.TextMapPropagator, error) {
 	host, port, err := net.SplitHostPort(c.Providers.Jaeger.LocalAgentAddress)
 	if err != nil {
 		return nil, nil, err
