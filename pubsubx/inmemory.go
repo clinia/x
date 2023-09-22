@@ -36,7 +36,7 @@ func SetupInMemoryPublisher(l *logrusx.Logger, c *Config) (Publisher, error) {
 	}, nil
 }
 
-func (p *memoryPublisher) Publish(topic string, messages ...*message.Message) error {
+func (p *memoryPublisher) Publish(ctx context.Context, topic string, messages ...*message.Message) error {
 	return p.pubsubchan.Publish(topic, messages...)
 }
 
@@ -54,7 +54,7 @@ func SetupInMemoryPubSub(l *logrusx.Logger, c *Config) (*memoryPubSub, error) {
 	}, nil
 }
 
-func (ps *memoryPubSub) Publish(topic string, messages ...*message.Message) error {
+func (ps *memoryPubSub) Publish(ctx context.Context, topic string, messages ...*message.Message) error {
 	return ps.pubsubchan.Publish(topic, messages...)
 }
 

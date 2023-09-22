@@ -5,6 +5,7 @@ import (
 	_ "embed"
 	"io"
 
+	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -26,6 +27,7 @@ type KafkaConfig struct {
 
 type pubSubOptions struct {
 	tracerProvider trace.TracerProvider
+	propagator     propagation.TextMapPropagator
 }
 type PubSubOption func(*pubSubOptions)
 
@@ -36,7 +38,14 @@ func WithTracerProvider(provider trace.TracerProvider) PubSubOption {
 		if provider != nil {
 			opts.tracerProvider = provider
 		}
+	}
+}
 
+func WithPropagator(propagator propagation.TextMapPropagator) PubSubOption {
+	return func(opts *pubSubOptions) {
+		if propagator != nil {
+			opts.propagator = propagator
+		}
 	}
 }
 

@@ -28,12 +28,13 @@ const rootSchema = `{
 func TestConfigSchema(t *testing.T) {
 	t.Run("func=AddConfigSchema", func(t *testing.T) {
 		c := jsonschema.NewCompiler()
-		require.NoError(t, AddConfigSchema(c))
+		require.NoError(t, AddTracerConfigSchema(c))
 
-		conf := Config{
+		conf := TracerConfig{
 			ServiceName: "Clinia X",
-			Provider:    "otlp",
-			Providers: ProvidersConfig{
+			Name:        "X",
+			Provider:    "otel",
+			Providers: TracerProvidersConfig{
 				OTLP: OTLPConfig{
 					ServerURL: "http://localhost:5778/sampling",
 					Sampling: OTLPSampling{
@@ -46,7 +47,7 @@ func TestConfigSchema(t *testing.T) {
 		rawConfig, err := sjson.Set("{}", "otelx", &conf)
 		require.NoError(t, err)
 
-		require.NoError(t, c.AddResource("config", bytes.NewBufferString(fmt.Sprintf(rootSchema, ConfigSchemaID))))
+		require.NoError(t, c.AddResource("config", bytes.NewBufferString(fmt.Sprintf(rootSchema, TracerConfigSchemaID))))
 
 		schema, err := c.Compile(context.Background(), "config")
 		require.NoError(t, err)

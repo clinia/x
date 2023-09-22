@@ -7,7 +7,6 @@ import (
 	"context"
 
 	"github.com/pkg/errors"
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
@@ -21,10 +20,10 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-func SetupOTLP(t *Tracer, tracerName string, c *Config) (trace.Tracer, error) {
+func SetupOTLPTracer(tracerName string, c *TracerConfig) (trace.Tracer, propagation.TextMapPropagator, error) {
 	exp, err := getExporter(c)
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, nil, errors.WithStack(err)
 	}
 
 	atts := append([]attribute.KeyValue{}, semconv.ServiceNameKey.String(c.ServiceName))
@@ -42,17 +41,16 @@ func SetupOTLP(t *Tracer, tracerName string, c *Config) (trace.Tracer, error) {
 	}
 
 	tp := sdktrace.NewTracerProvider(tpOpts...)
-	otel.SetTracerProvider(tp)
 
-	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
+	prop := propagation.NewCompositeTextMapPropagator(
 		propagation.TraceContext{},
 		propagation.Baggage{},
-	))
+	)
 
-	return tp.Tracer(tracerName), nil
+	return tp.Tracer(tracerName), prop, nil
 }
 
-func getExporter(c *Config) (*otlptrace.Exporter, error) {
+func getExporter(c *TracerConfig) (*otlptrace.Exporter, error) {
 	ctx := context.Background()
 
 	if c.Providers.OTLP.Protocol == "http" {

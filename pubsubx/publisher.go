@@ -1,11 +1,15 @@
 package pubsubx
 
-import "github.com/ThreeDotsLabs/watermill/message"
+import (
+	"context"
 
-// Publisher is the interface that wraps the Publish method.
+	"github.com/ThreeDotsLabs/watermill/message"
+)
+
+// publisher is the interface that wraps the Publish method.
 type Publisher interface {
 	// Publish publishes a message to the topic.
-	Publish(topic string, messages ...*message.Message) error
+	Publish(ctx context.Context, topic string, messages ...*message.Message) error
 	// Close closes the publisher.
 	Close() error
 }

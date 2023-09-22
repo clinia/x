@@ -2,7 +2,6 @@ package otelx
 
 import (
 	"github.com/pkg/errors"
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
@@ -11,7 +10,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-func SetupStdout(t *Tracer, tracerName string, c *Config) (trace.Tracer, error) {
+func SetupStdoutTracer(tracerName string, c *TracerConfig) (trace.Tracer, propagation.TextMapPropagator, error) {
 	opts := []stdouttrace.Option{}
 
 	if c.Providers.Stdout.Pretty {
@@ -20,7 +19,7 @@ func SetupStdout(t *Tracer, tracerName string, c *Config) (trace.Tracer, error) 
 
 	exp, err := stdouttrace.New(opts...)
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, nil, errors.WithStack(err)
 	}
 
 	tpOpts := []sdktrace.TracerProviderOption{
@@ -35,12 +34,11 @@ func SetupStdout(t *Tracer, tracerName string, c *Config) (trace.Tracer, error) 
 	}
 
 	tp := sdktrace.NewTracerProvider(tpOpts...)
-	otel.SetTracerProvider(tp)
 
-	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
+	prop := propagation.NewCompositeTextMapPropagator(
 		propagation.TraceContext{},
 		propagation.Baggage{},
-	))
+	)
 
-	return tp.Tracer(tracerName), nil
+	return tp.Tracer(tracerName), prop, nil
 }
