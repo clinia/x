@@ -25,7 +25,7 @@ const rootSchema = `{
 }
 `
 
-func TestConfigSchema(t *testing.T) {
+func TestTracerConfigSchema(t *testing.T) {
 	t.Run("func=AddConfigSchema", func(t *testing.T) {
 		c := jsonschema.NewCompiler()
 		require.NoError(t, AddTracerConfigSchema(c))
@@ -35,7 +35,7 @@ func TestConfigSchema(t *testing.T) {
 			Name:        "X",
 			Provider:    "otel",
 			Providers: TracerProvidersConfig{
-				OTLP: OTLPConfig{
+				OTLP: OTLPTracerConfig{
 					ServerURL: "http://localhost:5778/sampling",
 					Sampling: OTLPSampling{
 						SamplingRatio: 1,
@@ -48,6 +48,34 @@ func TestConfigSchema(t *testing.T) {
 		require.NoError(t, err)
 
 		require.NoError(t, c.AddResource("config", bytes.NewBufferString(fmt.Sprintf(rootSchema, TracerConfigSchemaID))))
+
+		schema, err := c.Compile(context.Background(), "config")
+		require.NoError(t, err)
+
+		assert.NoError(t, schema.Validate(bytes.NewBufferString(rawConfig)))
+	})
+}
+
+func TestMeterConfigSchema(t *testing.T) {
+	t.Run("func=AddConfigSchema", func(t *testing.T) {
+		c := jsonschema.NewCompiler()
+		require.NoError(t, AddMeterConfigSchema(c))
+
+		conf := MeterConfig{
+			ServiceName: "Clinia X",
+			Name:        "X",
+			Provider:    "otel",
+			Providers: MeterProvidersConfig{
+				OTLP: OTLPMeterConfig{
+					ServerURL: "http://localhost:5778/sampling",
+				},
+			},
+		}
+
+		rawConfig, err := sjson.Set("{}", "otelx", &conf)
+		require.NoError(t, err)
+
+		require.NoError(t, c.AddResource("config", bytes.NewBufferString(fmt.Sprintf(rootSchema, MeterConfigSchemaID))))
 
 		schema, err := c.Compile(context.Background(), "config")
 		require.NoError(t, err)

@@ -13,7 +13,7 @@ func TestNewWithTracerConfig(t *testing.T) {
 		Name:        "X",
 		Provider:    "otel",
 		Providers: TracerProvidersConfig{
-			OTLP: OTLPConfig{
+			OTLP: OTLPTracerConfig{
 				Protocol: "grpc",
 				Insecure: true,
 				Sampling: OTLPSampling{
@@ -29,4 +29,24 @@ func TestNewWithTracerConfig(t *testing.T) {
 	assert.NotNil(t, otel.Tracer())
 	assert.NotNil(t, otel.Tracer().Provider())
 	assert.NotNil(t, otel.Tracer().TextMapPropagator())
+}
+
+func TestNewWithMeterConfig(t *testing.T) {
+	meterConfig := &MeterConfig{
+		ServiceName: "Clinia X",
+		Name:        "X",
+		Provider:    "otel",
+		Providers: MeterProvidersConfig{
+			OTLP: OTLPMeterConfig{
+				Protocol: "grpc",
+				Insecure: true,
+			},
+		},
+	}
+
+	otel, err := New(logrusx.New("clinia/x", "1"), WithMeter(meterConfig))
+
+	assert.NoError(t, err)
+	assert.NotNil(t, otel.Meter())
+	assert.NotNil(t, otel.Meter().Provider())
 }

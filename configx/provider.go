@@ -470,7 +470,7 @@ func (p *Provider) TracerConfig(serviceName string, attrs ...attribute.KeyValue)
 					ServerURL: p.String("tracer.providers.jaeger.sampling.server_url"),
 				},
 			},
-			OTLP: otelx.OTLPConfig{
+			OTLP: otelx.OTLPTracerConfig{
 				Protocol:  p.String("tracer.providers.otlp.protocol"),
 				ServerURL: p.String("tracer.providers.otlp.server_url"),
 				Insecure:  p.Bool("tracer.providers.otlp.insecure"),
@@ -485,25 +485,24 @@ func (p *Provider) TracerConfig(serviceName string, attrs ...attribute.KeyValue)
 	}
 }
 
-// // TODO: Change source
-// func (p *Provider) MeterConfig(serviceName string, attrs ...attribute.KeyValue) *otelx.MeterConfig {
-// 	return &otelx.MeterConfig{
-// 		Provider: p.String("tracing.provider"),
-// 		Providers: otelx.MeterProvidersConfig{
-// 			OTLP: otelx.OTLPConfig{
-// 				Protocol:  p.String("tracing.providers.otlp.protocol"),
-// 				ServerURL: p.String("tracing.providers.otlp.server_url"),
-// 				Insecure:  p.Bool("tracing.providers.otlp.insecure"),
-// 				Sampling: otelx.OTLPSampling{
-// 					SamplingRatio: p.Float64("tracing.providers.otlp.sampling.sampling_ratio"),
-// 				},
-// 			},
-// 			Stdout: otelx.StdoutConfig{
-// 				Pretty: p.Bool("tracing.providers.stdout.pretty"),
-// 			},
-// 		},
-// 	}
-// }
+func (p *Provider) MeterConfig(serviceName string, attrs ...attribute.KeyValue) *otelx.MeterConfig {
+	return &otelx.MeterConfig{
+		ResourceAttributes: attrs,
+		ServiceName:        p.StringF("meter.service_name", serviceName),
+		Name:               p.String("meter.name"),
+		Provider:           p.String("meter.provider"),
+		Providers: otelx.MeterProvidersConfig{
+			OTLP: otelx.OTLPMeterConfig{
+				Protocol:  p.String("meter.providers.otlp.protocol"),
+				ServerURL: p.String("meter.providers.otlp.server_url"),
+				Insecure:  p.Bool("meter.providers.otlp.insecure"),
+			},
+			// Stdout: otelx.StdoutConfig{
+			// 	Pretty: p.Bool("meter.providers.stdout.pretty"),
+			// },
+		},
+	}
+}
 
 func (p *Provider) PubSubConfig() *pubsubx.Config {
 	return &pubsubx.Config{

@@ -83,7 +83,7 @@ func TestHTTPOTLPTracer(t *testing.T) {
 		Name:        "X",
 		Provider:    "otel",
 		Providers: TracerProvidersConfig{
-			OTLP: OTLPConfig{
+			OTLP: OTLPTracerConfig{
 				Protocol:  "http",
 				ServerURL: tsu.Host,
 				Insecure:  true,
@@ -151,7 +151,7 @@ func TestGRPCOTLPTracer(t *testing.T) {
 		Name:        "X",
 		Provider:    "otel",
 		Providers: TracerProvidersConfig{
-			OTLP: OTLPConfig{
+			OTLP: OTLPTracerConfig{
 				Protocol:  "grpc",
 				ServerURL: lis.Addr().String(),
 				Insecure:  true,

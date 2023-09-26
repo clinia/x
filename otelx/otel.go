@@ -9,12 +9,12 @@ import (
 
 type Otel struct {
 	t *Tracer
-	// m *Meter
+	m *Meter
 }
 
 type OtelOptions struct {
 	TracerConfig *TracerConfig
-	// MeterConfig  *MeterConfig
+	MeterConfig  *MeterConfig
 }
 
 type OtelOption func(*OtelOptions)
@@ -28,14 +28,25 @@ func New(l *logrusx.Logger, opts ...OtelOption) (*Otel, error) {
 
 	o := &Otel{
 		t: &Tracer{},
+		m: &Meter{},
 	}
+
 	if otelOpts.TracerConfig != nil {
 		if err := o.t.setup(l, otelOpts.TracerConfig); err != nil {
 			return nil, err
 		}
 	} else {
-		l.Infof("Tracing config is missing! - skipping tracing setup")
+		l.Infof("Tracer config is missing! - skipping tracer setup")
 		o.t = NewNoopTracer()
+	}
+
+	if otelOpts.MeterConfig != nil {
+		if err := o.m.setup(l, otelOpts.MeterConfig); err != nil {
+			return nil, err
+		}
+	} else {
+		l.Infof("Meter config is missing! - skipping meter setup")
+		o.m = NewNoopMeter()
 	}
 
 	return o, nil
@@ -49,20 +60,28 @@ func WithTracer(config *TracerConfig) OtelOption {
 	}
 }
 
+func WithMeter(config *MeterConfig) OtelOption {
+	return func(opts *OtelOptions) {
+		if config != nil {
+			opts.MeterConfig = config
+		}
+	}
+}
+
 // Creates a new no-op tracer and meter.
 func NewNoop() *Otel {
-	t := NewNoopTracer()
-
-	// mp := sdk.NewMeterProvider()
-	// m := &Meter{meter: mp.Meter("")}
-
 	return &Otel{
-		t: t,
-		// Metric: m,
+		t: NewNoopTracer(),
+		m: NewNoopMeter(),
 	}
 }
 
 // Tracer returns the underlying OpenTelemetry tracer.
 func (o *Otel) Tracer() *Tracer {
 	return o.t
+}
+
+// Meter returns the underlying OpenTelemetry meter.
+func (o *Otel) Meter() *Meter {
+	return o.m
 }
