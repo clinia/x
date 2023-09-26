@@ -497,9 +497,6 @@ func (p *Provider) MeterConfig(serviceName string, attrs ...attribute.KeyValue) 
 				ServerURL: p.String("meter.providers.otlp.server_url"),
 				Insecure:  p.Bool("meter.providers.otlp.insecure"),
 			},
-			// Stdout: otelx.StdoutConfig{
-			// 	Pretty: p.Bool("meter.providers.stdout.pretty"),
-			// },
 		},
 	}
 }

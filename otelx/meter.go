@@ -26,6 +26,17 @@ func (m *Meter) setup(l *logrusx.Logger, c *MeterConfig) error {
 
 		m.meter = meter
 		l.Infof("OTLP meter configured! Sending measurements to %s", c.Providers.OTLP.ServerURL)
+	case f.AddCase("stdout"):
+		meter, err := SetupStdoutMeter(c.Name, c)
+		if err != nil {
+			return err
+		}
+
+		m.meter = meter
+		l.Infof("Stdout meter configured! Sending measurements to stdout")
+	case f.AddCase(""):
+		l.Infof("Missing provider in config - skipping meter setup")
+		m.meter = NewNoopMeter().meter
 	default:
 		return f.ToUnknownCaseErr()
 	}

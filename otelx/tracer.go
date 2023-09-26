@@ -50,8 +50,9 @@ func (t *Tracer) setup(l *logrusx.Logger, c *TracerConfig) error {
 		l.Infof("Stdout tracer configured! Sending spans to stdout")
 	case f.AddCase(""):
 		l.Infof("Missing provider in config - skipping tracing setup")
-		t.tracer = trace.NewNoopTracerProvider().Tracer("NoopTracer")
-		t.propagator = propagation.NewCompositeTextMapPropagator()
+		noopTracer := NewNoopTracer()
+		t.tracer = noopTracer.tracer
+		t.propagator = noopTracer.propagator
 	default:
 		return f.ToUnknownCaseErr()
 	}

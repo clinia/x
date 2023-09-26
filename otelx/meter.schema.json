@@ -64,17 +64,6 @@
               }
             },
             "required": ["protocol", "server_url"]
-          },
-          "stdout": {
-            "type": "object",
-            "additionalProperties": false,
-            "description": "Configures the Stdout meter backend.",
-            "properties": {
-              "pretty": {
-                "type": "boolean",
-                "description": "Sets the export stream format to use JSON"
-              }
-            }
           }
         }
       }

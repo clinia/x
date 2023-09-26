@@ -17,16 +17,17 @@ type OTLPMeterConfig struct {
 	Insecure  bool   `json:"insecure"`
 }
 
+type MeterStdoutConfig struct{}
+
 type MeterProvidersConfig struct {
-	OTLP   OTLPMeterConfig `json:"otlp"`
-	Stdout StdoutConfig    `json:"stdout"`
+	OTLP OTLPMeterConfig `json:"otlp"`
 }
 
 type MeterConfig struct {
 	ServiceName        string               `json:"service_name"`
 	Name               string               `json:"name"`
 	Provider           string               `json:"provider"`
-	Providers          MeterProvidersConfig `json:"providers"`
+	Providers          MeterProvidersConfig `json:"providers,omitempty"`
 	ResourceAttributes []attribute.KeyValue `json:"resource_attributes"`
 }
 
