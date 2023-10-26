@@ -6,6 +6,7 @@ package logrusx
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -68,13 +69,19 @@ func (l *Logger) WithRequest(r *http.Request) *Logger {
 		headers["user-agent"] = ua
 	}
 
+	remoteIP, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		remoteIP = r.RemoteAddr
+	}
+
 	scheme := "https"
 	if r.TLS == nil {
 		scheme = "http"
 	}
 
 	ll := l.WithField("http_request", map[string]interface{}{
-		"remote":  r.RemoteAddr,
+		"remote":  remoteIP,
+		"proto":   r.Proto,
 		"method":  r.Method,
 		"path":    r.URL.EscapedPath(),
 		"query":   l.maybeRedact(r.URL.RawQuery),
@@ -88,19 +95,29 @@ func (l *Logger) WithRequest(r *http.Request) *Logger {
 		_, _, spanCtx = otelhttptrace.Extract(r.Context(), r, opts)
 	}
 	if spanCtx.IsValid() {
-		traces := map[string]string{}
 		if spanCtx.HasTraceID() {
-			traces["trace_id"] = spanCtx.TraceID().String()
+			ll = ll.WithField("TraceID", spanCtx.TraceID().String())
 		}
 		if spanCtx.HasSpanID() {
-			traces["span_id"] = spanCtx.SpanID().String()
+			ll = ll.WithField("SpanID", spanCtx.SpanID().String())
 		}
-		ll = ll.WithField("otel", traces)
 	}
 	return ll
 }
 
 func (l *Logger) Logf(level logrus.Level, format string, args ...interface{}) {
+	// Add traces information if available in context
+	if l.Context != nil {
+		spanCtx := trace.SpanContextFromContext(l.Context)
+		if spanCtx.IsValid() {
+			if spanCtx.HasTraceID() {
+				l = l.WithField("TraceID", spanCtx.TraceID().String())
+			}
+			if spanCtx.HasSpanID() {
+				l = l.WithField("SpanID", spanCtx.SpanID().String())
+			}
+		}
+	}
 	if !l.leakSensitive {
 		for i, arg := range args {
 			switch urlArg := arg.(type) {
