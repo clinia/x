@@ -18,12 +18,12 @@ func TestAppend(t *testing.T) {
 	// Ensure that a new slice is returned and no overwrite occurs unlike with standard append
 	original = make([]string, 0, 3)
 	original = append(original, "foo", "bar")
-	// Custom append has no side effects
-	new1 := Append(original, "baz")
-	_ = Append(original, "qux")
-	assert.Equal(t, []string{"foo", "bar", "baz"}, new1)
 	// Standard append has overwrite side effects
 	standard := append(original, "baz")
 	_ = append(original, "qux")
 	assert.Equal(t, []string{"foo", "bar", "qux"}, standard)
+	// Custom append has no side effects
+	new1 := Append(original, "baz")
+	_ = Append(original, "qux")
+	assert.Equal(t, []string{"foo", "bar", "baz"}, new1)
 }
