@@ -21,7 +21,7 @@ type JaegerSampling struct {
 	TraceIdRatio float64 `json:"trace_id_ratio"`
 }
 
-type OTLPConfig struct {
+type OTLPTracerConfig struct {
 	Protocol  string       `json:"protocol"`
 	ServerURL string       `json:"server_url"`
 	Insecure  bool         `json:"insecure"`
@@ -37,9 +37,9 @@ type StdoutConfig struct {
 }
 
 type TracerProvidersConfig struct {
-	Jaeger JaegerConfig `json:"jaeger"`
-	OTLP   OTLPConfig   `json:"otlp"`
-	Stdout StdoutConfig `json:"stdout"`
+	Jaeger JaegerConfig     `json:"jaeger"`
+	OTLP   OTLPTracerConfig `json:"otlp"`
+	Stdout StdoutConfig     `json:"stdout"`
 }
 
 type TracerConfig struct {

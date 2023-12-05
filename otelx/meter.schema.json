@@ -1,0 +1,71 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "$id": "clinia://meter-config",
+    "type": "object",
+    "additionalProperties": false,
+    "description": "Configure distributed meter using OpenTelemetry",
+    "properties": {
+      "provider": {
+        "type": "string",
+        "description": "Set this to the meter backend you wish to use. Supports OTEL.",
+        "enum": ["prometheus", "otel", "stdout"],
+        "examples": ["prometheus"]
+      },
+      "providers": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "otlp": {
+            "type": "object",
+            "additionalProperties": false,
+            "description": "Configures the OTLP metering backend.",
+            "properties": {
+              "protocol": {
+                "type": "string",
+                "description": "The protocol of the OTLP exporter (HTTP/GRPC) where spans should be sent to.",
+                "enum": ["grpc","http"]
+              },
+              "server_url": {
+                "type": "string",
+                "description": "The endpoint of the OTLP exporter (HTTP/GRPC) where spans should be sent to.",
+                "anyOf": [
+                  {
+                    "title": "IPv6 Address and Port",
+                    "pattern": "^\\[(([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))]:([0-9]*)$"
+                  },
+                  {
+                    "title": "IPv4 Address and Port",
+                    "pattern": "^([0-9]{1,3}\\.){3}[0-9]{1,3}:([0-9]*)$"
+                  },
+                  {
+                    "title": "Hostname and Port",
+                    "pattern": "^((http|https):\\/\\/)?(([a-z0-9]|[a-z0-9][a-z0-9\\-]*[a-z0-9])\\.)*([a-z0-9]|[a-z0-9][a-z0-9\\-]*[a-z0-9])(:[0-9]+)?$"
+                  }
+                ],
+                "examples": ["localhost:4318"]
+              },
+              "insecure": {
+                "type": "boolean",
+                "description": "Will use HTTP if set to true; defaults to HTTPS."
+              },
+              "sampling": {
+                "type": "object",
+                "propertyNames": {
+                  "enum": ["sampling_ratio"]
+                },
+                "additionalProperties": false,
+                "properties": {
+                  "sampling_ratio": {
+                    "type": "number",
+                    "description": "Sampling ratio for spans.",
+                    "examples": [0.4]
+                  }
+                }
+              }
+            },
+            "required": ["protocol", "server_url"]
+          }
+        }
+      }
+    }
+  }
