@@ -37,7 +37,7 @@ func New(l *logrusx.Logger, opts ...OtelOption) (*Otel, error) {
 		}
 	} else {
 		l.Infof("Tracer config is missing! - skipping tracer setup")
-		o.t = NewNoopTracer()
+		o.t = NewNoopTracer("no-op-tracer")
 	}
 
 	if otelOpts.MeterConfig != nil {
@@ -46,7 +46,7 @@ func New(l *logrusx.Logger, opts ...OtelOption) (*Otel, error) {
 		}
 	} else {
 		l.Infof("Meter config is missing! - skipping meter setup")
-		o.m = NewNoopMeter()
+		o.m = NewNoopMeter("no-op-meter")
 	}
 
 	return o, nil
@@ -71,8 +71,8 @@ func WithMeter(config *MeterConfig) OtelOption {
 // Creates a new no-op tracer and meter.
 func NewNoop() *Otel {
 	return &Otel{
-		t: NewNoopTracer(),
-		m: NewNoopMeter(),
+		t: NewNoopTracer("no-op-tracer"),
+		m: NewNoopMeter("no-op-meter"),
 	}
 }
 

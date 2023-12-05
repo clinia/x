@@ -9,6 +9,7 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/otel/trace/embedded"
+	"go.opentelemetry.io/otel/trace/noop"
 
 	"github.com/clinia/x/logrusx"
 	"github.com/clinia/x/stringsx"
@@ -51,7 +52,7 @@ func (t *Tracer) setup(l *logrusx.Logger, c *TracerConfig) error {
 		l.Infof("Stdout tracer configured! Sending spans to stdout")
 	case f.AddCase(""):
 		l.Infof("Missing provider in config - skipping tracing setup")
-		noopTracer := NewNoopTracer()
+		noopTracer := NewNoopTracer(c.Name)
 		t.tracer = noopTracer.tracer
 		t.propagator = noopTracer.propagator
 	default:
@@ -60,9 +61,9 @@ func (t *Tracer) setup(l *logrusx.Logger, c *TracerConfig) error {
 	return nil
 }
 
-func NewNoopTracer() *Tracer {
+func NewNoopTracer(tracerName string) *Tracer {
 	return &Tracer{
-		tracer:     trace.NewNoopTracerProvider().Tracer("NoopTracer"),
+		tracer:     noop.NewTracerProvider().Tracer(tracerName),
 		propagator: propagation.NewCompositeTextMapPropagator(),
 	}
 }

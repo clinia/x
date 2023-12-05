@@ -44,16 +44,16 @@ func (m *Meter) setup(l *logrusx.Logger, c *MeterConfig) error {
 		l.Infof("Stdout meter configured! Sending measurements to stdout")
 	case f.AddCase(""):
 		l.Infof("Missing provider in config - skipping meter setup")
-		m.meter = NewNoopMeter().meter
+		m.meter = NewNoopMeter(c.Name).meter
 	default:
 		return f.ToUnknownCaseErr()
 	}
 	return nil
 }
 
-func NewNoopMeter() *Meter {
+func NewNoopMeter(meterName string) *Meter {
 	return &Meter{
-		meter: noop.NewMeterProvider().Meter("NoopMeter"),
+		meter: noop.NewMeterProvider().Meter(meterName),
 	}
 }
 
