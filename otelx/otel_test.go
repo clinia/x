@@ -32,21 +32,37 @@ func TestNewWithTracerConfig(t *testing.T) {
 }
 
 func TestNewWithMeterConfig(t *testing.T) {
-	meterConfig := &MeterConfig{
-		ServiceName: "Clinia X",
-		Name:        "X",
-		Provider:    "otel",
-		Providers: MeterProvidersConfig{
-			OTLP: OTLPMeterConfig{
-				Protocol: "grpc",
-				Insecure: true,
+	testCases := []struct {
+		config *MeterConfig
+	}{
+		{
+			config: &MeterConfig{
+				ServiceName: "Clinia X",
+				Name:        "X",
+				Provider:    "otel",
+				Providers: MeterProvidersConfig{
+					OTLP: OTLPMeterConfig{
+						Protocol: "grpc",
+						Insecure: true,
+					},
+				},
+			},
+		},
+		{
+			config: &MeterConfig{
+				ServiceName: "Clinia X",
+				Name:        "X",
+				Provider:    "prometheus",
+				Providers:   MeterProvidersConfig{},
 			},
 		},
 	}
 
-	otel, err := New(logrusx.New("clinia/x", "1"), WithMeter(meterConfig))
+	for _, tc := range testCases {
+		otel, err := New(logrusx.New("clinia/x", "1"), WithMeter(tc.config))
 
-	assert.NoError(t, err)
-	assert.NotNil(t, otel.Meter())
-	assert.NotNil(t, otel.Meter().Provider())
+		assert.NoError(t, err)
+		assert.NotNil(t, otel.Meter())
+		assert.NotNil(t, otel.Meter().Provider())
+	}
 }
