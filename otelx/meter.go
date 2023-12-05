@@ -18,6 +18,14 @@ type Meter struct {
 // Setup constructs the meter based on the given configuration.
 func (m *Meter) setup(l *logrusx.Logger, c *MeterConfig) error {
 	switch f := stringsx.SwitchExact(c.Provider); {
+	case f.AddCase("prometheus"):
+		meter, err := SetupPrometheusMeter(c.Name, c)
+		if err != nil {
+			return err
+		}
+		m.meter = meter
+		l.Infof("Prometheus meter configured! Sending measurements to /metrics endpoint")
+
 	case f.AddCase("otel"):
 		meter, err := SetupOTLPMeter(c.Name, c)
 		if err != nil {

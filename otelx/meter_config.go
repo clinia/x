@@ -17,8 +17,6 @@ type OTLPMeterConfig struct {
 	Insecure  bool   `json:"insecure"`
 }
 
-type MeterStdoutConfig struct{}
-
 type MeterProvidersConfig struct {
 	OTLP OTLPMeterConfig `json:"otlp"`
 }

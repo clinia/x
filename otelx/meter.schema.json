@@ -8,8 +8,8 @@
       "provider": {
         "type": "string",
         "description": "Set this to the meter backend you wish to use. Supports OTEL.",
-        "enum": ["otel", "stdout"],
-        "examples": ["otel"]
+        "enum": ["prometheus", "otel", "stdout"],
+        "examples": ["prometheus"]
       },
       "providers": {
         "type": "object",

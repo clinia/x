@@ -8,6 +8,7 @@ import (
 
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/embedded"
 
 	"github.com/clinia/x/logrusx"
 	"github.com/clinia/x/stringsx"
@@ -81,10 +82,11 @@ func (t *Tracer) Tracer() trace.Tracer {
 
 // Provider returns a TracerProvider which in turn yieds this tracer unmodified.
 func (t *Tracer) Provider() trace.TracerProvider {
-	return tracerProvider{t.Tracer()}
+	return tracerProvider{t: t.Tracer()}
 }
 
 type tracerProvider struct {
+	embedded.TracerProvider
 	t trace.Tracer
 }
 
