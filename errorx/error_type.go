@@ -6,19 +6,19 @@ import (
 
 type ErrorType string
 
+// Errors status code are defined here:
+// https://chromium.googlesource.com/external/github.com/grpc/grpc/+/refs/tags/v1.21.4-pre1/doc/statuscodes.md
+
 const (
 	// The Invalid type should not be used, only useful to assert whether or not an error is an MdmError during cast
-	ErrorTypeUnspecified   = ErrorType("")
-	ErrorTypeInternal      = ErrorType("INTERNAL")
-	ErrorTypeOutOfRange    = ErrorType("OUT_OF_RANGE")
-	ErrorTypeUnsupported   = ErrorType("UNSUPPORTED") // Bad request
-	ErrorTypeNotFound      = ErrorType("NOT_FOUND")
-	ErrorTypeAlreadyExists = ErrorType("ALREADY_EXISTS") // Conflict
-	// Map to 422
-	ErrorTypeInvalidFormat = ErrorType("INVALID_FORMAT")
-	// Map to 400
+	ErrorTypeUnspecified        = ErrorType("")
+	ErrorTypeAlreadyExists      = ErrorType("ALREADY_EXISTS")
 	ErrorTypeFailedPrecondition = ErrorType("FAILED_PRECONDITION")
-	ErrorTypeNotImplemented     = ErrorType("NOT_IMPLEMENTED")
+	ErrorTypeInternal           = ErrorType("INTERNAL")
+	ErrorTypeInvalidArgument    = ErrorType("INVALID_ARGUMENT")
+	ErrorTypeNotFound           = ErrorType("NOT_FOUND")
+	ErrorTypeOutOfRange         = ErrorType("OUT_OF_RANGE")
+	ErrorTypeUnimplemented      = ErrorType("UNIMPLEMENTED")
 )
 
 func ParseErrorType(s string) (ErrorType, error) {
@@ -36,16 +36,15 @@ func (e ErrorType) String() string {
 
 func (e ErrorType) Validate() error {
 	switch e {
-	case ErrorTypeInternal,
-		ErrorTypeOutOfRange,
-		ErrorTypeUnsupported,
-		ErrorTypeNotFound,
-		ErrorTypeAlreadyExists,
-		ErrorTypeInvalidFormat,
+	case ErrorTypeAlreadyExists,
 		ErrorTypeFailedPrecondition,
-		ErrorTypeNotImplemented:
+		ErrorTypeInternal,
+		ErrorTypeInvalidArgument,
+		ErrorTypeNotFound,
+		ErrorTypeOutOfRange,
+		ErrorTypeUnimplemented:
 		return nil
 	default:
-		return NewInvalidFormatError(fmt.Sprintf("invalid error type: %s", e))
+		return InvalidArgumentErrorf(fmt.Sprintf("invalid error type: %s", e))
 	}
 }

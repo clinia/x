@@ -2,7 +2,6 @@ package errorx
 
 import (
 	"fmt"
-	"reflect"
 	"regexp"
 	"strings"
 
@@ -60,13 +59,13 @@ func IsCliniaError(e error) (*CliniaError, bool) {
 	return &mE, true
 }
 
-func IsNotFoundError(e error) bool {
+func IsAlreadyExistsError(e error) bool {
 	mE, ok := IsCliniaError(e)
 	if !ok {
 		return false
 	}
 
-	return mE.Type == ErrorTypeNotFound
+	return mE.Type == ErrorTypeAlreadyExists
 }
 
 func IsFailedPreconditionError(e error) bool {
@@ -78,33 +77,6 @@ func IsFailedPreconditionError(e error) bool {
 	return mE.Type == ErrorTypeFailedPrecondition
 }
 
-func IsAlreadyExistsError(e error) bool {
-	mE, ok := IsCliniaError(e)
-	if !ok {
-		return false
-	}
-
-	return mE.Type == ErrorTypeAlreadyExists
-}
-
-func IsInvalidFormatError(e error) bool {
-	mE, ok := IsCliniaError(e)
-	if !ok {
-		return false
-	}
-
-	return mE.Type == ErrorTypeInvalidFormat
-}
-
-func IsUnsupportedError(e error) bool {
-	mE, ok := IsCliniaError(e)
-	if !ok {
-		return false
-	}
-
-	return mE.Type == ErrorTypeUnsupported
-}
-
 func IsInternalError(e error) bool {
 	mE, ok := IsCliniaError(e)
 	if !ok {
@@ -114,34 +86,46 @@ func IsInternalError(e error) bool {
 	return mE.Type == ErrorTypeInternal
 }
 
-// InternalErrorf creates a CliniaError with type ErrorTypeInternal and a formatted message
-func InternalErrorf(format string, args ...interface{}) CliniaError {
-	return CliniaError{
-		Type:    ErrorTypeInternal,
-		Message: fmt.Sprintf(format, args...),
+func IsInvalidArgumentError(e error) bool {
+	mE, ok := IsCliniaError(e)
+	if !ok {
+		return false
 	}
+
+	return mE.Type == ErrorTypeInvalidArgument
 }
 
-// NotFoundErrorf creates a CliniaError with type ErrorTypeNotFound and a formatted message
-func NotFoundErrorf(format string, args ...interface{}) CliniaError {
-	return CliniaError{
-		Type:    ErrorTypeNotFound,
-		Message: fmt.Sprintf(format, args...),
+func IsNotFoundError(e error) bool {
+	mE, ok := IsCliniaError(e)
+	if !ok {
+		return false
 	}
+
+	return mE.Type == ErrorTypeNotFound
 }
 
-// UnsupportedErrorf creates a CliniaError with type ErrorTypeUnsupported and a formatted message
-func UnsupportedErrorf(format string, args ...interface{}) CliniaError {
-	return CliniaError{
-		Type:    ErrorTypeUnsupported,
-		Message: fmt.Sprintf(format, args...),
+func IsOutOfRange(e error) bool {
+	mE, ok := IsCliniaError(e)
+	if !ok {
+		return false
 	}
+
+	return mE.Type == ErrorTypeOutOfRange
 }
 
-// InvalidFormatErrorf creates a CliniaError with type ErrorTypeInvalidFormat and a formatted message
-func InvalidFormatErrorf(format string, args ...interface{}) CliniaError {
+func IsUnimplemented(e error) bool {
+	mE, ok := IsCliniaError(e)
+	if !ok {
+		return false
+	}
+
+	return mE.Type == ErrorTypeUnimplemented
+}
+
+// AlreadyExistsErrorf creates a CliniaError with type ErrorTypeAlreadyExists and a formatted message
+func AlreadyExistsErrorf(format string, args ...interface{}) CliniaError {
 	return CliniaError{
-		Type:    ErrorTypeInvalidFormat,
+		Type:    ErrorTypeAlreadyExists,
 		Message: fmt.Sprintf(format, args...),
 	}
 }
@@ -154,10 +138,42 @@ func FailedPreconditionErrorf(format string, args ...interface{}) CliniaError {
 	}
 }
 
-// AlreadyExistsErrorf creates a CliniaError with type ErrorTypeAlreadyExists and a formatted message
-func AlreadyExistsErrorf(format string, args ...interface{}) CliniaError {
+// InternalErrorf creates a CliniaError with type ErrorTypeInternal and a formatted message
+func InternalErrorf(format string, args ...interface{}) CliniaError {
 	return CliniaError{
-		Type:    ErrorTypeAlreadyExists,
+		Type:    ErrorTypeInternal,
+		Message: fmt.Sprintf(format, args...),
+	}
+}
+
+// InvalidArgumentErrorf creates a CliniaError with type ErrorTypeInvalidArgument and a formatted message
+func InvalidArgumentErrorf(format string, args ...interface{}) CliniaError {
+	return CliniaError{
+		Type:    ErrorTypeInvalidArgument,
+		Message: fmt.Sprintf(format, args...),
+	}
+}
+
+// NotFoundErrorf creates a CliniaError with type ErrorTypeNotFound and a formatted message
+func NotFoundErrorf(format string, args ...interface{}) CliniaError {
+	return CliniaError{
+		Type:    ErrorTypeNotFound,
+		Message: fmt.Sprintf(format, args...),
+	}
+}
+
+// OutOfRangeErrorf creates a CliniaError with type ErrorTypeOutOfRange and a formatted message
+func OutOfRangeErrorf(format string, args ...interface{}) CliniaError {
+	return CliniaError{
+		Type:    ErrorTypeOutOfRange,
+		Message: fmt.Sprintf(format, args...),
+	}
+}
+
+// UnimplementedErrorf creates a CliniaError with type ErrorTypeUnimplemented and a formatted message
+func UnimplementedErrorf(format string, args ...interface{}) CliniaError {
+	return CliniaError{
+		Type:    ErrorTypeUnimplemented,
 		Message: fmt.Sprintf(format, args...),
 	}
 }
@@ -193,22 +209,6 @@ func NewNotFoundError(msg string, err error) CliniaError {
 	}
 }
 
-// Deprecated: use UnsupportedErrorf instead
-func NewUnsupportedError(message string) CliniaError {
-	return CliniaError{
-		Type:    ErrorTypeUnsupported,
-		Message: message,
-	}
-}
-
-// Deprecated: use UnsupportedErrorf instead
-func NewInvalidFormatError(message string) CliniaError {
-	return CliniaError{
-		Type:    ErrorTypeInvalidFormat,
-		Message: message,
-	}
-}
-
 // Deprecated: use FailedPreconditionErrorf instead
 func NewFailedPreconditionError(message string) CliniaError {
 	return CliniaError{
@@ -231,32 +231,10 @@ func NewMultipleOutOfRangeError(actual []string, expectedOneOf []string) CliniaE
 	}
 }
 
-func NewUnsupportedValueError(actual string, expected string) CliniaError {
-	return CliniaError{
-		Type:    ErrorTypeUnsupported,
-		Message: fmt.Sprintf("Expected value %s but got %s", expected, actual),
-	}
-}
-
-func NewUnsupportedTypeError[T1 any, T2 any](actual T1, expected T2) CliniaError {
-	return CliniaError{
-		Type:    ErrorTypeUnsupported,
-		Message: fmt.Sprintf("Expected type %s but got %s", reflect.TypeOf(expected), reflect.TypeOf(actual)),
-	}
-}
-
 // Deprecated: use AlreadyExistsErrorf instead
 func NewAlreadyExistsError(message string) CliniaError {
 	return CliniaError{
 		Type:    ErrorTypeAlreadyExists,
-		Message: message,
-	}
-}
-
-// Deprecated: use InternalErrorf instead
-func NewNotImplementedError(message string) CliniaError {
-	return CliniaError{
-		Type:    ErrorTypeNotImplemented,
 		Message: message,
 	}
 }
