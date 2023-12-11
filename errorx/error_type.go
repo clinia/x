@@ -45,6 +45,6 @@ func (e ErrorType) Validate() error {
 		ErrorTypeUnimplemented:
 		return nil
 	default:
-		return NewInvalidArgumentError(fmt.Sprintf("invalid error type: %s", e))
+		return InvalidArgumentErrorf(fmt.Sprintf("invalid error type: %s", e))
 	}
 }

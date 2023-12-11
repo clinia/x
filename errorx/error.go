@@ -209,14 +209,6 @@ func NewNotFoundError(msg string, err error) CliniaError {
 	}
 }
 
-// Deprecated: use UnsupportedErrorf instead
-func NewInvalidArgumentError(message string) CliniaError {
-	return CliniaError{
-		Type:    ErrorTypeInvalidArgument,
-		Message: message,
-	}
-}
-
 // Deprecated: use FailedPreconditionErrorf instead
 func NewFailedPreconditionError(message string) CliniaError {
 	return CliniaError{
