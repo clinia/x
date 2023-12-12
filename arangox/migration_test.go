@@ -13,36 +13,7 @@ import (
 )
 
 func TestMigration(t *testing.T) {
-	ctx := context.Background()
-
-	dsnHost := "http://localhost:8529"
-	dsnFromEnv := os.Getenv("ARANGO_URL")
-	if len(dsnFromEnv) > 0 {
-		dsnHost = dsnFromEnv
-	}
-
-	conn, err := http.NewConnection(http.ConnectionConfig{
-		Endpoints: []string{dsnHost},
-	})
-	assert.NoError(t, err)
-
-	client, err := driver.NewClient(driver.ClientConfig{
-		Connection: conn,
-	})
-	assert.NoError(t, err)
-
-	// Cleanup/Create database
-	exists, err := client.DatabaseExists(ctx, "test")
-	assert.NoError(t, err)
-	if exists {
-		db, err := client.Database(ctx, "test")
-		assert.NoError(t, err)
-
-		assert.NoError(t, db.Remove(ctx))
-	}
-
-	db, err := client.CreateDatabase(ctx, "test", nil)
-	assert.NoError(t, err)
+	ctx, db := newFixture(t, "test_migration")
 
 	t.Run("should be able to add migration with same version in multiple packages only", func(t *testing.T) {
 		fMig := NewMigrator(NewMigratorOptions{
@@ -86,22 +57,7 @@ func TestMigration(t *testing.T) {
 		assert.NoError(t, err)
 
 		// Check if migrations are added to the db
-		cur, err := db.Query(ctx, `
-		FOR m IN @@migrationsCollection
-			RETURN m
-		`, map[string]interface{}{
-			"@migrationsCollection": fMig.migrationsCollection,
-		})
-		assert.NoError(t, err)
-		defer cur.Close()
-
-		var versions []versionRecord
-		for cur.HasMore() {
-			var version versionRecord
-			_, err = cur.ReadDocument(ctx, &version)
-			assert.NoError(t, err)
-			versions = append(versions, version)
-		}
+		versions := fetchMigrations(t, ctx, db, fMig)
 
 		assert.Len(t, versions, 2)
 		assertx.ElementsMatch(t, versions, []versionRecord{
@@ -190,4 +146,164 @@ func TestMigration(t *testing.T) {
 		assert.Error(t, err)
 		assert.True(t, driver.IsConflict(err))
 	})
+
+}
+
+func TestDownMigrations(t *testing.T) {
+	ctx, db := newFixture(t, "test_down-migrations")
+
+	t.Run("should be able to migrate up and down", func(t *testing.T) {
+		m := NewMigrator(NewMigratorOptions{
+			Database: db,
+			Package:  "package-1",
+			Migrations: []Migration{
+				{
+					Version:     uint64(1),
+					Description: "Test initial migration",
+					Up: func(ctx context.Context, db driver.Database) error {
+						return nil
+					},
+					Down: func(ctx context.Context, db driver.Database) error {
+						return nil
+					},
+				},
+			},
+		})
+
+		err := m.Up(ctx, 0)
+		assert.NoError(t, err)
+
+		versions := fetchMigrations(t, ctx, db, m)
+
+		assertx.ElementsMatch(t, versions, []versionRecord{
+			{
+				Version:     uint64(1),
+				Package:     "package-1",
+				Description: "Test initial migration",
+			},
+		}, cmpopts.IgnoreFields(versionRecord{}, "Timestamp"))
+
+		err = m.Down(ctx, 0)
+		assert.NoError(t, err)
+
+		versions = fetchMigrations(t, ctx, db, m)
+		assert.Len(t, versions, 0)
+	})
+
+	t.Run("should be able to migrate up and down multiple migrations", func(t *testing.T) {
+		m := NewMigrator(NewMigratorOptions{
+			Database: db,
+			Package:  "package-1",
+			Migrations: []Migration{
+				{
+					Version:     uint64(1),
+					Description: "Test initial migration",
+					Up: func(ctx context.Context, db driver.Database) error {
+						return nil
+					},
+					Down: func(ctx context.Context, db driver.Database) error {
+						return nil
+					},
+				},
+				{
+					Version:     uint64(2),
+					Description: "Test second migration",
+					Up: func(ctx context.Context, db driver.Database) error {
+						return nil
+					},
+					Down: func(ctx context.Context, db driver.Database) error {
+						return nil
+					},
+				},
+			},
+		})
+
+		err := m.Up(ctx, 0)
+		assert.NoError(t, err)
+
+		versions := fetchMigrations(t, ctx, db, m)
+
+		assertx.ElementsMatch(t, versions, []versionRecord{
+			{
+				Version:     uint64(1),
+				Package:     "package-1",
+				Description: "Test initial migration",
+			},
+			{
+				Version:     uint64(2),
+				Package:     "package-1",
+				Description: "Test second migration",
+			},
+		}, cmpopts.IgnoreFields(versionRecord{}, "Timestamp"))
+
+		err = m.Down(ctx, 1)
+		assert.NoError(t, err)
+
+		versions = fetchMigrations(t, ctx, db, m)
+		assertx.ElementsMatch(t, versions, []versionRecord{
+			{
+				Version:     uint64(1),
+				Package:     "package-1",
+				Description: "Test initial migration",
+			},
+		}, cmpopts.IgnoreFields(versionRecord{}, "Timestamp"))
+	})
+}
+
+func newFixture(t *testing.T, dbName string) (context.Context, driver.Database) {
+	ctx := context.Background()
+
+	dsnHost := "http://localhost:8529"
+	dsnFromEnv := os.Getenv("ARANGO_URL")
+	if len(dsnFromEnv) > 0 {
+		dsnHost = dsnFromEnv
+	}
+
+	conn, err := http.NewConnection(http.ConnectionConfig{
+		Endpoints: []string{dsnHost},
+	})
+	assert.NoError(t, err)
+
+	c, err := driver.NewClient(driver.ClientConfig{
+		Connection: conn,
+	})
+	assert.NoError(t, err)
+
+	// Drop the database if it exists
+	exists, err := c.DatabaseExists(ctx, dbName)
+	assert.NoError(t, err)
+	if exists {
+		db, err := c.Database(ctx, dbName)
+		assert.NoError(t, err)
+
+		err = db.Remove(ctx)
+		assert.NoError(t, err)
+	}
+
+	db, err := c.CreateDatabase(ctx, dbName, &driver.CreateDatabaseOptions{})
+	assert.NoError(t, err)
+
+	return ctx, db
+}
+
+func fetchMigrations(t *testing.T, ctx context.Context, db driver.Database, m *Migrator) []versionRecord {
+	// Check if migrations are added to the db
+	cur, err := db.Query(ctx, `
+	FOR m IN @@migrationsCollection
+		RETURN m
+	`, map[string]interface{}{
+		"@migrationsCollection": m.migrationsCollection,
+	})
+	assert.NoError(t, err)
+	defer cur.Close()
+
+	var versions []versionRecord
+	for cur.HasMore() {
+		var version versionRecord
+		_, err = cur.ReadDocument(ctx, &version)
+		assert.NoError(t, err)
+		versions = append(versions, version)
+	}
+
+	return versions
 }

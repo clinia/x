@@ -5,6 +5,13 @@
     "additionalProperties": false,
     "description": "Configure Pub sub using the following options",
     "properties": {
+        "scope": {
+            "type": "string",
+            "description": "Set this to the scope you wish to use for pub sub. Defaults to the application id.",
+            "examples": [
+                "my-app"
+            ]
+        },
         "provider": {
             "type": "string",
             "description": "Set this to the pub sub backend you wish to use. Supports inmemory and kafka. Defaults to inmemory.",
