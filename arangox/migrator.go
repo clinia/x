@@ -162,28 +162,6 @@ func (m *Migrator) Version(ctx context.Context) (uint64, string, error) {
 	return rec.Version, rec.Description, nil
 }
 
-// setVersion forcibly changes database version to provided.
-func (m *Migrator) setVersion(ctx context.Context, version uint64, description string) error {
-	rec := versionRecord{
-		Version:     version,
-		Package:     m.pkg,
-		Timestamp:   time.Now().UTC(),
-		Description: description,
-	}
-
-	col, err := m.db.Collection(ctx, m.migrationsCollection)
-	if err != nil {
-		return err
-	}
-
-	_, err = col.CreateDocument(ctx, rec)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
 // Up performs "up" migrations to latest available version.
 // If n<=0 all "up" migrations with newer versions will be performed.
 // If n>0 only n migrations with newer version will be performed.
@@ -197,6 +175,11 @@ func (m *Migrator) Up(ctx context.Context, n int) error {
 	}
 	migrationSort(m.migrations)
 
+	col, err := m.db.Collection(ctx, m.migrationsCollection)
+	if err != nil {
+		return err
+	}
+
 	for i, p := 0, 0; i < len(m.migrations) && p < n; i++ {
 		migration := m.migrations[i]
 		if migration.Version <= currentVersion || migration.Up == nil {
@@ -206,10 +189,20 @@ func (m *Migrator) Up(ctx context.Context, n int) error {
 		if err := migration.Up(ctx, m.db); err != nil {
 			return err
 		}
-		if err := m.setVersion(ctx, migration.Version, migration.Description); err != nil {
+
+		rec := versionRecord{
+			Version:     migration.Version,
+			Package:     m.pkg,
+			Timestamp:   time.Now().UTC(),
+			Description: migration.Description,
+		}
+
+		_, err = col.CreateDocument(ctx, rec)
+		if err != nil {
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -226,6 +219,7 @@ func (m *Migrator) Down(ctx context.Context, n int) error {
 	}
 	migrationSort(m.migrations)
 
+	version := currentVersion
 	for i, p := len(m.migrations)-1, 0; i >= 0 && p < n; i-- {
 		migration := m.migrations[i]
 		if migration.Version > currentVersion || migration.Down == nil {
@@ -236,15 +230,27 @@ func (m *Migrator) Down(ctx context.Context, n int) error {
 			return err
 		}
 
-		var prevMigration Migration
 		if i == 0 {
-			prevMigration = Migration{Version: 0}
+			version = 0
 		} else {
-			prevMigration = m.migrations[i-1]
-		}
-		if err := m.setVersion(ctx, prevMigration.Version, prevMigration.Description); err != nil {
-			return err
+			version = m.migrations[i-1].Version
 		}
 	}
+
+	_, err = m.db.Query(ctx, `
+		FOR m IN @@collection 
+			FILTER m.package == @pkg AND m.version > @version
+			REMOVE m IN @@collection
+			LET removed = OLD
+  			RETURN removed
+	`, map[string]interface{}{
+		"@collection": m.migrationsCollection,
+		"pkg":         m.pkg,
+		"version":     version,
+	})
+	if err != nil {
+		return err
+	}
+
 	return nil
 }

@@ -1,6 +1,7 @@
 package pubsubx
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/clinia/x/logrusx"
@@ -114,4 +115,12 @@ func (ps *pubSub) Close() error {
 	}
 
 	return nil
+}
+
+func topicName(scope, topic string) string {
+	if scope != "" {
+		return fmt.Sprintf("%s.%s", scope, topic)
+	}
+
+	return topic
 }

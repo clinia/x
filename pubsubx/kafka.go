@@ -11,6 +11,14 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 )
 
+type kafkaPublisher struct {
+	scope      string
+	publisher  *kafka.Publisher
+	propagator propagation.TextMapPropagator
+}
+
+var _ Publisher = (*kafkaPublisher)(nil)
+
 // TODO: add publisher configs
 func SetupKafkaPublisher(l *logrusx.Logger, c *Config, opts *pubSubOptions) (Publisher, error) {
 	conf := kafka.PublisherConfig{
@@ -30,13 +38,11 @@ func SetupKafkaPublisher(l *logrusx.Logger, c *Config, opts *pubSubOptions) (Pub
 		return nil, err
 	}
 
-	kafkaPub := &kafkaPublisher{publisher: *publisher, propagator: opts.propagator}
-	return kafkaPub, nil
-}
-
-type kafkaPublisher struct {
-	publisher  kafka.Publisher
-	propagator propagation.TextMapPropagator
+	return &kafkaPublisher{
+		scope:      c.Scope,
+		publisher:  publisher,
+		propagator: opts.propagator,
+	}, nil
 }
 
 func (p *kafkaPublisher) Publish(ctx context.Context, topic string, messages ...*message.Message) error {
@@ -45,13 +51,20 @@ func (p *kafkaPublisher) Publish(ctx context.Context, topic string, messages ...
 			p.propagator.Inject(ctx, propagation.MapCarrier(msg.Metadata))
 		}
 	}
-	return p.publisher.Publish(topic, messages...)
+	return p.publisher.Publish(topicName(p.scope, topic), messages...)
 
 }
 
 func (p *kafkaPublisher) Close() error {
 	return p.publisher.Close()
 }
+
+type kafkaSubscriber struct {
+	scope      string
+	subscriber *kafka.Subscriber
+}
+
+var _ Subscriber = (*kafkaSubscriber)(nil)
 
 // TODO: add subscriber configs
 func SetupKafkaSubscriber(l *logrusx.Logger, c *Config, opts *pubSubOptions, group string) (Subscriber, error) {
@@ -81,5 +94,18 @@ func SetupKafkaSubscriber(l *logrusx.Logger, c *Config, opts *pubSubOptions, gro
 		return nil, err
 	}
 
-	return subscriber, nil
+	return &kafkaSubscriber{
+		scope:      c.Scope,
+		subscriber: subscriber,
+	}, nil
+}
+
+// Close implements Subscriber.
+func (s *kafkaSubscriber) Close() error {
+	return s.subscriber.Close()
+}
+
+// Subscribe implements Subscriber.
+func (s *kafkaSubscriber) Subscribe(ctx context.Context, topic string) (<-chan *message.Message, error) {
+	return s.subscriber.Subscribe(ctx, topicName(s.scope, topic))
 }
