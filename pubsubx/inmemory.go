@@ -24,9 +24,10 @@ func (ps *memoryPubSub) Publish(ctx context.Context, topic string, messages ...*
 	return ps.pubsubchan.Publish(topicName(ps.scope, topic), messages...)
 }
 
-func (ps *memoryPubSub) SetupSubscriber() func(group string) (Subscriber, error) {
+func (ps *memoryPubSub) SetupSubscriber() func(group string, subOpts *subscriberOptions) (Subscriber, error) {
 	// The in-memory pubsub doesn't support grouping.
-	return func(group string) (Subscriber, error) {
+	return func(group string, subOpts *subscriberOptions) (Subscriber, error) {
+		// TODO - Support batch consumer model
 		return ps, nil
 	}
 }

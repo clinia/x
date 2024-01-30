@@ -7,6 +7,7 @@ import (
 	"github.com/ThreeDotsLabs/watermill-kafka/v2/pkg/kafka"
 	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/clinia/x/logrusx"
+	"github.com/clinia/x/pubsubx/kafkax"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/Shopify/sarama/otelsarama"
 	"go.opentelemetry.io/otel/propagation"
 )
@@ -61,22 +62,41 @@ func (p *kafkaPublisher) Close() error {
 
 type kafkaSubscriber struct {
 	scope      string
-	subscriber *kafka.Subscriber
+	subscriber *kafkax.Subscriber
 }
 
 var _ Subscriber = (*kafkaSubscriber)(nil)
 
 // TODO: add subscriber configs
-func SetupKafkaSubscriber(l *logrusx.Logger, c *Config, opts *pubSubOptions, group string) (Subscriber, error) {
+func SetupKafkaSubscriber(l *logrusx.Logger, c *Config, opts *pubSubOptions, group string, subOpts *subscriberOptions) (Subscriber, error) {
 	saramaSubscriberConfig := kafka.DefaultSaramaSubscriberConfig()
 	saramaSubscriberConfig.Consumer.Offsets.Initial = sarama.OffsetOldest
 
-	conf := kafka.SubscriberConfig{
+	conf := kafkax.SubscriberConfig{
 		Brokers:               c.Providers.Kafka.Brokers,
 		Unmarshaler:           kafka.DefaultMarshaler{},
 		OverwriteSaramaConfig: saramaSubscriberConfig,
 		Tracer:                NewOTELSaramaTracer(otelsarama.WithTracerProvider(opts.tracerProvider)),
 	}
+
+	switch subOpts.consumerModel {
+	case ConsumerModelDefault:
+		conf.ConsumerModel = kafkax.Default
+	case ConsumerModelBatch:
+		conf.ConsumerModel = kafkax.Batch
+		if subOpts.batchConsumerOptions != nil {
+			conf.BatchConsumerConfig = &kafkax.BatchConsumerConfig{
+				MaxBatchSize: subOpts.batchConsumerOptions.MaxBatchSize,
+				MaxWaitTime:  subOpts.batchConsumerOptions.MaxWaitTime,
+			}
+		} else {
+			// Will use defaults
+			conf.BatchConsumerConfig = &kafkax.BatchConsumerConfig{}
+		}
+	default:
+		conf.ConsumerModel = kafkax.Default
+	}
+
 	// Setup tracer if provided
 	if opts.tracerProvider != nil {
 		conf.Tracer = NewOTELSaramaTracer(otelsarama.WithTracerProvider(opts.tracerProvider), otelsarama.WithPropagators(opts.propagator))
@@ -86,7 +106,7 @@ func SetupKafkaSubscriber(l *logrusx.Logger, c *Config, opts *pubSubOptions, gro
 		conf.ConsumerGroup = group
 	}
 
-	subscriber, err := kafka.NewSubscriber(
+	subscriber, err := kafkax.NewSubscriber(
 		conf,
 		NewLogrusLogger(l.Logger),
 	)

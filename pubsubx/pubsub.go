@@ -10,14 +10,14 @@ import (
 
 type PubSub interface {
 	Publisher() Publisher
-	Subscriber(group string) (Subscriber, error)
+	Subscriber(group string, opts ...SubscriberOption) (Subscriber, error)
 	// CLoses all publishers and subscribers.
 	Close() error
 }
 
 type pubSub struct {
 	publisher  Publisher
-	subscriber func(group string) (Subscriber, error)
+	subscriber func(group string, opts *subscriberOptions) (Subscriber, error)
 	subs       sync.Map
 }
 
@@ -49,9 +49,9 @@ func (ps *pubSub) setup(l *logrusx.Logger, c *Config, opts *pubSubOptions) error
 		}
 
 		ps.publisher = publisher
-		ps.subscriber = func(group string) (Subscriber, error) {
+		ps.subscriber = func(group string, subOpts *subscriberOptions) (Subscriber, error) {
 			if ms, ok := ps.subs.Load(group); !ok {
-				s, e := SetupKafkaSubscriber(l, c, opts, group)
+				s, e := SetupKafkaSubscriber(l, c, opts, group, subOpts)
 				if e != nil {
 					return nil, e
 				}
@@ -84,8 +84,12 @@ func (ps *pubSub) Publisher() Publisher {
 	return ps.publisher
 }
 
-func (ps *pubSub) Subscriber(group string) (Subscriber, error) {
-	return ps.subscriber(group)
+func (ps *pubSub) Subscriber(group string, opts ...SubscriberOption) (Subscriber, error) {
+	sOpts := &subscriberOptions{}
+	for _, opt := range opts {
+		opt(sOpts)
+	}
+	return ps.subscriber(group, sOpts)
 }
 
 func (ps *pubSub) Close() error {
