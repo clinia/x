@@ -21,7 +21,7 @@ type kafkaPublisher struct {
 var _ Publisher = (*kafkaPublisher)(nil)
 
 // TODO: add publisher configs
-func SetupKafkaPublisher(l *logrusx.Logger, c *Config, opts *pubSubOptions) (Publisher, error) {
+func setupKafkaPublisher(l *logrusx.Logger, c *Config, opts *pubSubOptions) (Publisher, error) {
 	conf := kafka.PublisherConfig{
 		Brokers:   c.Providers.Kafka.Brokers,
 		Marshaler: kafka.DefaultMarshaler{},
@@ -68,7 +68,7 @@ type kafkaSubscriber struct {
 var _ Subscriber = (*kafkaSubscriber)(nil)
 
 // TODO: add subscriber configs
-func SetupKafkaSubscriber(l *logrusx.Logger, c *Config, opts *pubSubOptions, group string, subOpts *subscriberOptions) (Subscriber, error) {
+func setupKafkaSubscriber(l *logrusx.Logger, c *Config, opts *pubSubOptions, group string, subOpts *subscriberOptions) (Subscriber, error) {
 	saramaSubscriberConfig := kafka.DefaultSaramaSubscriberConfig()
 	saramaSubscriberConfig.Consumer.Offsets.Initial = sarama.OffsetOldest
 

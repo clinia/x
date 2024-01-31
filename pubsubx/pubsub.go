@@ -43,7 +43,7 @@ func New(l *logrusx.Logger, c *Config, opts ...PubSubOption) (PubSub, error) {
 func (ps *pubSub) setup(l *logrusx.Logger, c *Config, opts *pubSubOptions) error {
 	switch f := stringsx.SwitchExact(c.Provider); {
 	case f.AddCase("kafka"):
-		publisher, err := SetupKafkaPublisher(l, c, opts)
+		publisher, err := setupKafkaPublisher(l, c, opts)
 		if err != nil {
 			return err
 		}
@@ -51,7 +51,7 @@ func (ps *pubSub) setup(l *logrusx.Logger, c *Config, opts *pubSubOptions) error
 		ps.publisher = publisher
 		ps.subscriber = func(group string, subOpts *subscriberOptions) (Subscriber, error) {
 			if ms, ok := ps.subs.Load(group); !ok {
-				s, e := SetupKafkaSubscriber(l, c, opts, group, subOpts)
+				s, e := setupKafkaSubscriber(l, c, opts, group, subOpts)
 				if e != nil {
 					return nil, e
 				}
@@ -71,7 +71,7 @@ func (ps *pubSub) setup(l *logrusx.Logger, c *Config, opts *pubSubOptions) error
 		}
 
 		ps.publisher = pubsub
-		ps.subscriber = pubsub.SetupSubscriber()
+		ps.subscriber = pubsub.setupSubscriber()
 		l.Infof("InMemory publisher configured! Sending & receiving messages to in-memory")
 	default:
 		return f.ToUnknownCaseErr()
