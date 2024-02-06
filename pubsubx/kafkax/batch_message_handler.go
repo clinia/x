@@ -61,6 +61,15 @@ func (h *batchedMessageHandler) startProcessing() {
 	sendDeadline := time.Now().Add(h.maxWaitTime)
 	timer := time.NewTimer(h.maxWaitTime)
 	for {
+		firstMessage, ok := <-h.messages
+		if !ok {
+			h.logger.Debug("Messages channel is closed", logFields)
+		} else {
+			buffer = append(buffer, firstMessage)
+		}
+
+		timer.Reset(h.maxWaitTime)
+
 		timerExpired := false
 		select {
 		case message, ok := <-h.messages:
@@ -92,7 +101,8 @@ func (h *batchedMessageHandler) startProcessing() {
 			buffer = newBuffer
 			// if there are messages in the buffer, it means there was NACKs, so we wait
 			if len(buffer) > 0 && mustSleep {
-				time.Sleep(h.nackResendSleep)
+				timer.Reset(h.nackResendSleep)
+				<-timer.C
 			}
 		}
 		timer.Reset(sendDeadline.Sub(time.Now()))
