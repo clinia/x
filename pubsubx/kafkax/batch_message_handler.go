@@ -51,7 +51,7 @@ func NewBatchedMessageHandler(
 		messageParser: messageParser{
 			unmarshaler: unmarshaler,
 		},
-		messages: make(chan *messageHolder, 0),
+		messages: make(chan *messageHolder),
 		wg:       sync.WaitGroup{},
 	}
 	handler.wg.Add(1)
@@ -69,19 +69,22 @@ func (h *batchedMessageHandler) startProcessing(ctx context.Context) {
 	sendDeadline := time.Now().Add(h.maxWaitTime)
 	timer := time.NewTimer(h.maxWaitTime)
 	for {
-		select {
+		if len(buffer) == 0 {
+			select {
 
-		case firstMessage, ok := <-h.messages:
-			if !ok {
-				h.logger.Debug("Messages channel is closed", logFields)
-			} else {
-				buffer = append(buffer, firstMessage)
+			case firstMessage, ok := <-h.messages:
+				if !ok {
+					h.logger.Debug("Messages channel is closed", logFields)
+				} else {
+					buffer = append(buffer, firstMessage)
+				}
+			case <-ctx.Done():
+				return
 			}
-		case <-ctx.Done():
-			return
-		}
 
-		timer.Reset(h.maxWaitTime)
+			sendDeadline = time.Now().Add(h.maxWaitTime)
+			timer.Reset(h.maxWaitTime)
+		}
 
 		timerExpired := false
 		select {
@@ -95,7 +98,6 @@ func (h *batchedMessageHandler) startProcessing(ctx context.Context) {
 				h.logger.Trace("Timer expired, sending already fetched messages.", logFields)
 			}
 			timerExpired = true
-			break
 		case <-ctx.Done():
 			h.logger.Debug("Context done, terminating startProcessing", logFields)
 			return
@@ -118,7 +120,7 @@ func (h *batchedMessageHandler) startProcessing(ctx context.Context) {
 				<-timer.C
 			}
 		}
-		timer.Reset(sendDeadline.Sub(time.Now()))
+		timer.Reset(time.Until(sendDeadline))
 	}
 }
 
@@ -192,6 +194,7 @@ func (h *batchedMessageHandler) processBatch(
 	for idx, waitChannel := range waitChannels {
 		msgHolder := buffer[idx]
 		h.logger.Trace("Waiting for message to be acked", msgHolder.logFields)
+		//lint:ignore S1000 We keep the select to be able to break the select when a nack is received
 		select {
 		case ack, ok := <-waitChannel:
 			h.logger.Info("Received ACK / NACK response or closed", msgHolder.logFields)
