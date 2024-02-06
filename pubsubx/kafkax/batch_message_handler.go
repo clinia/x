@@ -3,6 +3,7 @@ package kafkax
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/Shopify/sarama"
@@ -27,6 +28,8 @@ type batchedMessageHandler struct {
 	closing       chan struct{}
 	messageParser messageParser
 	messages      chan *messageHolder
+	wg            sync.WaitGroup
+	cancel        context.CancelFunc
 }
 
 func NewBatchedMessageHandler(
@@ -49,23 +52,33 @@ func NewBatchedMessageHandler(
 			unmarshaler: unmarshaler,
 		},
 		messages: make(chan *messageHolder, 0),
+		wg:       sync.WaitGroup{},
 	}
-	go handler.startProcessing()
+	handler.wg.Add(1)
+	ctx, cancel := context.WithCancel(context.Background())
+	handler.cancel = cancel
+	go handler.startProcessing(ctx)
 	return handler
 }
 
-func (h *batchedMessageHandler) startProcessing() {
+func (h *batchedMessageHandler) startProcessing(ctx context.Context) {
+	defer h.wg.Done()
 	buffer := make([]*messageHolder, 0, h.maxBatchSize)
 	mustSleep := h.nackResendSleep != NoSleep
 	logFields := watermill.LogFields{}
 	sendDeadline := time.Now().Add(h.maxWaitTime)
 	timer := time.NewTimer(h.maxWaitTime)
 	for {
-		firstMessage, ok := <-h.messages
-		if !ok {
-			h.logger.Debug("Messages channel is closed", logFields)
-		} else {
-			buffer = append(buffer, firstMessage)
+		select {
+
+		case firstMessage, ok := <-h.messages:
+			if !ok {
+				h.logger.Debug("Messages channel is closed", logFields)
+			} else {
+				buffer = append(buffer, firstMessage)
+			}
+		case <-ctx.Done():
+			return
 		}
 
 		timer.Reset(h.maxWaitTime)
@@ -83,8 +96,8 @@ func (h *batchedMessageHandler) startProcessing() {
 			}
 			timerExpired = true
 			break
-		case <-h.closing:
-			h.logger.Debug("Subscriber is closing, stopping messageHandler", logFields)
+		case <-ctx.Done():
+			h.logger.Debug("Context done, terminating startProcessing", logFields)
 			return
 		}
 		size := len(buffer)
@@ -115,6 +128,18 @@ func (h *batchedMessageHandler) ProcessMessages(
 	sess sarama.ConsumerGroupSession,
 	logFields watermill.LogFields,
 ) error {
+	defer func() {
+		h.logger.Debug("batchedMessageHandler.ProcessMessage is closing, stopping messageHandler...", logFields)
+		if h.cancel != nil {
+			h.cancel()
+		} else {
+			h.logger.Debug("cancel is nil, not calling it", logFields)
+			return
+		}
+		h.wg.Wait()
+		h.logger.Debug("messageHandler stopped successfully, returning", logFields)
+	}()
+
 	for {
 		select {
 		case kafkaMsg := <-kafkaMessages:
@@ -128,10 +153,9 @@ func (h *batchedMessageHandler) ProcessMessages(
 			}
 			h.messages <- msg
 		case <-h.closing:
-			h.logger.Debug("Subscriber is closing, stopping messageHandler", logFields)
+			h.logger.Debug("Subscriber is closing", logFields)
 			return nil
 		case <-ctx.Done():
-			h.logger.Debug("Ctx was cancelled, stopping messageHandler", logFields)
 			return nil
 		}
 	}
