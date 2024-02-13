@@ -69,22 +69,8 @@ func (m *Migrator) SetMigrationsCollection(name string) {
 	m.migrationsCollection = name
 }
 
-func (m *Migrator) collectionExists(ctx context.Context, name string) (isExist bool, err error) {
-	collections, err := m.getCollections(ctx)
-	if err != nil {
-		return false, err
-	}
-
-	for _, c := range collections {
-		if name == c.Name {
-			return true, nil
-		}
-	}
-	return false, nil
-}
-
 func (m *Migrator) createCollectionIfNotExist(ctx context.Context, name string) error {
-	exist, err := m.collectionExists(ctx, name)
+	exist, err := m.db.CollectionExists(ctx, name)
 	if err != nil {
 		return err
 	}
@@ -106,27 +92,6 @@ func (m *Migrator) createCollectionIfNotExist(ctx context.Context, name string) 
 	}
 
 	return nil
-}
-
-func (m *Migrator) getCollections(ctx context.Context) (collections []collectionSpecification, err error) {
-	cols, err := m.db.Collections(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, col := range cols {
-		p, err := col.Properties(ctx)
-		if err != nil {
-			return nil, err
-		}
-
-		collections = append(collections, collectionSpecification{
-			Name: p.Name,
-			Type: int(p.Type),
-		})
-	}
-
-	return
 }
 
 // Version returns current database version and comment.
