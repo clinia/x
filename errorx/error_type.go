@@ -19,6 +19,8 @@ const (
 	ErrorTypeNotFound           = ErrorType("NOT_FOUND")
 	ErrorTypeOutOfRange         = ErrorType("OUT_OF_RANGE")
 	ErrorTypeUnimplemented      = ErrorType("UNIMPLEMENTED")
+	ErrorTypeUnauthenticated    = ErrorType("UNAUTHENTICATED")
+	ErrorTypePermissionDenied   = ErrorType("PERMISSION_DENIED")
 )
 
 func ParseErrorType(s string) (ErrorType, error) {
@@ -42,7 +44,9 @@ func (e ErrorType) Validate() error {
 		ErrorTypeInvalidArgument,
 		ErrorTypeNotFound,
 		ErrorTypeOutOfRange,
-		ErrorTypeUnimplemented:
+		ErrorTypeUnimplemented,
+		ErrorTypeUnauthenticated,
+		ErrorTypePermissionDenied:
 		return nil
 	default:
 		return InvalidArgumentErrorf(fmt.Sprintf("invalid error type: %s", e))

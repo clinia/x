@@ -122,6 +122,24 @@ func IsUnimplemented(e error) bool {
 	return mE.Type == ErrorTypeUnimplemented
 }
 
+func IsUnauthenticatedError(e error) bool {
+	mE, ok := IsCliniaError(e)
+	if !ok {
+		return false
+	}
+
+	return mE.Type == ErrorTypeUnauthenticated
+}
+
+func IsPermissionDeniedError(e error) bool {
+	mE, ok := IsCliniaError(e)
+	if !ok {
+		return false
+	}
+
+	return mE.Type == ErrorTypePermissionDenied
+}
+
 // AlreadyExistsErrorf creates a CliniaError with type ErrorTypeAlreadyExists and a formatted message
 func AlreadyExistsErrorf(format string, args ...interface{}) CliniaError {
 	return CliniaError{
@@ -174,6 +192,22 @@ func OutOfRangeErrorf(format string, args ...interface{}) CliniaError {
 func UnimplementedErrorf(format string, args ...interface{}) CliniaError {
 	return CliniaError{
 		Type:    ErrorTypeUnimplemented,
+		Message: fmt.Sprintf(format, args...),
+	}
+}
+
+// UnauthenticatedErrorf creates a CliniaError with type ErrorTypeUnauthenticated and a formatted message
+func UnauthenticatedErrorf(format string, args ...interface{}) CliniaError {
+	return CliniaError{
+		Type:    ErrorTypeUnauthenticated,
+		Message: fmt.Sprintf(format, args...),
+	}
+}
+
+// PermissionDeniedErrorf creates a CliniaError with type ErrorTypePermissionDenied and a formatted message
+func PermissionDeniedErrorf(format string, args ...interface{}) CliniaError {
+	return CliniaError{
+		Type:    ErrorTypePermissionDenied,
 		Message: fmt.Sprintf(format, args...),
 	}
 }
