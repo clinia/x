@@ -14,7 +14,7 @@ import (
 
 type kafkaPublisher struct {
 	scope      string
-	publisher  *kafka.Publisher
+	publisher  *kafkax.Publisher
 	propagator propagation.TextMapPropagator
 }
 
@@ -22,7 +22,7 @@ var _ Publisher = (*kafkaPublisher)(nil)
 
 // TODO: add publisher configs
 func setupKafkaPublisher(l *logrusx.Logger, c *Config, opts *pubSubOptions) (Publisher, error) {
-	conf := kafka.PublisherConfig{
+	conf := kafkax.PublisherConfig{
 		Brokers:   c.Providers.Kafka.Brokers,
 		Marshaler: kafka.DefaultMarshaler{},
 	}
@@ -31,7 +31,7 @@ func setupKafkaPublisher(l *logrusx.Logger, c *Config, opts *pubSubOptions) (Pub
 		conf.Tracer = NewOTELSaramaTracer(otelsarama.WithTracerProvider(opts.tracerProvider), otelsarama.WithPropagators(opts.propagator))
 	}
 
-	publisher, err := kafka.NewPublisher(
+	publisher, err := kafkax.NewPublisher(
 		conf,
 		NewLogrusLogger(l.Logger),
 	)
@@ -54,6 +54,15 @@ func (p *kafkaPublisher) Publish(ctx context.Context, topic string, messages ...
 	}
 	return p.publisher.Publish(topicName(p.scope, topic), messages...)
 
+}
+
+func (p *kafkaPublisher) BulkPublish(ctx context.Context, topic string, messages ...*message.Message) error {
+	if p.propagator != nil {
+		for _, msg := range messages {
+			p.propagator.Inject(ctx, propagation.MapCarrier(msg.Metadata))
+		}
+	}
+	return p.publisher.BulkPublish(topicName(p.scope, topic), messages...)
 }
 
 func (p *kafkaPublisher) Close() error {

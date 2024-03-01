@@ -10,6 +10,7 @@ import (
 type Publisher interface {
 	// Publish publishes a message to the topic.
 	Publish(ctx context.Context, topic string, messages ...*message.Message) error
+	BulkPublish(ctx context.Context, topic string, messages ...*message.Message) error
 	// Close closes the publisher.
 	Close() error
 }

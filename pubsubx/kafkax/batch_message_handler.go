@@ -197,7 +197,7 @@ func (h *batchedMessageHandler) processBatch(
 		//lint:ignore S1000 We keep the select to be able to break the select when a nack is received
 		select {
 		case ack, ok := <-waitChannel:
-			h.logger.Info("Received ACK / NACK response or closed", msgHolder.logFields)
+			h.logger.Debug("Received ACK / NACK response or closed", msgHolder.logFields)
 			// it was aborted
 			if !ok {
 				h.logger.Info("Returning as messages were closed", msgHolder.logFields)
