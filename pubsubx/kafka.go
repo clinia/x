@@ -2,7 +2,6 @@ package pubsubx
 
 import (
 	"context"
-	"strconv"
 
 	"github.com/Shopify/sarama"
 	"github.com/ThreeDotsLabs/watermill-kafka/v2/pkg/kafka"
@@ -58,15 +57,10 @@ func (p *kafkaPublisher) Publish(ctx context.Context, topic string, messages ...
 }
 
 func (p *kafkaPublisher) BulkPublish(ctx context.Context, topic string, messages ...*message.Message) error {
-	if len := len(messages); len > 0 {
-		m := map[string]string{
-			"message_count": strconv.Itoa(len),
-			"from_uuid":     messages[0].UUID,
+	if p.propagator != nil {
+		for _, msg := range messages {
+			p.propagator.Inject(ctx, propagation.MapCarrier(msg.Metadata))
 		}
-		if len > 1 {
-			m["to_uuid"] = messages[len-1].UUID
-		}
-		p.propagator.Inject(ctx, propagation.MapCarrier(m))
 	}
 	return p.publisher.BulkPublish(topicName(p.scope, topic), messages...)
 }
