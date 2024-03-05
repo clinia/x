@@ -1,6 +1,7 @@
 package kafkax
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/Shopify/sarama"
@@ -132,6 +133,34 @@ func (p *Publisher) Publish(topic string, msgs ...*message.Message) error {
 		p.logger.Trace("Message sent to Kafka", logFields)
 	}
 
+	return nil
+}
+
+func (p *Publisher) BulkPublish(topic string, msgs ...*message.Message) error {
+	if p.closed {
+		return errors.New("publisher closed")
+	}
+
+	logFields := make(watermill.LogFields, 4)
+	logFields["topic"] = topic
+	p.logger.Trace(fmt.Sprintf("Sending %d messages to Kafka", len(msgs)), logFields)
+	kafkamsgs := make([]*sarama.ProducerMessage, len(msgs))
+	for i, msg := range msgs {
+		p.logger.Trace(fmt.Sprintf("Marshalling message %d to Kafka", i), logFields)
+
+		kafkaMsg, err := p.config.Marshaler.Marshal(topic, msg)
+		if err != nil {
+			return errors.Wrapf(err, "cannot marshal message %s", msg.UUID)
+		}
+		kafkamsgs[i] = kafkaMsg
+	}
+
+	err := p.producer.SendMessages(kafkamsgs)
+	if err != nil {
+		return errors.Wrap(err, "cannot produce messages")
+	}
+
+	p.logger.Trace(fmt.Sprintf("Messages sent to Kafka"), logFields)
 	return nil
 }
 

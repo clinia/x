@@ -13,6 +13,8 @@ type memoryPubSub struct {
 	pubsubchan *gochannel.GoChannel
 }
 
+var _ Publisher = (*memoryPubSub)(nil)
+
 func SetupInMemoryPubSub(l *logrusx.Logger, c *Config) (*memoryPubSub, error) {
 	return &memoryPubSub{
 		scope:      c.Scope,
@@ -21,6 +23,11 @@ func SetupInMemoryPubSub(l *logrusx.Logger, c *Config) (*memoryPubSub, error) {
 }
 
 func (ps *memoryPubSub) Publish(ctx context.Context, topic string, messages ...*message.Message) error {
+	return ps.pubsubchan.Publish(topicName(ps.scope, topic), messages...)
+}
+
+// BulkPublish implements Publisher.
+func (ps *memoryPubSub) BulkPublish(ctx context.Context, topic string, messages ...*message.Message) error {
 	return ps.pubsubchan.Publish(topicName(ps.scope, topic), messages...)
 }
 

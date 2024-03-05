@@ -36,6 +36,10 @@ func SetupStdoutTracer(tracerName string, c *TracerConfig) (trace.Tracer, propag
 		)),
 	}
 
+	if c.SpanLimits != nil {
+		tpOpts = append(tpOpts, sdktrace.WithRawSpanLimits(*c.SpanLimits))
+	}
+
 	tp := sdktrace.NewTracerProvider(tpOpts...)
 
 	prop := propagation.NewCompositeTextMapPropagator(

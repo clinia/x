@@ -9,6 +9,7 @@ import (
 	"io"
 
 	"go.opentelemetry.io/otel/attribute"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 )
 
 type JaegerConfig struct {
@@ -48,6 +49,7 @@ type TracerConfig struct {
 	Provider           string                `json:"provider"`
 	Providers          TracerProvidersConfig `json:"tracer_providers"`
 	ResourceAttributes []attribute.KeyValue  `json:"resource_attributes"`
+	SpanLimits         *sdktrace.SpanLimits  `json:"span_limits,omitempty"`
 }
 
 //go:embed tracer.schema.json
