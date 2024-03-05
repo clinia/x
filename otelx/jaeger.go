@@ -43,6 +43,10 @@ func SetupJaegerTracer(tracerName string, c *TracerConfig) (trace.Tracer, propag
 		)),
 	}
 
+	if c.SpanLimits != nil {
+		tpOpts = append(tpOpts, sdktrace.WithRawSpanLimits(*c.SpanLimits))
+	}
+
 	samplingServerURL := c.Providers.Jaeger.Sampling.ServerURL
 
 	if samplingServerURL != "" {
