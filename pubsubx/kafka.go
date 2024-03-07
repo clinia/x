@@ -8,7 +8,7 @@ import (
 	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/clinia/x/logrusx"
 	"github.com/clinia/x/pubsubx/kafkax"
-	"go.opentelemetry.io/contrib/instrumentation/github.com/Shopify/sarama/otelsarama"
+	"github.com/clinia/x/pubsubx/otelsaramax"
 	"go.opentelemetry.io/otel/propagation"
 )
 
@@ -28,7 +28,7 @@ func setupKafkaPublisher(l *logrusx.Logger, c *Config, opts *pubSubOptions) (Pub
 	}
 	// Setup tracer if provided
 	if opts.tracerProvider != nil {
-		conf.Tracer = NewOTELSaramaTracer(otelsarama.WithTracerProvider(opts.tracerProvider), otelsarama.WithPropagators(opts.propagator))
+		conf.Tracer = kafkax.NewOTELSaramaTracer(otelsaramax.WithTracerProvider(opts.tracerProvider), otelsaramax.WithPropagators(opts.propagator))
 	}
 
 	publisher, err := kafkax.NewPublisher(
@@ -85,7 +85,7 @@ func setupKafkaSubscriber(l *logrusx.Logger, c *Config, opts *pubSubOptions, gro
 		Brokers:               c.Providers.Kafka.Brokers,
 		Unmarshaler:           kafka.DefaultMarshaler{},
 		OverwriteSaramaConfig: saramaSubscriberConfig,
-		Tracer:                NewOTELSaramaTracer(otelsarama.WithTracerProvider(opts.tracerProvider)),
+		Tracer:                kafkax.NewOTELSaramaTracer(otelsaramax.WithTracerProvider(opts.tracerProvider)),
 	}
 
 	switch subOpts.consumerModel {
@@ -108,7 +108,7 @@ func setupKafkaSubscriber(l *logrusx.Logger, c *Config, opts *pubSubOptions, gro
 
 	// Setup tracer if provided
 	if opts.tracerProvider != nil {
-		conf.Tracer = NewOTELSaramaTracer(otelsarama.WithTracerProvider(opts.tracerProvider), otelsarama.WithPropagators(opts.propagator))
+		conf.Tracer = kafkax.NewOTELSaramaTracer(otelsaramax.WithTracerProvider(opts.tracerProvider), otelsaramax.WithPropagators(opts.propagator))
 	}
 
 	if group != "" {
