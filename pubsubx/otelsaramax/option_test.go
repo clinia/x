@@ -49,7 +49,7 @@ func TestNewConfig(t *testing.T) {
 			},
 			expected: config{
 				TracerProvider: tp,
-				Tracer:         tp.Tracer(defaultTracerName, trace.WithInstrumentationVersion(Version())),
+				Tracer:         tp.Tracer(defaultTracerName),
 				Propagators:    otel.GetTextMapPropagator(),
 			},
 		},
@@ -60,7 +60,7 @@ func TestNewConfig(t *testing.T) {
 			},
 			expected: config{
 				TracerProvider: otel.GetTracerProvider(),
-				Tracer:         otel.GetTracerProvider().Tracer(defaultTracerName, trace.WithInstrumentationVersion(Version())),
+				Tracer:         otel.GetTracerProvider().Tracer(defaultTracerName),
 				Propagators:    otel.GetTextMapPropagator(),
 			},
 		},
@@ -71,7 +71,7 @@ func TestNewConfig(t *testing.T) {
 			},
 			expected: config{
 				TracerProvider: otel.GetTracerProvider(),
-				Tracer:         otel.GetTracerProvider().Tracer(defaultTracerName, trace.WithInstrumentationVersion(Version())),
+				Tracer:         otel.GetTracerProvider().Tracer(defaultTracerName),
 				Propagators:    prop,
 			},
 		},
@@ -82,7 +82,7 @@ func TestNewConfig(t *testing.T) {
 			},
 			expected: config{
 				TracerProvider: otel.GetTracerProvider(),
-				Tracer:         otel.GetTracerProvider().Tracer(defaultTracerName, trace.WithInstrumentationVersion(Version())),
+				Tracer:         otel.GetTracerProvider().Tracer(defaultTracerName),
 				Propagators:    otel.GetTextMapPropagator(),
 			},
 		},

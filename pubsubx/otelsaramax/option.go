@@ -27,7 +27,6 @@ func newConfig(opts ...Option) config {
 
 	cfg.Tracer = cfg.TracerProvider.Tracer(
 		defaultTracerName,
-		trace.WithInstrumentationVersion(Version()),
 	)
 
 	return cfg
