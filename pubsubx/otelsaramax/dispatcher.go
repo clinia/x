@@ -59,7 +59,7 @@ func (w *consumerMessagesDispatcherWrapper) Run() {
 			trace.WithAttributes(attrs...),
 			trace.WithSpanKind(trace.SpanKindConsumer),
 		}
-		newCtx, span := w.cfg.Tracer.Start(parentSpanContext, fmt.Sprintf("%s consumerGroup receive", w.consumerInfo.ConsumerGroup), opts...)
+		newCtx, span := w.cfg.Tracer.Start(parentSpanContext, fmt.Sprintf("%s receive", w.consumerInfo.ConsumerGroup), opts...)
 
 		// Inject current span context, so consumers can use it to propagate span.
 		w.cfg.Propagators.Inject(newCtx, carrier)

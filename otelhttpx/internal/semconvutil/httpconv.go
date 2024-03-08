@@ -4,7 +4,7 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
-package semconvutil // import "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp/internal/semconvutil"
+package semconvutil
 
 import (
 	"fmt"
