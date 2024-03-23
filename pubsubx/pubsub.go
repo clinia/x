@@ -9,13 +9,18 @@ import (
 )
 
 type PubSub interface {
+	Admin() Admin
+
 	Publisher() Publisher
+
 	Subscriber(group string, opts ...SubscriberOption) (Subscriber, error)
+
 	// CLoses all publishers and subscribers.
 	Close() error
 }
 
 type pubSub struct {
+	admin      Admin
 	publisher  Publisher
 	subscriber func(group string, opts *subscriberOptions) (Subscriber, error)
 	subs       sync.Map
@@ -48,6 +53,12 @@ func (ps *pubSub) setup(l *logrusx.Logger, c *Config, opts *pubSubOptions) error
 			return err
 		}
 
+		admin, err := setupKafkaAdmin(l, c)
+		if err != nil {
+			return err
+		}
+		ps.admin = admin
+
 		ps.publisher = publisher
 		ps.subscriber = func(group string, subOpts *subscriberOptions) (Subscriber, error) {
 			if ms, ok := ps.subs.Load(group); !ok {
@@ -70,6 +81,7 @@ func (ps *pubSub) setup(l *logrusx.Logger, c *Config, opts *pubSubOptions) error
 			return err
 		}
 
+		ps.admin = pubsub
 		ps.publisher = pubsub
 		ps.subscriber = pubsub.setupSubscriber()
 		l.Infof("InMemory publisher configured! Sending & receiving messages to in-memory")
@@ -78,6 +90,10 @@ func (ps *pubSub) setup(l *logrusx.Logger, c *Config, opts *pubSubOptions) error
 	}
 
 	return nil
+}
+
+func (ps *pubSub) Admin() Admin {
+	return ps.admin
 }
 
 func (ps *pubSub) Publisher() Publisher {

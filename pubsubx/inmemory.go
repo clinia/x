@@ -14,6 +14,8 @@ type memoryPubSub struct {
 }
 
 var _ Publisher = (*memoryPubSub)(nil)
+var _ Subscriber = (*memoryPubSub)(nil)
+var _ Admin = (*memoryPubSub)(nil)
 
 func SetupInMemoryPubSub(l *logrusx.Logger, c *Config) (*memoryPubSub, error) {
 	return &memoryPubSub{
@@ -45,4 +47,34 @@ func (ps *memoryPubSub) Subscribe(ctx context.Context, topic string) (<-chan *me
 
 func (ps *memoryPubSub) Close() error {
 	return ps.pubsubchan.Close()
+}
+
+// CreateTopic implements Admin.
+func (ps *memoryPubSub) CreateTopic(ctx context.Context, topic string, detail *TopicDetail) error {
+	// Admin is not a concept in the in-memory pubsub.
+	return nil
+}
+
+// DeleteSubscriber implements Admin.
+func (ps *memoryPubSub) DeleteSubscriber(ctx context.Context, subscriber string) error {
+	// Admin is not a concept in the in-memory pubsub.
+	return nil
+}
+
+// DeleteTopic implements Admin.
+func (ps *memoryPubSub) DeleteTopic(ctx context.Context, topic string) error {
+	// Admin is not a concept in the in-memory pubsub.
+	return nil
+}
+
+// ListSubscribers implements Admin.
+func (ps *memoryPubSub) ListSubscribers(ctx context.Context, topic string) (map[string]string, error) {
+	// Admin is not a concept in the in-memory pubsub.
+	return map[string]string{}, nil
+}
+
+// ListTopics implements Admin.
+func (ps *memoryPubSub) ListTopics(ctx context.Context) (map[string]TopicDetail, error) {
+	// Admin is not a concept in the in-memory pubsub.
+	return map[string]TopicDetail{}, nil
 }
