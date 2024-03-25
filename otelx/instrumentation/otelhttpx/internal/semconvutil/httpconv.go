@@ -318,7 +318,6 @@ func (c *httpConv) ServerRequest(server string, req *http.Request) []attribute.K
 	net.protocol.name       string Note: not set if the value is "http".
 	net.protocol.version    string
 	http.target             string Note: doesn't include the query parameter.
-	http.url				string
 	*/
 
 	/* The following semantic conventions are not returned:
@@ -371,15 +370,6 @@ func (c *httpConv) ServerRequest(server string, req *http.Request) []attribute.K
 			n++
 		}
 	}
-
-	var url string
-	if target != "" {
-		url = target + req.URL.RawQuery
-		if url != "" {
-			n++
-		}
-	}
-
 	protoName, protoVersion := netProtocol(req.Proto)
 	if protoName != "" && protoName != "http" {
 		n++
@@ -417,10 +407,6 @@ func (c *httpConv) ServerRequest(server string, req *http.Request) []attribute.K
 
 	if target != "" {
 		attrs = append(attrs, c.HTTPTargetKey.String(target))
-	}
-
-	if url != "" {
-		attrs = append(attrs, c.HTTPURLKey.String(url))
 	}
 
 	if protoName != "" && protoName != "http" {

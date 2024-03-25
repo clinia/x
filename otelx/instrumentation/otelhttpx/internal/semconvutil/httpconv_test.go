@@ -204,7 +204,6 @@ func TestHTTPServerRequest(t *testing.T) {
 			attribute.String("http.client_ip", clientIP),
 			attribute.String("net.protocol.version", "1.1"),
 			attribute.String("http.target", "/"),
-			attribute.String("http.url", "/"),
 		},
 		HTTPServerRequest("", req))
 }
