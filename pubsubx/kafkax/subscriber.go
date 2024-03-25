@@ -7,8 +7,11 @@ import (
 	"time"
 
 	"github.com/Shopify/sarama"
+	"github.com/clinia/x/otelx/instrumentation/otelsaramax"
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
+	"go.opentelemetry.io/otel/attribute"
+	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
 
 	"github.com/ThreeDotsLabs/watermill"
 	"github.com/ThreeDotsLabs/watermill/message"
@@ -338,7 +341,10 @@ func (s *Subscriber) consumeGroupMessages(
 	}
 
 	if tracer != nil {
-		handler = tracer.WrapConsumerGroupHandler(handler)
+		attrs := []attribute.KeyValue{
+			semconv.MessagingConsumerID(logFields["kafka_consumer_uuid"].(string)),
+		}
+		handler = tracer.WrapConsumerGroupHandler(handler, otelsaramax.ConsumerInfo{ConsumerGroup: s.config.ConsumerGroup, Attributes: attrs})
 	}
 
 	go func() {
@@ -429,7 +435,10 @@ func (s *Subscriber) consumeWithoutConsumerGroups(
 	}
 
 	if tracer != nil {
-		consumer = tracer.WrapConsumer(consumer)
+		attrs := []attribute.KeyValue{
+			semconv.MessagingConsumerID(logFields["kafka_consumer_uuid"].(string)),
+		}
+		consumer = tracer.WrapConsumer(consumer, otelsaramax.ConsumerInfo{ConsumerGroup: "undefined", Attributes: attrs})
 	}
 
 	partitions, err := consumer.Partitions(topic)
@@ -450,9 +459,10 @@ func (s *Subscriber) consumeWithoutConsumerGroups(
 			return nil, errors.Wrap(err, "failed to start consumer for partition")
 		}
 
-		if tracer != nil {
-			partitionConsumer = tracer.WrapPartitionConsumer(partitionConsumer)
-		}
+		// Partition consumer already wrapped in consumer.ConsumePartition
+		// if tracer != nil {
+		// 	partitionConsumer = tracer.WrapPartitionConsumer(partitionConsumer)
+		// }
 
 		messageHandler := s.createMessagesHandler(output)
 
