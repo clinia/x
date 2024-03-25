@@ -22,19 +22,20 @@ const ScopeName = "github.com/clinia/x/otelhttpx"
 // config represents the configuration options available for the http.Handler
 // and http.Transport types.
 type config struct {
-	ServerName               string
-	Tracer                   trace.Tracer
-	Meter                    metric.Meter
-	Propagators              propagation.TextMapPropagator
-	SpanStartOptions         []trace.SpanStartOption
-	PublicEndpoint           bool
-	PublicEndpointFn         func(*http.Request) bool
-	ReadEvent                bool
-	WriteEvent               bool
-	Filters                  []Filter
-	SpanNameFormatter        func(string, *http.Request) string
-	HttpServerRequestMetrics func(string, *http.Request) []attribute.KeyValue
-	ClientTrace              func(context.Context) *httptrace.ClientTrace
+	ServerName                         string
+	Tracer                             trace.Tracer
+	Meter                              metric.Meter
+	Propagators                        propagation.TextMapPropagator
+	SpanStartOptions                   []trace.SpanStartOption
+	PublicEndpoint                     bool
+	PublicEndpointFn                   func(*http.Request) bool
+	ReadEvent                          bool
+	WriteEvent                         bool
+	Filters                            []Filter
+	SpanNameFormatter                  func(string, *http.Request) string
+	HttpServerRequestMetricsAttributes func(string, *http.Request) []attribute.KeyValue
+	HttpServerRequestAttributes        func(string, *http.Request) []attribute.KeyValue
+	ClientTrace                        func(context.Context) *httptrace.ClientTrace
 
 	TracerProvider trace.TracerProvider
 	MeterProvider  metric.MeterProvider
@@ -54,9 +55,10 @@ func (o optionFunc) apply(c *config) {
 // newConfig creates a new config struct and applies opts to it.
 func newConfig(opts ...Option) *config {
 	c := &config{
-		Propagators:              otel.GetTextMapPropagator(),
-		MeterProvider:            otel.GetMeterProvider(),
-		HttpServerRequestMetrics: semconvutil.HTTPServerRequestMetrics,
+		Propagators:                        otel.GetTextMapPropagator(),
+		MeterProvider:                      otel.GetMeterProvider(),
+		HttpServerRequestMetricsAttributes: semconvutil.HTTPServerRequestMetrics,
+		HttpServerRequestAttributes:        semconvutil.HTTPServerRequest,
 	}
 	for _, opt := range opts {
 		opt.apply(c)
@@ -94,9 +96,19 @@ func WithMeterProvider(provider metric.MeterProvider) Option {
 	})
 }
 
-func WithHTTPServerRequestMetrics(f func(string, *http.Request) []attribute.KeyValue) Option {
+// WithHTTPServerRequestMetricsAttributes allows for custom attributes to be added to
+// the metric created for each incoming request.
+func WithHTTPServerRequestMetricsAttributes(f func(string, *http.Request) []attribute.KeyValue) Option {
 	return optionFunc(func(c *config) {
-		c.HttpServerRequestMetrics = f
+		c.HttpServerRequestMetricsAttributes = f
+	})
+}
+
+// WithHTTPServerRequestAttributes allows for custom attributes to be added to
+// the span created for each incoming request.
+func WithHTTPServerRequestAttributes(f func(string, *http.Request) []attribute.KeyValue) Option {
+	return optionFunc(func(c *config) {
+		c.HttpServerRequestAttributes = f
 	})
 }
 

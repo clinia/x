@@ -24,17 +24,18 @@ type middleware struct {
 	operation string
 	server    string
 
-	tracer                   trace.Tracer
-	meter                    metric.Meter
-	propagators              propagation.TextMapPropagator
-	spanStartOptions         []trace.SpanStartOption
-	readEvent                bool
-	writeEvent               bool
-	filters                  []Filter
-	spanNameFormatter        func(string, *http.Request) string
-	httpServerRequestMetrics func(string, *http.Request) []attribute.KeyValue
-	publicEndpoint           bool
-	publicEndpointFn         func(*http.Request) bool
+	tracer                             trace.Tracer
+	meter                              metric.Meter
+	propagators                        propagation.TextMapPropagator
+	spanStartOptions                   []trace.SpanStartOption
+	readEvent                          bool
+	writeEvent                         bool
+	filters                            []Filter
+	spanNameFormatter                  func(string, *http.Request) string
+	httpServerRequestMetricsAttributes func(string, *http.Request) []attribute.KeyValue
+	httpServerRequestAttributes        func(string, *http.Request) []attribute.KeyValue
+	publicEndpoint                     bool
+	publicEndpointFn                   func(*http.Request) bool
 
 	requestBytesCounter  metric.Int64Counter
 	responseBytesCounter metric.Int64Counter
@@ -87,7 +88,8 @@ func (h *middleware) configure(c *config) {
 	h.publicEndpoint = c.PublicEndpoint
 	h.publicEndpointFn = c.PublicEndpointFn
 	h.server = c.ServerName
-	h.httpServerRequestMetrics = c.HttpServerRequestMetrics
+	h.httpServerRequestMetricsAttributes = c.HttpServerRequestMetricsAttributes
+	h.httpServerRequestAttributes = c.HttpServerRequestAttributes
 }
 
 func handleErr(err error) {
@@ -134,7 +136,7 @@ func (h *middleware) serveHTTP(w http.ResponseWriter, r *http.Request, next http
 
 	ctx := h.propagators.Extract(r.Context(), propagation.HeaderCarrier(r.Header))
 	opts := []trace.SpanStartOption{
-		trace.WithAttributes(semconvutil.HTTPServerRequest(h.server, r)...),
+		trace.WithAttributes(h.httpServerRequestAttributes(h.server, r)...),
 	}
 	if h.server != "" {
 		hostAttr := semconv.NetHostName(h.server)
@@ -218,7 +220,7 @@ func (h *middleware) serveHTTP(w http.ResponseWriter, r *http.Request, next http
 	setAfterServeAttributes(span, bw.read.Load(), rww.written, rww.statusCode, bw.err, rww.err)
 
 	// Add metrics
-	attributes := append(labeler.Get(), h.httpServerRequestMetrics(h.server, r)...)
+	attributes := append(labeler.Get(), h.httpServerRequestMetricsAttributes(h.server, r)...)
 	if rww.statusCode > 0 {
 		attributes = append(attributes, semconv.HTTPStatusCode(rww.statusCode))
 	}
