@@ -5,11 +5,9 @@ package otelhttpx
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"net/http/httptrace"
 
-	"github.com/go-chi/chi/v5"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/propagation"
@@ -37,7 +35,6 @@ type config struct {
 
 	TracerProvider trace.TracerProvider
 	MeterProvider  metric.MeterProvider
-	ChiRoutes      chi.Routes
 }
 
 // Option interface used for setting optional config properties.
@@ -194,24 +191,5 @@ func WithClientTrace(f func(context.Context) *httptrace.ClientTrace) Option {
 func WithServerName(server string) Option {
 	return optionFunc(func(c *config) {
 		c.ServerName = server
-	})
-}
-
-// WithChiSpanNameFormatter returns an Option that sets the Span Name to route pattern
-func WithChiSpanNameFormatter(r *chi.Mux) Option {
-	f := func(operation string, req *http.Request) string {
-		// Return Route pattern instead of Route path
-		rctx := chi.NewRouteContext()
-		if r.Match(rctx, req.Method, req.URL.Path) {
-			routePattern := rctx.RoutePattern()
-			if routePattern != "" {
-				return fmt.Sprintf("%s %s", req.Method, routePattern)
-			}
-		}
-		return fmt.Sprintf("%s %s", req.Method, req.URL.Path)
-	}
-
-	return optionFunc(func(c *config) {
-		c.SpanNameFormatter = f
 	})
 }
