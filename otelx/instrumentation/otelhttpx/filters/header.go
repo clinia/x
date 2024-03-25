@@ -8,7 +8,7 @@ import (
 	"net/textproto"
 	"strings"
 
-	"github.com/clinia/x/otelhttpx"
+	"github.com/clinia/x/otelx/instrumentation/otelhttpx"
 )
 
 // Header returns a Filter that returns true if the request

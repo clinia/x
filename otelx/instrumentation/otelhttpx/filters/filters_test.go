@@ -8,7 +8,7 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/clinia/x/otelhttpx"
+	"github.com/clinia/x/otelx/instrumentation/otelhttpx"
 )
 
 type scenario struct {

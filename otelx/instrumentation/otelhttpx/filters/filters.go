@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/clinia/x/otelhttpx"
+	"github.com/clinia/x/otelx/instrumentation/otelhttpx"
 )
 
 // Any takes a list of Filters and returns a Filter that

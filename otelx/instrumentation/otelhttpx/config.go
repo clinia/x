@@ -8,7 +8,9 @@ import (
 	"net/http"
 	"net/http/httptrace"
 
+	"github.com/clinia/x/otelx/instrumentation/otelhttpx/internal/semconvutil"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
@@ -20,18 +22,19 @@ const ScopeName = "github.com/clinia/x/otelhttpx"
 // config represents the configuration options available for the http.Handler
 // and http.Transport types.
 type config struct {
-	ServerName        string
-	Tracer            trace.Tracer
-	Meter             metric.Meter
-	Propagators       propagation.TextMapPropagator
-	SpanStartOptions  []trace.SpanStartOption
-	PublicEndpoint    bool
-	PublicEndpointFn  func(*http.Request) bool
-	ReadEvent         bool
-	WriteEvent        bool
-	Filters           []Filter
-	SpanNameFormatter func(string, *http.Request) string
-	ClientTrace       func(context.Context) *httptrace.ClientTrace
+	ServerName               string
+	Tracer                   trace.Tracer
+	Meter                    metric.Meter
+	Propagators              propagation.TextMapPropagator
+	SpanStartOptions         []trace.SpanStartOption
+	PublicEndpoint           bool
+	PublicEndpointFn         func(*http.Request) bool
+	ReadEvent                bool
+	WriteEvent               bool
+	Filters                  []Filter
+	SpanNameFormatter        func(string, *http.Request) string
+	HttpServerRequestMetrics func(string, *http.Request) []attribute.KeyValue
+	ClientTrace              func(context.Context) *httptrace.ClientTrace
 
 	TracerProvider trace.TracerProvider
 	MeterProvider  metric.MeterProvider
@@ -51,8 +54,9 @@ func (o optionFunc) apply(c *config) {
 // newConfig creates a new config struct and applies opts to it.
 func newConfig(opts ...Option) *config {
 	c := &config{
-		Propagators:   otel.GetTextMapPropagator(),
-		MeterProvider: otel.GetMeterProvider(),
+		Propagators:              otel.GetTextMapPropagator(),
+		MeterProvider:            otel.GetMeterProvider(),
+		HttpServerRequestMetrics: semconvutil.HTTPServerRequestMetrics,
 	}
 	for _, opt := range opts {
 		opt.apply(c)
@@ -87,6 +91,12 @@ func WithMeterProvider(provider metric.MeterProvider) Option {
 		if provider != nil {
 			cfg.MeterProvider = provider
 		}
+	})
+}
+
+func WithHTTPServerRequestMetrics(f func(string, *http.Request) []attribute.KeyValue) Option {
+	return optionFunc(func(c *config) {
+		c.HttpServerRequestMetrics = f
 	})
 }
 
