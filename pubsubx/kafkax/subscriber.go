@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/Shopify/sarama"
-	"github.com/clinia/x/pubsubx/otelsaramax"
+	"github.com/clinia/x/otelx/instrumentation/otelsaramax"
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	"go.opentelemetry.io/otel/attribute"

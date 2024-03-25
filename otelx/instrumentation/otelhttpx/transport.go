@@ -13,7 +13,7 @@ import (
 
 	"go.opentelemetry.io/otel/metric"
 
-	"github.com/clinia/x/otelhttpx/internal/semconvutil"
+	"github.com/clinia/x/otelx/instrumentation/otelhttpx/internal/semconvutil"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/propagation"

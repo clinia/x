@@ -7,8 +7,8 @@ import (
 	"github.com/ThreeDotsLabs/watermill-kafka/v2/pkg/kafka"
 	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/clinia/x/logrusx"
+	"github.com/clinia/x/otelx/instrumentation/otelsaramax"
 	"github.com/clinia/x/pubsubx/kafkax"
-	"github.com/clinia/x/pubsubx/otelsaramax"
 	"go.opentelemetry.io/otel/propagation"
 )
 

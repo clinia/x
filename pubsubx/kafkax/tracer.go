@@ -2,7 +2,7 @@ package kafkax
 
 import (
 	"github.com/Shopify/sarama"
-	"github.com/clinia/x/pubsubx/otelsaramax"
+	"github.com/clinia/x/otelx/instrumentation/otelsaramax"
 )
 
 type SaramaTracer interface {
