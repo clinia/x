@@ -10,7 +10,7 @@ import (
 
 	"github.com/felixge/httpsnoop"
 
-	"github.com/clinia/x/otelx/instrumentation/otelhttpx/internal/semconvutil"
+	"github.com/clinia/x/otelx/instrumentation/otelhttpx/semconvutil"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
