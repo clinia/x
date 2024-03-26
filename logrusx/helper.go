@@ -44,7 +44,7 @@ func (l *Logger) NewEntry() *Logger {
 
 func (l *Logger) WithContext(ctx context.Context) *Logger {
 	ll := *l
-	ll.Entry = l.Logger.WithContext(ctx)
+	ll.Entry = l.Entry.WithContext(ctx)
 	return &ll
 }
 
