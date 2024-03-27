@@ -50,13 +50,15 @@ func (ps *pubSub) setup(l *logrusx.Logger, c *Config, opts *pubSubOptions) error
 
 		ps.publisher = publisher
 		ps.subscriber = func(group string, subOpts *subscriberOptions) (Subscriber, error) {
-			if ms, ok := ps.subs.Load(group); !ok {
-				s, e := setupKafkaSubscriber(l, c, opts, group, subOpts)
+			csGroup := consumerGroup(c.Scope, group)
+
+			if ms, ok := ps.subs.Load(csGroup); !ok {
+				s, e := setupKafkaSubscriber(l, c, opts, csGroup, subOpts)
 				if e != nil {
 					return nil, e
 				}
 
-				ps.subs.Store(group, s)
+				ps.subs.Store(csGroup, s)
 				return s, nil
 			} else {
 				return ms.(Subscriber), nil
@@ -127,4 +129,12 @@ func topicName(scope, topic string) string {
 	}
 
 	return topic
+}
+
+func consumerGroup(scope, group string) string {
+	if scope != "" {
+		return fmt.Sprintf("%s.%s", scope, group)
+	}
+
+	return group
 }
