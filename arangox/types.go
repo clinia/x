@@ -29,16 +29,13 @@ type IndexParam struct {
 }
 
 type EdgeCollectionParam struct {
-	Name         string
-	Constraints  arangoDriver.VertexConstraints
-	Indexes      []IndexParam
-	CreateFromDb bool
+	Name        string
+	Constraints arangoDriver.VertexConstraints
 }
 
 type GraphParam struct {
 	Name              string
 	Options           *arangoDriver.CreateGraphOptions
-	VertexCollections []CollectionParam
-
-	EdgeCollections []EdgeCollectionParam
+	VertexCollections []string
+	EdgeCollections   []EdgeCollectionParam
 }
