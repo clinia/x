@@ -232,6 +232,21 @@ func (m *Migrator) setVersion(ctx context.Context, version uint64, description s
 	return nil
 }
 
+func (m *Migrator) removeVersion(ctx context.Context, version uint64) error {
+	index, err := m.engine.Index(ctx, m.migrationsIndex)
+	if err != nil {
+		return err
+	}
+
+	id := fmt.Sprintf("%s:%d", m.pkg, version)
+	err = index.DeleteDocument(ctx, id, elasticx.WithRefresh(refresh.Waitfor))
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // Up performs "up" migrations up to the specified targetVersion.
 // If targetVersion<=0 all "up" migrations will be executed (if not executed yet)
 // If targetVersion>0 only migrations where version<=targetVersion will be performed (if not executed yet)
@@ -277,37 +292,46 @@ func (m *Migrator) Up(ctx context.Context, targetVersion int) error {
 	return nil
 }
 
-// Down performs "down" migration to oldest available version.
-// If n<=0 all "down" migrations with older version will be performed.
-// If n>0 only n migrations with older version will be performed.
-func (m *Migrator) Down(ctx context.Context, n int) error {
+// Down performs "down" migration to bring back migrations to `version`.
+// If targetVersion<=0 all "down" migrations will be performed.
+// If targetVersion>0, only the down migrations where version>targetVersion will be performed (only if they were applied).
+func (m *Migrator) Down(ctx context.Context, targetVersion int) error {
+	m.migrations.Sort()
+	if len(m.migrations) == 0 {
+		return nil
+	}
 	currentVersion, err := m.Version(ctx)
 	if err != nil {
 		return err
 	}
-	if n <= 0 || n > len(m.migrations) {
-		n = len(m.migrations)
-	}
-	m.migrations.Sort()
 
-	for i, p := len(m.migrations)-1, 0; i >= 0 && p < n; i-- {
+	latestVer := m.migrations[len(m.migrations)-1].Version
+	target := uint64(mathx.Clamp(targetVersion, 0, int(latestVer)))
+	version := currentVersion.Version
+
+	for i := len(m.migrations) - 1; i >= 0; i-- {
 		migration := m.migrations[i]
-		if migration.Version > currentVersion.Version || migration.Down == nil {
+		if migration.Version > version || migration.Down == nil {
 			continue
 		}
-		p++
+
+		if migration.Version <= uint64(target) {
+			// We down-ed enough
+			break
+		}
+
 		if err := migration.Down(ctx, m.engine); err != nil {
 			return err
 		}
 
-		var prevMigration Migration
-		if i == 0 {
-			prevMigration = Migration{Version: 0}
-		} else {
-			prevMigration = m.migrations[i-1]
-		}
-		if err := m.setVersion(ctx, prevMigration.Version, prevMigration.Description); err != nil {
+		if err := m.removeVersion(ctx, migration.Version); err != nil {
 			return err
+		}
+
+		if i == 0 {
+			version = 0
+		} else {
+			version = m.migrations[i-1].Version
 		}
 	}
 	return nil

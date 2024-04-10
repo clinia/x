@@ -201,7 +201,7 @@ func TestMigration(t *testing.T) {
 		})
 	})
 
-	t.Run("should be able to migrate up in batches", func(t *testing.T) {
+	t.Run("should be able to migrate up & down in batches", func(t *testing.T) {
 		engine, err := client.CreateEngine(ctx, "test-migrations-d")
 		assert.NoError(t, err)
 		engines = append(engines, engine.Name())
@@ -330,6 +330,30 @@ func TestMigration(t *testing.T) {
 				Description: "Test third migration",
 			},
 		}, cmpopts.IgnoreFields(versionRecord{}, "Timestamp"))
+
+		err = m.Down(ctx, 2)
+		assert.NoError(t, err)
+
+		versions = getVersions()
+		assert.Len(t, versions, 2)
+		assertx.ElementsMatch(t, versions, []versionRecord{
+			{
+				Version:     uint64(1),
+				Package:     "package-1",
+				Description: "Test initial migration",
+			},
+			{
+				Version:     uint64(2),
+				Package:     "package-1",
+				Description: "Test second migration",
+			},
+		}, cmpopts.IgnoreFields(versionRecord{}, "Timestamp"))
+
+		err = m.Down(ctx, 0)
+		assert.NoError(t, err)
+
+		versions = getVersions()
+		assert.Len(t, versions, 0)
 	})
 
 	t.Cleanup(func() {

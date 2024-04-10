@@ -205,6 +205,7 @@ func (m *Migrator) Down(ctx context.Context, targetVersion int) error {
 		}
 
 		if migration.Version <= uint64(target) {
+			// We down-ed enough
 			break
 		}
 
