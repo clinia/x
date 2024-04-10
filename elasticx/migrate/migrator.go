@@ -10,6 +10,7 @@ import (
 
 	"github.com/clinia/x/elasticx"
 	"github.com/clinia/x/errorx"
+	"github.com/clinia/x/mathx"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/core/search"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/dynamicmapping"
@@ -231,31 +232,47 @@ func (m *Migrator) setVersion(ctx context.Context, version uint64, description s
 	return nil
 }
 
-// Up performs "up" migrations to latest available version.
-// If n<=0 all "up" migrations with newer versions will be performed.
-// If n>0 only n migrations with newer version will be performed.
-func (m *Migrator) Up(ctx context.Context, n int) error {
+// Up performs "up" migrations up to the specified targetVersion.
+// If targetVersion<=0 all "up" migrations will be executed (if not executed yet)
+// If targetVersion>0 only migrations where version<=targetVersion will be performed (if not executed yet)
+func (m *Migrator) Up(ctx context.Context, targetVersion int) error {
+	m.migrations.Sort()
+	if len(m.migrations) == 0 {
+		return nil
+	}
+
 	currentVersion, err := m.Version(ctx)
 	if err != nil {
 		return err
 	}
-	if n <= 0 || n > len(m.migrations) {
-		n = len(m.migrations)
-	}
-	m.migrations.Sort()
 
-	for i, p := 0, 0; i < len(m.migrations) && p < n; i++ {
+	var target uint64
+	if latest := m.migrations[len(m.migrations)-1].Version; targetVersion <= 0 {
+		target = latest
+	} else {
+		target = uint64(mathx.Clamp(targetVersion, 0, int(latest)))
+	}
+
+	version := currentVersion.Version
+
+	for i := 0; i < len(m.migrations); i++ {
 		migration := m.migrations[i]
-		if migration.Version <= currentVersion.Version || migration.Up == nil {
+		if migration.Version <= version || migration.Up == nil {
 			continue
 		}
-		p++
+
+		if migration.Version > target {
+			break
+		}
+
 		if err := migration.Up(ctx, m.engine); err != nil {
 			return err
 		}
 		if err := m.setVersion(ctx, migration.Version, migration.Description); err != nil {
 			return err
 		}
+
+		version = migration.Version
 	}
 	return nil
 }

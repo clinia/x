@@ -138,6 +138,7 @@ func (m *Migrator) Version(ctx context.Context) (current uint64, latest uint64, 
 // If targetVersion<=0 all "up" migrations will be executed (if not executed yet)
 // If targetVersion>0 only migrations where version<=targetVersion will be performed (if not executed yet)
 func (m *Migrator) Up(ctx context.Context, targetVersion int) error {
+	m.migrations.Sort()
 	currentVersion, latest, _, err := m.Version(ctx)
 	if err != nil {
 		return err
@@ -149,8 +150,6 @@ func (m *Migrator) Up(ctx context.Context, targetVersion int) error {
 	} else {
 		target = uint64(mathx.Clamp(targetVersion, 0, int(latest)))
 	}
-
-	m.migrations.Sort()
 
 	col, err := m.db.Collection(ctx, m.migrationsCollection)
 	if err != nil {
