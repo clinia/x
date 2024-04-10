@@ -147,15 +147,10 @@ func TestMigration(t *testing.T) {
 		assert.True(t, driver.IsConflict(err))
 	})
 
-}
-
-func TestDownMigrations(t *testing.T) {
-	ctx, db := newFixture(t, "test_down-migrations")
-
-	t.Run("should be able to migrate up and down", func(t *testing.T) {
+	t.Run("should be able to up multiple migrations in batches", func(t *testing.T) {
 		m := NewMigrator(NewMigratorOptions{
 			Database: db,
-			Package:  "package-1",
+			Package:  "package-4",
 			Migrations: []Migration{
 				{
 					Version:     uint64(1),
@@ -167,27 +162,204 @@ func TestDownMigrations(t *testing.T) {
 						return nil
 					},
 				},
+				{
+					Version:     uint64(2),
+					Description: "Test second migration",
+					Up: func(ctx context.Context, db driver.Database) error {
+						return nil
+					},
+					Down: func(ctx context.Context, db driver.Database) error {
+						return nil
+					},
+				},
+				{
+					Version:     uint64(3),
+					Description: "Test third migration",
+					Up: func(ctx context.Context, db driver.Database) error {
+						return nil
+					},
+					Down: func(ctx context.Context, db driver.Database) error {
+						return nil
+					},
+				},
 			},
 		})
 
-		err := m.Up(ctx, 0)
+		getVersions := func() []versionRecord {
+			vers := fetchMigrations(t, ctx, db, m)
+			out := make([]versionRecord, 0, len(vers))
+			for _, v := range vers {
+				if v.Package == m.pkg {
+					out = append(out, v)
+				}
+			}
+
+			return out
+		}
+
+		versions := getVersions()
+		assert.Len(t, versions, 0)
+
+		err := m.Up(ctx, 1)
 		assert.NoError(t, err)
 
-		versions := fetchMigrations(t, ctx, db, m)
-
+		versions = getVersions()
 		assertx.ElementsMatch(t, versions, []versionRecord{
 			{
 				Version:     uint64(1),
-				Package:     "package-1",
+				Package:     "package-4",
 				Description: "Test initial migration",
 			},
 		}, cmpopts.IgnoreFields(versionRecord{}, "Timestamp"))
 
-		err = m.Down(ctx, 0)
+		err = m.Up(ctx, 3)
 		assert.NoError(t, err)
 
-		versions = fetchMigrations(t, ctx, db, m)
-		assert.Len(t, versions, 0)
+		versions = getVersions()
+		assertx.ElementsMatch(t, versions, []versionRecord{
+			{
+				Version:     uint64(1),
+				Package:     "package-4",
+				Description: "Test initial migration",
+			},
+			{
+				Version:     uint64(2),
+				Package:     "package-4",
+				Description: "Test second migration",
+			},
+			{
+				Version:     uint64(3),
+				Package:     "package-4",
+				Description: "Test third migration",
+			},
+		}, cmpopts.IgnoreFields(versionRecord{}, "Timestamp"))
+	})
+}
+
+func TestDownMigrations(t *testing.T) {
+	ctx, db := newFixture(t, "test_down-migrations")
+
+	t.Run("should be able to migrate up and down", func(t *testing.T) {
+		fn := func(pkg string) *Migrator {
+			return NewMigrator(NewMigratorOptions{
+				Database: db,
+				Package:  pkg,
+				Migrations: []Migration{
+					{
+						Version:     uint64(1),
+						Description: "Test initial migration",
+						Up: func(ctx context.Context, db driver.Database) error {
+							return nil
+						},
+						Down: func(ctx context.Context, db driver.Database) error {
+							return nil
+						},
+					},
+					{
+						Version:     uint64(2),
+						Description: "Test second migration",
+						Up: func(ctx context.Context, db driver.Database) error {
+							return nil
+						},
+						Down: func(ctx context.Context, db driver.Database) error {
+							return nil
+						},
+					},
+				},
+			})
+		}
+
+		// Test downing all migrations for both -1 and 0 as version passed
+		{
+			pkg := "package-1"
+
+			for _, i := range []int{-1, 0} {
+				m := fn(pkg)
+
+				err := m.Up(ctx, 0)
+				assert.NoError(t, err)
+
+				versions := fetchMigrations(t, ctx, db, m)
+
+				assertx.ElementsMatch(t, versions, []versionRecord{
+					{
+						Version:     uint64(1),
+						Package:     pkg,
+						Description: "Test initial migration",
+					},
+					{
+						Version:     uint64(2),
+						Package:     pkg,
+						Description: "Test second migration",
+					},
+				}, cmpopts.IgnoreFields(versionRecord{}, "Timestamp"))
+
+				err = m.Down(ctx, i)
+				assert.NoError(t, err)
+
+				versions = fetchMigrations(t, ctx, db, m)
+				assert.Len(t, versions, 0)
+			}
+		}
+
+		// Test downing to a specific version
+		{
+			pkg := "package-2"
+
+			m := fn(pkg)
+
+			err := m.Up(ctx, 0)
+			assert.NoError(t, err)
+
+			versions := fetchMigrations(t, ctx, db, m)
+			assertx.ElementsMatch(t, versions, []versionRecord{
+				{
+					Version:     uint64(1),
+					Package:     pkg,
+					Description: "Test initial migration",
+				},
+				{
+					Version:     uint64(2),
+					Package:     pkg,
+					Description: "Test second migration",
+				},
+			}, cmpopts.IgnoreFields(versionRecord{}, "Timestamp"))
+
+			err = m.Down(ctx, 1)
+			assert.NoError(t, err)
+
+			versions = fetchMigrations(t, ctx, db, m)
+			assert.Len(t, versions, 1)
+
+			assertx.ElementsMatch(t, versions, []versionRecord{
+				{
+					Version:     uint64(1),
+					Package:     pkg,
+					Description: "Test initial migration",
+				},
+			}, cmpopts.IgnoreFields(versionRecord{}, "Timestamp"))
+
+			// Should be a no-op
+			err = m.Down(ctx, 1)
+			assert.NoError(t, err)
+
+			versions = fetchMigrations(t, ctx, db, m)
+			assert.Len(t, versions, 1)
+
+			assertx.ElementsMatch(t, versions, []versionRecord{
+				{
+					Version:     uint64(1),
+					Package:     pkg,
+					Description: "Test initial migration",
+				},
+			}, cmpopts.IgnoreFields(versionRecord{}, "Timestamp"))
+
+			err = m.Down(ctx, 0)
+			assert.NoError(t, err)
+
+			versions = fetchMigrations(t, ctx, db, m)
+			assert.Len(t, versions, 0)
+		}
 	})
 
 	t.Run("should be able to migrate up and down multiple migrations", func(t *testing.T) {
