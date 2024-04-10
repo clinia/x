@@ -34,18 +34,18 @@ const AllAvailable = -1
 type Migrator struct {
 	db                   arangoDriver.Database
 	pkg                  string
-	migrations           []Migration
+	migrations           Migrations
 	migrationsCollection string
 }
 
 type NewMigratorOptions struct {
 	Database   arangoDriver.Database
 	Package    string
-	Migrations []Migration
+	Migrations Migrations
 }
 
 func NewMigrator(in NewMigratorOptions) *Migrator {
-	internalMigrations := make([]Migration, len(in.Migrations))
+	internalMigrations := make(Migrations, len(in.Migrations))
 	copy(internalMigrations, in.Migrations)
 	vers := map[uint64]bool{}
 	for _, m := range in.Migrations {
@@ -95,11 +95,16 @@ func (m *Migrator) createCollectionIfNotExist(ctx context.Context, name string) 
 }
 
 // Version returns current database version and comment.
-func (m *Migrator) Version(ctx context.Context) (uint64, string, error) {
+func (m *Migrator) Version(ctx context.Context) (current uint64, latest uint64, desc string, outErr error) {
+	m.migrations.Sort()
+	if len(m.migrations) > 0 {
+		latest = m.migrations[len(m.migrations)-1].Version
+	}
 	if err := m.createCollectionIfNotExist(ctx, m.migrationsCollection); err != nil {
-		return 0, "", err
+		return 0, latest, "", err
 	}
 
+	var cursor arangoDriver.Cursor
 	cursor, err := m.db.Query(ctx, `
 		FOR m IN @@collection 
 			FILTER m.package == @pkg 
@@ -111,7 +116,7 @@ func (m *Migrator) Version(ctx context.Context) (uint64, string, error) {
 		"pkg":         m.pkg,
 	})
 	if err != nil {
-		return 0, "", err
+		return 0, latest, "", err
 	}
 	defer cursor.Close()
 
@@ -120,25 +125,26 @@ func (m *Migrator) Version(ctx context.Context) (uint64, string, error) {
 	if err != nil {
 		_, ok := err.(arangoDriver.NoMoreDocumentsError)
 		if ok {
-			return 0, "", nil
+			return 0, latest, "", nil
 		}
+		return 0, latest, "", err
 	}
 
-	return rec.Version, rec.Description, nil
+	return rec.Version, latest, rec.Description, nil
 }
 
 // Up performs "up" migrations to latest available version.
 // If n<=0 all "up" migrations with newer versions will be performed.
 // If n>0 only n migrations with newer version will be performed.
 func (m *Migrator) Up(ctx context.Context, n int) error {
-	currentVersion, _, err := m.Version(ctx)
+	currentVersion, _, _, err := m.Version(ctx)
 	if err != nil {
 		return err
 	}
 	if n <= 0 || n > len(m.migrations) {
 		n = len(m.migrations)
 	}
-	migrationSort(m.migrations)
+	m.migrations.Sort()
 
 	col, err := m.db.Collection(ctx, m.migrationsCollection)
 	if err != nil {
@@ -175,14 +181,14 @@ func (m *Migrator) Up(ctx context.Context, n int) error {
 // If n<=0 all "down" migrations with older version will be performed.
 // If n>0 only n migrations with older version will be performed.
 func (m *Migrator) Down(ctx context.Context, n int) error {
-	currentVersion, _, err := m.Version(ctx)
+	currentVersion, _, _, err := m.Version(ctx)
 	if err != nil {
 		return err
 	}
 	if n <= 0 || n > len(m.migrations) {
 		n = len(m.migrations)
 	}
-	migrationSort(m.migrations)
+	m.migrations.Sort()
 
 	version := currentVersion
 	for i, p := len(m.migrations)-1, 0; i >= 0 && p < n; i-- {

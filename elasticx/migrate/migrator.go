@@ -47,14 +47,14 @@ const AllAvailable = -1
 type Migrator struct {
 	engine          elasticx.Engine
 	pkg             string
-	migrations      []Migration
+	migrations      Migrations
 	migrationsIndex string
 }
 
 type NewMigratorOptions struct {
 	Engine     elasticx.Engine
 	Package    string
-	Migrations []Migration
+	Migrations Migrations
 }
 
 func NewMigrator(opts NewMigratorOptions) *Migrator {
@@ -242,7 +242,7 @@ func (m *Migrator) Up(ctx context.Context, n int) error {
 	if n <= 0 || n > len(m.migrations) {
 		n = len(m.migrations)
 	}
-	migrationSort(m.migrations)
+	m.migrations.Sort()
 
 	for i, p := 0, 0; i < len(m.migrations) && p < n; i++ {
 		migration := m.migrations[i]
@@ -271,7 +271,7 @@ func (m *Migrator) Down(ctx context.Context, n int) error {
 	if n <= 0 || n > len(m.migrations) {
 		n = len(m.migrations)
 	}
-	migrationSort(m.migrations)
+	m.migrations.Sort()
 
 	for i, p := len(m.migrations)-1, 0; i >= 0 && p < n; i-- {
 		migration := m.migrations[i]
