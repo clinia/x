@@ -27,9 +27,11 @@ type Migration struct {
 	Down        MigrationFunc
 }
 
-func migrationSort(migrations []Migration) {
-	sort.Slice(migrations, func(i, j int) bool {
-		return migrations[i].Version < migrations[j].Version
+type Migrations []Migration
+
+func (m Migrations) Sort() {
+	sort.Slice(m, func(i, j int) bool {
+		return m[i].Version < m[j].Version
 	})
 }
 

@@ -2,11 +2,17 @@ package migrate
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/clinia/x/assertx"
 	"github.com/clinia/x/elasticx"
+	"github.com/elastic/go-elasticsearch/v8/typedapi/core/search"
+	"github.com/elastic/go-elasticsearch/v8/typedapi/types"
+	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/sortorder"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMigration(t *testing.T) {
@@ -193,6 +199,161 @@ func TestMigration(t *testing.T) {
 				},
 			},
 		})
+	})
+
+	t.Run("should be able to migrate up & down in batches", func(t *testing.T) {
+		engine, err := client.CreateEngine(ctx, "test-migrations-d")
+		assert.NoError(t, err)
+		engines = append(engines, engine.Name())
+
+		m := NewMigrator(NewMigratorOptions{
+			Engine:  engine,
+			Package: "package-1",
+			Migrations: []Migration{
+				{
+					Version:     uint64(1),
+					Description: "Test initial migration",
+					Up: func(ctx context.Context, engine elasticx.Engine) error {
+						_, err := engine.CreateIndex(ctx, "test-index", nil)
+						assert.NoError(t, err)
+
+						return nil
+					},
+					Down: func(ctx context.Context, engine elasticx.Engine) error {
+						index, err := engine.Index(ctx, "test-index")
+						if err != nil {
+							return err
+						}
+
+						return index.Remove(ctx)
+					},
+				},
+				{
+					Version:     uint64(2),
+					Description: "Test second migration",
+					Up: func(ctx context.Context, engine elasticx.Engine) error {
+						return nil
+					},
+					Down: func(ctx context.Context, engine elasticx.Engine) error {
+						return nil
+					},
+				},
+				{
+					Version:     uint64(3),
+					Description: "Test third migration",
+					Up: func(ctx context.Context, engine elasticx.Engine) error {
+						return nil
+					},
+					Down: func(ctx context.Context, engine elasticx.Engine) error {
+						return nil
+					},
+				},
+			},
+		})
+
+		getVersions := func() []versionRecord {
+			searchResponse, err := m.engine.Query(ctx, &search.Request{
+				Query: &types.Query{
+					Term: map[string]types.TermQuery{
+						"package": {
+							Value: m.pkg,
+						},
+					},
+				},
+				Sort: types.Sort{
+					types.SortOptions{
+						SortOptions: map[string]types.FieldSort{
+							"version": {
+								Order: &sortorder.Desc,
+							},
+						},
+					},
+				},
+			}, m.migrationsIndex)
+
+			require.NoError(t, err)
+
+			out := make([]versionRecord, len(searchResponse.Hits.Hits))
+			for i, hit := range searchResponse.Hits.Hits {
+				var rec versionRecord
+
+				if err := json.Unmarshal(hit.Source_, &rec); err != nil {
+					t.Fatal(err)
+				}
+
+				out[i] = rec
+			}
+
+			return out
+		}
+
+		exists, err := f.es.Indices.Exists("clinia-engines~test-migrations-d~migrations").Do(ctx)
+		assert.NoError(t, err)
+		assert.False(t, exists)
+
+		err = m.Up(ctx, 1)
+		assert.NoError(t, err)
+
+		exists, err = f.es.Indices.Exists("clinia-engines~test-migrations-d~migrations").Do(ctx)
+		assert.NoError(t, err)
+		assert.True(t, exists)
+
+		versions := getVersions()
+		assert.Len(t, versions, 1)
+		assertx.ElementsMatch(t, versions, []versionRecord{
+			{
+				Version:     uint64(1),
+				Package:     "package-1",
+				Description: "Test initial migration",
+			},
+		}, cmpopts.IgnoreFields(versionRecord{}, "Timestamp"))
+
+		err = m.Up(ctx, 3)
+		assert.NoError(t, err)
+
+		versions = getVersions()
+		assert.Len(t, versions, 3)
+		assertx.ElementsMatch(t, versions, []versionRecord{
+			{
+				Version:     uint64(1),
+				Package:     "package-1",
+				Description: "Test initial migration",
+			},
+			{
+				Version:     uint64(2),
+				Package:     "package-1",
+				Description: "Test second migration",
+			},
+			{
+				Version:     uint64(3),
+				Package:     "package-1",
+				Description: "Test third migration",
+			},
+		}, cmpopts.IgnoreFields(versionRecord{}, "Timestamp"))
+
+		err = m.Down(ctx, 2)
+		assert.NoError(t, err)
+
+		versions = getVersions()
+		assert.Len(t, versions, 2)
+		assertx.ElementsMatch(t, versions, []versionRecord{
+			{
+				Version:     uint64(1),
+				Package:     "package-1",
+				Description: "Test initial migration",
+			},
+			{
+				Version:     uint64(2),
+				Package:     "package-1",
+				Description: "Test second migration",
+			},
+		}, cmpopts.IgnoreFields(versionRecord{}, "Timestamp"))
+
+		err = m.Down(ctx, 0)
+		assert.NoError(t, err)
+
+		versions = getVersions()
+		assert.Len(t, versions, 0)
 	})
 
 	t.Cleanup(func() {
