@@ -105,7 +105,6 @@ func (m *Migrator) Version(ctx context.Context) (current uint64, latest uint64, 
 		return 0, latest, "", err
 	}
 
-	var cursor arangoDriver.Cursor
 	cursor, err := m.db.Query(ctx, `
 		FOR m IN @@collection 
 			FILTER m.package == @pkg 
