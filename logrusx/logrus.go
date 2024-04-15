@@ -218,7 +218,8 @@ func (l *Logger) UseConfig(c configurator) {
 		logFile, err := os.OpenFile(c.String("log.write_to_file"), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
 		if err != nil {
 			l.WithError(err).Errorf("unable to open file '%s'", c.String("log.write_to_file"))
+		} else {
+			l.Entry.Logger.Out = io.MultiWriter(os.Stderr, logFile)
 		}
-		l.Entry.Logger.Out = io.MultiWriter(os.Stderr, logFile)
 	}
 }
