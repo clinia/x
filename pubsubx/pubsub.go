@@ -53,7 +53,14 @@ func (ps *pubSub) setup(l *logrusx.Logger, c *Config, opts *pubSubOptions) error
 			csGroup := consumerGroup(c.Scope, group)
 
 			if ms, ok := ps.subs.Load(csGroup); !ok {
-				s, e := setupKafkaSubscriber(l, c, opts, csGroup, subOpts)
+				s, e := setupKafkaSubscriber(l, c, opts, csGroup, subOpts, func(err error) {
+					ps.subs.Delete(csGroup)
+					if err != nil {
+						l.Errorf("kafka subscriber for group %s closed with error: %v", csGroup, err)
+					} else {
+						l.Infof("kafka subscriber for group %s closed, subscribing again will yield a new instance", csGroup)
+					}
+				})
 				if e != nil {
 					return nil, e
 				}

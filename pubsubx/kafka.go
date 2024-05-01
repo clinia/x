@@ -72,12 +72,13 @@ func (p *kafkaPublisher) Close() error {
 type kafkaSubscriber struct {
 	scope      string
 	subscriber *kafkax.Subscriber
+	onClosed   func(error)
 }
 
 var _ Subscriber = (*kafkaSubscriber)(nil)
 
 // TODO: add subscriber configs
-func setupKafkaSubscriber(l *logrusx.Logger, c *Config, opts *pubSubOptions, group string, subOpts *subscriberOptions) (Subscriber, error) {
+func setupKafkaSubscriber(l *logrusx.Logger, c *Config, opts *pubSubOptions, group string, subOpts *subscriberOptions, onClosed func(error)) (Subscriber, error) {
 	saramaSubscriberConfig := kafka.DefaultSaramaSubscriberConfig()
 	saramaSubscriberConfig.Consumer.Offsets.Initial = sarama.OffsetOldest
 
@@ -126,12 +127,15 @@ func setupKafkaSubscriber(l *logrusx.Logger, c *Config, opts *pubSubOptions, gro
 	return &kafkaSubscriber{
 		scope:      c.Scope,
 		subscriber: subscriber,
+		onClosed:   onClosed,
 	}, nil
 }
 
 // Close implements Subscriber.
 func (s *kafkaSubscriber) Close() error {
-	return s.subscriber.Close()
+	err := s.subscriber.Close()
+	s.onClosed(err)
+	return err
 }
 
 // Subscribe implements Subscriber.
