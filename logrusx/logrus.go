@@ -8,6 +8,7 @@ import (
 	_ "embed"
 	"io"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/clinia/x/stringsx"
@@ -16,16 +17,17 @@ import (
 
 type (
 	options struct {
-		l             *logrus.Logger
-		level         *logrus.Level
-		formatter     logrus.Formatter
-		format        string
-		reportCaller  bool
-		exitFunc      func(int)
-		leakSensitive bool
-		redactionText string
-		hooks         []logrus.Hook
-		c             configurator
+		l                       *logrus.Logger
+		level                   *logrus.Level
+		formatter               logrus.Formatter
+		format                  string
+		reportCaller            bool
+		exitFunc                func(int)
+		leakSensitive           bool
+		sensitiveHeadersLowered map[string]bool
+		redactionText           string
+		hooks                   []logrus.Hook
+		c                       configurator
 	}
 	Option           func(*options)
 	nullConfigurator struct{}
@@ -39,6 +41,10 @@ type (
 var ConfigSchema string
 
 const ConfigSchemaID = "clinia://logging-config"
+
+var defaultSensitiveHeaders = []string{
+	"authorization", "cookie", "set-cookie",
+}
 
 // AddConfigSchema adds the logging schema to the compiler.
 // The interface is specified instead of `jsonschema.Compiler` to allow the use of any jsonschema library fork or version.
@@ -130,6 +136,12 @@ func WithConfigurator(c configurator) Option {
 	}
 }
 
+func WithSensitiveHeaders(headers ...string) Option {
+	return func(o *options) {
+		o.sensitiveHeadersLowered = setSensitiveHeaders(o.sensitiveHeadersLowered, headers...)
+	}
+}
+
 func ForceFormat(format string) Option {
 	return func(o *options) {
 		o.format = format
@@ -180,8 +192,17 @@ func (c *nullConfigurator) String(_ string) string {
 	return ""
 }
 
+func setSensitiveHeaders(m map[string]bool, headers ...string) map[string]bool {
+	for _, h := range headers {
+		m[strings.ToLower(h)] = true
+	}
+
+	return m
+}
+
 func newOptions(opts []Option) *options {
 	o := new(options)
+	o.sensitiveHeadersLowered = setSensitiveHeaders(make(map[string]bool), defaultSensitiveHeaders...)
 	o.c = new(nullConfigurator)
 	for _, f := range opts {
 		f(o)
@@ -193,11 +214,12 @@ func newOptions(opts []Option) *options {
 func New(name string, version string, opts ...Option) *Logger {
 	o := newOptions(opts)
 	return &Logger{
-		opts:          opts,
-		name:          name,
-		version:       version,
-		leakSensitive: o.leakSensitive || o.c.Bool("log.leak_sensitive_values"),
-		redactionText: stringsx.DefaultIfEmpty(o.redactionText, `Value is sensitive and has been redacted. To see the value set config key "log.leak_sensitive_values = true" or environment variable "LOG_LEAK_SENSITIVE_VALUES=true".`),
+		opts:                    opts,
+		name:                    name,
+		version:                 version,
+		leakSensitive:           o.leakSensitive || o.c.Bool("log.leak_sensitive_values"),
+		sensitiveHeadersLowered: o.sensitiveHeadersLowered,
+		redactionText:           stringsx.DefaultIfEmpty(o.redactionText, `Value is sensitive and has been redacted. To see the value set config key "log.leak_sensitive_values = true" or environment variable "LOG_LEAK_SENSITIVE_VALUES=true".`),
 		Entry: newLogger(o.l, o).WithFields(logrus.Fields{
 			"audience": "application", "service_name": name, "service_version": version}),
 	}
