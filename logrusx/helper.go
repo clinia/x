@@ -19,11 +19,12 @@ import (
 
 type Logger struct {
 	*logrus.Entry
-	leakSensitive bool
-	redactionText string
-	opts          []Option
-	name          string
-	version       string
+	leakSensitive           bool
+	sensitiveHeadersLowered map[string]bool
+	redactionText           string
+	opts                    []Option
+	name                    string
+	version                 string
 }
 
 var opts = otelhttptrace.WithPropagators(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
@@ -48,12 +49,20 @@ func (l *Logger) WithContext(ctx context.Context) *Logger {
 	return &ll
 }
 
+func (l *Logger) WithSensitiveHeaders(headers ...string) *Logger {
+	ll := *l
+	for _, header := range headers {
+		ll.sensitiveHeadersLowered[strings.ToLower(header)] = true
+	}
+	return &ll
+}
+
 func (l *Logger) HTTPHeadersRedacted(h http.Header) map[string]interface{} {
 	headers := map[string]interface{}{}
 
 	for key, value := range h {
 		keyLower := strings.ToLower(key)
-		if keyLower == "authorization" || keyLower == "cookie" || keyLower == "set-cookie" {
+		if l.sensitiveHeadersLowered[keyLower] {
 			headers[keyLower] = l.maybeRedact(value)
 		} else {
 			headers[keyLower] = h.Get(key)
