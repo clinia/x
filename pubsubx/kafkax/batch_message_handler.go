@@ -66,8 +66,8 @@ func (h *batchedMessageHandler) startProcessing(ctx context.Context) {
 	buffer := make([]*messageHolder, 0, h.maxBatchSize)
 	mustSleep := h.nackResendSleep != NoSleep
 	logFields := watermill.LogFields{}
-	sendDeadline := time.Now().Add(h.maxWaitTime)
 	timer := time.NewTimer(h.maxWaitTime)
+	batch := 0
 	for {
 		if len(buffer) == 0 {
 			select {
@@ -82,7 +82,9 @@ func (h *batchedMessageHandler) startProcessing(ctx context.Context) {
 				return
 			}
 
-			sendDeadline = time.Now().Add(h.maxWaitTime)
+			if !timer.Stop() {
+				<-timer.C
+			}
 			timer.Reset(h.maxWaitTime)
 		}
 
@@ -104,9 +106,10 @@ func (h *batchedMessageHandler) startProcessing(ctx context.Context) {
 		}
 		size := len(buffer)
 		if (timerExpired && size > 0) || size == int(h.maxBatchSize) {
-			sendDeadline = time.Now().Add(h.maxWaitTime)
 			timerExpired = false
 			newBuffer, err := h.processBatch(buffer)
+			batch++
+			logFields["batch"] = batch
 			if err != nil {
 				return
 			}
@@ -116,11 +119,17 @@ func (h *batchedMessageHandler) startProcessing(ctx context.Context) {
 			buffer = newBuffer
 			// if there are messages in the buffer, it means there was NACKs, so we wait
 			if len(buffer) > 0 && mustSleep {
+				if !timer.Stop() {
+					<-timer.C
+				}
 				timer.Reset(h.nackResendSleep)
 				<-timer.C
 			}
 		}
-		timer.Reset(time.Until(sendDeadline))
+		if !timer.Stop() {
+			<-timer.C
+		}
+		timer.Reset(h.maxWaitTime)
 	}
 }
 
