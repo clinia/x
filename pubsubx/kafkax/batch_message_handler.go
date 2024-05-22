@@ -9,6 +9,7 @@ import (
 	"github.com/Shopify/sarama"
 	"github.com/ThreeDotsLabs/watermill"
 	"github.com/ThreeDotsLabs/watermill/message"
+	"github.com/clinia/x/timerx"
 )
 
 // batchedMessageHandler works by fetching up to N messages from the provided channel
@@ -66,8 +67,9 @@ func (h *batchedMessageHandler) startProcessing(ctx context.Context) {
 	buffer := make([]*messageHolder, 0, h.maxBatchSize)
 	mustSleep := h.nackResendSleep != NoSleep
 	logFields := watermill.LogFields{}
-	sendDeadline := time.Now().Add(h.maxWaitTime)
 	timer := time.NewTimer(h.maxWaitTime)
+	batch := 0
+
 	for {
 		if len(buffer) == 0 {
 			select {
@@ -82,7 +84,7 @@ func (h *batchedMessageHandler) startProcessing(ctx context.Context) {
 				return
 			}
 
-			sendDeadline = time.Now().Add(h.maxWaitTime)
+			timerx.StopTimer(timer)
 			timer.Reset(h.maxWaitTime)
 		}
 
@@ -104,9 +106,10 @@ func (h *batchedMessageHandler) startProcessing(ctx context.Context) {
 		}
 		size := len(buffer)
 		if (timerExpired && size > 0) || size == int(h.maxBatchSize) {
-			sendDeadline = time.Now().Add(h.maxWaitTime)
 			timerExpired = false
 			newBuffer, err := h.processBatch(buffer)
+			batch++
+			logFields["batch"] = batch
 			if err != nil {
 				return
 			}
@@ -116,11 +119,13 @@ func (h *batchedMessageHandler) startProcessing(ctx context.Context) {
 			buffer = newBuffer
 			// if there are messages in the buffer, it means there was NACKs, so we wait
 			if len(buffer) > 0 && mustSleep {
+				timerx.StopTimer(timer)
 				timer.Reset(h.nackResendSleep)
 				<-timer.C
 			}
 		}
-		timer.Reset(time.Until(sendDeadline))
+		timerx.StopTimer(timer)
+		timer.Reset(h.maxWaitTime)
 	}
 }
 
