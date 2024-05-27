@@ -136,22 +136,22 @@ func (h *batchedMessageHandler) ProcessMessages(
 	logFields watermill.LogFields,
 ) error {
 	defer func() {
-		h.logger.Debug("batchedMessageHandler.ProcessMessage is closing, stopping messageHandler...", logFields)
+		h.logger.Debug("BatchedMessageHandler.ProcessMessage is closing, stopping messageHandler...", logFields)
 		if h.cancel != nil {
 			h.cancel()
 		} else {
-			h.logger.Debug("cancel is nil, not calling it", logFields)
+			h.logger.Debug("Cancel is nil, not calling it", logFields)
 			return
 		}
 		h.wg.Wait()
-		h.logger.Debug("messageHandler stopped successfully, returning", logFields)
+		h.logger.Debug("MessageHandler stopped successfully, returning", logFields)
 	}()
 
 	for {
 		select {
 		case kafkaMsg := <-kafkaMessages:
 			if kafkaMsg == nil {
-				h.logger.Debug("kafkaMsg is closed, stopping ProcessMessages", logFields)
+				h.logger.Debug("KafkaMsg is closed, stopping ProcessMessages", logFields)
 				return nil
 			}
 			msg, err := h.messageParser.prepareAndProcessMessage(ctx, kafkaMsg, h.logger, logFields, sess)
@@ -196,6 +196,22 @@ func (h *batchedMessageHandler) processBatch(
 	lastComittableMessages := make(map[string]*messageHolder, 0)
 	nackedPartitions := make(map[string]struct{})
 	newBuffer := make([]*messageHolder, 0, h.maxBatchSize)
+
+	defer func() {
+		// If a session is provided, we mark the latest committable message for
+		// each partition as done. This is required, because if we did not mark anything we might re-process
+		// messages unnecessarily. If we marked the latest in the bulk, we could lose NACKed messages.
+		//
+		// The reason we defer the call to MarkMessage is because we want to mark the messages as complete
+		// even when the context is cancelled, since we might have already processed (acked/nacked) some offsets that would not need to be reprocessed by other consumers.
+		for _, lastComittable := range lastComittableMessages {
+			if lastComittable.sess != nil {
+				h.logger.Trace("Marking offset as complete for", lastComittable.logFields)
+				lastComittable.sess.MarkMessage(lastComittable.kafkaMessage, "")
+			}
+		}
+	}()
+
 	for idx, waitChannel := range waitChannels {
 		msgHolder := buffer[idx]
 		h.logger.Trace("Waiting for message to be acked", msgHolder.logFields)
@@ -218,16 +234,6 @@ func (h *batchedMessageHandler) processBatch(
 			if !partitionNacked && ack {
 				lastComittableMessages[topicAndPartition] = msgHolder
 			}
-		}
-	}
-
-	// If a session is provided, we mark the latest committable message for
-	// each partition as done. This is required, because if we did not mark anything we might re-process
-	// messages unnecessarily. If we marked the latest in the bulk, we could lose NACKed messages.
-	for _, lastComittable := range lastComittableMessages {
-		if lastComittable.sess != nil {
-			h.logger.Trace("Marking offset as complete for", lastComittable.logFields)
-			lastComittable.sess.MarkMessage(lastComittable.kafkaMessage, "")
 		}
 	}
 
