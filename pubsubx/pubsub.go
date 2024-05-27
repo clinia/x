@@ -40,6 +40,8 @@ func New(l *logrusx.Logger, c *Config, opts ...PubSubOption) (PubSub, error) {
 	return ps, nil
 }
 
+var testMode = false
+
 func (ps *pubSub) setup(l *logrusx.Logger, c *Config, opts *pubSubOptions) error {
 	switch f := stringsx.SwitchExact(c.Provider); {
 	case f.AddCase("kafka"):
@@ -51,6 +53,15 @@ func (ps *pubSub) setup(l *logrusx.Logger, c *Config, opts *pubSubOptions) error
 		ps.publisher = publisher
 		ps.subscriber = func(group string, subOpts *subscriberOptions) (Subscriber, error) {
 			csGroup := consumerGroup(c.Scope, group)
+
+			if testMode {
+				s, e := setupKafkaSubscriber(l, c, opts, csGroup, subOpts, nil)
+				if e != nil {
+					return nil, e
+				}
+
+				return s, nil
+			}
 
 			if ms, ok := ps.subs.Load(csGroup); !ok {
 				s, e := setupKafkaSubscriber(l, c, opts, csGroup, subOpts, func(err error) {

@@ -134,7 +134,9 @@ func setupKafkaSubscriber(l *logrusx.Logger, c *Config, opts *pubSubOptions, gro
 // Close implements Subscriber.
 func (s *kafkaSubscriber) Close() error {
 	err := s.subscriber.Close()
-	s.onClosed(err)
+	if s.onClosed != nil {
+		s.onClosed(err)
+	}
 	return err
 }
 
