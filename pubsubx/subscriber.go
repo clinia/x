@@ -26,9 +26,19 @@ type BatchConsumerOptions struct {
 type subscriberOptions struct {
 	consumerModel        ConsumerModel
 	batchConsumerOptions *BatchConsumerOptions
+	nackResendSleep      *time.Duration
 }
 
 type SubscriberOption func(*subscriberOptions)
+
+// WithNackResendSleep sets the sleep time between resending NACKed messages.
+// If not set, the default value is 100ms.
+// You can also set it to kafkax.NoSleep to disable the sleep.
+func WithNackResendSleep(nackResendSleep time.Duration) SubscriberOption {
+	return func(o *subscriberOptions) {
+		o.nackResendSleep = &nackResendSleep
+	}
+}
 
 func WithDefaultConsumerModel() SubscriberOption {
 	return func(o *subscriberOptions) {

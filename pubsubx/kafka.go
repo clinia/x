@@ -107,6 +107,10 @@ func setupKafkaSubscriber(l *logrusx.Logger, c *Config, opts *pubSubOptions, gro
 		conf.ConsumerModel = kafkax.Default
 	}
 
+	if subOpts.nackResendSleep != nil {
+		conf.NackResendSleep = *subOpts.nackResendSleep
+	}
+
 	// Setup tracer if provided
 	if opts.tracerProvider != nil {
 		conf.Tracer = kafkax.NewOTELSaramaTracer(otelsaramax.WithTracerProvider(opts.tracerProvider), otelsaramax.WithPropagators(opts.propagator))
