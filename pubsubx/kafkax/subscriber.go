@@ -24,7 +24,8 @@ type Subscriber struct {
 	closing       chan struct{}
 	subscribersWg sync.WaitGroup
 
-	closed bool
+	closedMu sync.RWMutex
+	closed   bool
 }
 
 // NewSubscriber creates a new Kafka Subscriber.
@@ -185,9 +186,12 @@ func DefaultSaramaSubscriberConfig() *sarama.Config {
 //
 // There are multiple subscribers spawned
 func (s *Subscriber) Subscribe(ctx context.Context, topic string) (<-chan *message.Message, error) {
+	s.closedMu.RLock()
 	if s.closed {
+		s.closedMu.RUnlock()
 		return nil, errors.New("subscriber closed")
 	}
+	s.closedMu.RUnlock()
 
 	s.subscribersWg.Add(1)
 
@@ -212,6 +216,11 @@ func (s *Subscriber) Subscribe(ctx context.Context, topic string) (<-chan *messa
 		// blocking, until s.closing is closed
 		s.handleReconnects(ctx, topic, output, consumeClosed, logFields)
 		close(output)
+
+		s.closedMu.Lock()
+		s.closed = true
+		s.closedMu.Unlock()
+
 		s.subscribersWg.Done()
 	}()
 
@@ -528,11 +537,13 @@ func (s *Subscriber) createMessagesHandler(output chan *message.Message) Message
 }
 
 func (s *Subscriber) Close() error {
+	s.closedMu.RLock()
 	if s.closed {
+		s.closedMu.RUnlock()
 		return nil
 	}
+	s.closedMu.RUnlock()
 
-	s.closed = true
 	close(s.closing)
 	s.subscribersWg.Wait()
 
