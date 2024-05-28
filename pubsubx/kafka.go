@@ -81,6 +81,7 @@ var _ Subscriber = (*kafkaSubscriber)(nil)
 func setupKafkaSubscriber(l *logrusx.Logger, c *Config, opts *pubSubOptions, group string, subOpts *subscriberOptions, onClosed func(error)) (Subscriber, error) {
 	saramaSubscriberConfig := kafka.DefaultSaramaSubscriberConfig()
 	saramaSubscriberConfig.Consumer.Offsets.Initial = sarama.OffsetOldest
+	saramaSubscriberConfig.Version = sarama.V2_8_2_0
 
 	conf := kafkax.SubscriberConfig{
 		Brokers:               c.Providers.Kafka.Brokers,
