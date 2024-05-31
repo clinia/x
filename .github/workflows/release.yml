@@ -18,8 +18,9 @@ jobs:
         with:
           node-version: "14"
       - name: Define next tag
-        run:
-          echo -e "Current version = v$(npx semver -- $(git describe --tags --abbrev=0))\nNext version = v$(npx semver -- $(git describe --tags --abbrev=0) --increment=patch)"
+        run: |
+          echo "Current version = v$(npx semver -- $(git describe --tags --abbrev=0))"
+          echo "Next version = v$(npx semver -- $(git describe --tags --abbrev=0) --increment=patch)"
       - name: Create git tag
         run: |
           git tag "v$(npx semver -- $(git describe --tags --abbrev=0) --increment=patch)"
