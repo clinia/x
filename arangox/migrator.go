@@ -7,13 +7,10 @@ import (
 	"time"
 
 	arangoDriver "github.com/arangodb/go-driver"
+	"github.com/clinia/x/errorx"
+	"github.com/clinia/x/logrusx"
 	"github.com/clinia/x/mathx"
 )
-
-type collectionSpecification struct {
-	Name string `json:"name"`
-	Type int    `json:"type"`
-}
 
 type versionRecord struct {
 	Version     uint64    `json:"version"`
@@ -22,7 +19,7 @@ type versionRecord struct {
 	Timestamp   time.Time `json:"timestamp"`
 }
 
-const defaultMigrationsCollection = "migrations"
+const DefaultMigrationsCollection = "migrations"
 
 // AllAvailable used in "Up" or "Down" methods to run all available migrations.
 const AllAvailable = -1
@@ -35,6 +32,8 @@ const AllAvailable = -1
 type Migrator struct {
 	db                   arangoDriver.Database
 	pkg                  string
+	dryRun               bool
+	l                    *logrusx.Logger
 	migrations           Migrations
 	migrationsCollection string
 }
@@ -43,6 +42,8 @@ type NewMigratorOptions struct {
 	Database   arangoDriver.Database
 	Package    string
 	Migrations Migrations
+	DryRun     bool
+	Logger     *logrusx.Logger
 }
 
 func NewMigrator(in NewMigratorOptions) *Migrator {
@@ -56,11 +57,18 @@ func NewMigrator(in NewMigratorOptions) *Migrator {
 		vers[m.Version] = true
 	}
 
+	l := in.Logger
+	if l == nil {
+		l = logrusx.New("migrator", "package="+in.Package)
+	}
+
 	return &Migrator{
 		db:                   in.Database,
 		pkg:                  in.Package,
+		dryRun:               in.DryRun,
+		l:                    l.WithField("package", in.Package),
 		migrations:           internalMigrations,
-		migrationsCollection: defaultMigrationsCollection,
+		migrationsCollection: DefaultMigrationsCollection,
 	}
 }
 
@@ -77,6 +85,10 @@ func (m *Migrator) createCollectionIfNotExist(ctx context.Context, name string) 
 	}
 	if exist {
 		return nil
+	} else if m.dryRun {
+		err := errorx.FailedPreconditionErrorf("collection %s does not exist", name)
+		m.l.WithError(err).Errorf("when dry-run mode is enabled, we can't create the missing collection")
+		return err
 	}
 
 	col, err := m.db.CreateCollection(ctx, name, nil)
@@ -165,6 +177,11 @@ func (m *Migrator) Up(ctx context.Context, targetVersion int) error {
 			break
 		}
 
+		if m.dryRun {
+			m.l.Warnf("[dry-run] ⬆️  up migration version %d (%s) would be applied for package %s", migration.Version, migration.Description, m.pkg)
+			continue
+		}
+
 		if err := migration.Up(ctx, m.db); err != nil {
 			return err
 		}
@@ -190,11 +207,12 @@ func (m *Migrator) Up(ctx context.Context, targetVersion int) error {
 // If targetVersion>0, only the down migrations where version>targetVersion will be performed (only if they were applied).
 func (m *Migrator) Down(ctx context.Context, targetVersion int) error {
 	m.migrations.Sort()
-	version, latest, _, err := m.Version(ctx)
+	curVersion, latest, _, err := m.Version(ctx)
 	if err != nil {
 		return err
 	}
 
+	version := curVersion
 	target := uint64(mathx.Clamp(targetVersion, 0, int(latest)))
 
 	for i := len(m.migrations) - 1; i >= 0; i-- {
@@ -208,6 +226,11 @@ func (m *Migrator) Down(ctx context.Context, targetVersion int) error {
 			break
 		}
 
+		if m.dryRun {
+			m.l.Warnf("[dry-run] ⬇️  migration version %d (%s) would be applied for package %s", migration.Version, migration.Description, m.pkg)
+			continue
+		}
+
 		if err := migration.Down(ctx, m.db); err != nil {
 			return err
 		}
@@ -217,6 +240,15 @@ func (m *Migrator) Down(ctx context.Context, targetVersion int) error {
 		} else {
 			version = m.migrations[i-1].Version
 		}
+	}
+
+	if m.dryRun {
+		if target == curVersion {
+			m.l.Warnf("[dry-run] database version already at '%d', no changes would be applied ✅", curVersion)
+		} else {
+			m.l.Warnf("[dry-run] database version would pass from '%d' to '%d'", curVersion, target)
+		}
+		return nil
 	}
 
 	_, err = m.db.Query(ctx, `

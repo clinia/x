@@ -422,6 +422,59 @@ func TestDownMigrations(t *testing.T) {
 	})
 }
 
+func TestDryRun(t *testing.T) {
+	ctx, db := newFixture(t, "test_dry-run")
+	mopts := NewMigratorOptions{
+		Database: db,
+		Package:  "package-1",
+		Migrations: []Migration{
+			{
+				Version:     uint64(1),
+				Description: "Test initial migration",
+				Up: func(ctx context.Context, db driver.Database) error {
+					return nil
+				},
+				Down: func(ctx context.Context, db driver.Database) error {
+					return nil
+				},
+			},
+			{
+				Version:     uint64(2),
+				Description: "Test second migration",
+				Up: func(ctx context.Context, db driver.Database) error {
+					return nil
+				},
+				Down: func(ctx context.Context, db driver.Database) error {
+					return nil
+				},
+			},
+		},
+		DryRun: false,
+	}
+
+	m := NewMigrator(mopts)
+	err := m.Up(ctx, 1)
+	assert.NoError(t, err)
+
+	versions := fetchMigrations(t, ctx, db, m)
+	assert.Len(t, versions, 1)
+
+	mopts.DryRun = true
+	m = NewMigrator(mopts)
+
+	err = m.Down(ctx, 0)
+	assert.NoError(t, err)
+
+	versions = fetchMigrations(t, ctx, db, m)
+	assert.Len(t, versions, 1, "dry-run should not apply any down migrations")
+
+	err = m.Up(ctx, 2)
+	assert.NoError(t, err)
+
+	versions = fetchMigrations(t, ctx, db, m)
+	assert.Len(t, versions, 1, "dry-run should not apply up migrations")
+}
+
 func newFixture(t *testing.T, dbName string) (context.Context, driver.Database) {
 	ctx := context.Background()
 
