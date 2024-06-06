@@ -12,6 +12,9 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 )
 
+// 10MB
+const DefaultMaxMessageSize = 10485760
+
 type kafkaPublisher struct {
 	scope      string
 	publisher  *kafkax.Publisher
@@ -22,9 +25,14 @@ var _ Publisher = (*kafkaPublisher)(nil)
 
 // TODO: add publisher configs
 func setupKafkaPublisher(l *logrusx.Logger, c *Config, opts *pubSubOptions) (Publisher, error) {
+	saramaPublisherConfig := kafka.DefaultSaramaSyncPublisherConfig()
+	saramaPublisherConfig.Version = sarama.V2_8_2_0
+	saramaPublisherConfig.Producer.MaxMessageBytes = DefaultMaxMessageSize
+
 	conf := kafkax.PublisherConfig{
-		Brokers:   c.Providers.Kafka.Brokers,
-		Marshaler: kafka.DefaultMarshaler{},
+		OverwriteSaramaConfig: saramaPublisherConfig,
+		Brokers:               c.Providers.Kafka.Brokers,
+		Marshaler:             kafka.DefaultMarshaler{},
 	}
 	// Setup tracer if provided
 	if opts.tracerProvider != nil {
