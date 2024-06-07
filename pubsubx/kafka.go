@@ -3,16 +3,12 @@ package pubsubx
 import (
 	"context"
 
-	"github.com/IBM/sarama"
 	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/clinia/x/logrusx"
 	"github.com/clinia/x/otelx/instrumentation/otelsaramax"
 	"github.com/clinia/x/pubsubx/kafkax"
 	"go.opentelemetry.io/otel/propagation"
 )
-
-// 10MB
-const DefaultMaxMessageSize = 10485760
 
 type kafkaPublisher struct {
 	scope      string
@@ -22,15 +18,10 @@ type kafkaPublisher struct {
 
 var _ Publisher = (*kafkaPublisher)(nil)
 
-// TODO: add publisher configs
 func setupKafkaPublisher(l *logrusx.Logger, c *Config, opts *pubSubOptions) (Publisher, error) {
-	saramaPublisherConfig := kafkax.DefaultSaramaSyncPublisherConfig()
-	saramaPublisherConfig.Version = sarama.V2_8_2_0
-	saramaPublisherConfig.Producer.MaxMessageBytes = DefaultMaxMessageSize
-
 	conf := kafkax.PublisherConfig{
-		OverwriteSaramaConfig: saramaPublisherConfig,
 		Brokers:               c.Providers.Kafka.Brokers,
+		OverwriteSaramaConfig: opts.SaramaPublisherConfig,
 		Marshaler:             kafkax.DefaultMarshaler{},
 	}
 	// Setup tracer if provided
@@ -84,16 +75,12 @@ type kafkaSubscriber struct {
 
 var _ Subscriber = (*kafkaSubscriber)(nil)
 
-// TODO: add subscriber configs
 func setupKafkaSubscriber(l *logrusx.Logger, c *Config, opts *pubSubOptions, group string, subOpts *subscriberOptions, onClosed func(error)) (Subscriber, error) {
-	saramaSubscriberConfig := kafkax.DefaultSaramaSubscriberConfig()
-	saramaSubscriberConfig.Consumer.Offsets.Initial = sarama.OffsetOldest
-	saramaSubscriberConfig.Version = sarama.V2_3_0_0
 
 	conf := kafkax.SubscriberConfig{
 		Brokers:               c.Providers.Kafka.Brokers,
+		OverwriteSaramaConfig: opts.SaramaSubscriberConfig,
 		Unmarshaler:           kafkax.DefaultMarshaler{},
-		OverwriteSaramaConfig: saramaSubscriberConfig,
 		Tracer:                kafkax.NewOTELSaramaTracer(otelsaramax.WithTracerProvider(opts.tracerProvider)),
 	}
 
