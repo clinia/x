@@ -126,7 +126,7 @@ func (e *engine) Queries(ctx context.Context, queries ...MultiQuery) (*msearch.R
 		items = append(items, query.Request)
 	}
 
-	res, err := e.es.Msearch().Request(items).Do(ctx)
+	res, err := e.es.Msearch().Request(&items).Do(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -135,7 +135,7 @@ func (e *engine) Queries(ctx context.Context, queries ...MultiQuery) (*msearch.R
 }
 
 func (e *engine) Bulk(ctx context.Context, actions []BulkOperation) (*bulk.Response, error) {
-	request := []interface{}{}
+	request := []any{}
 	for _, action := range actions {
 		indexName := NewIndexName(enginesIndexName, pathEscape(e.name), pathEscape(action.IndexName)).String()
 		op := types.OperationContainer{}
@@ -174,7 +174,7 @@ func (e *engine) Bulk(ctx context.Context, actions []BulkOperation) (*bulk.Respo
 
 	}
 
-	res, err := e.es.Bulk().Request(request).Do(ctx)
+	res, err := e.es.Bulk().Request(&request).Do(ctx)
 	if err != nil {
 		return nil, err
 	}
