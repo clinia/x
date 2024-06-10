@@ -560,9 +560,13 @@ type consumerGroupHandler struct {
 	messageLogFields watermill.LogFields
 }
 
-func (consumerGroupHandler) Setup(_ sarama.ConsumerGroupSession) error { return nil }
+func (h consumerGroupHandler) Setup(c sarama.ConsumerGroupSession) error {
+	return h.messageHandler.Setup(c)
+}
 
-func (consumerGroupHandler) Cleanup(_ sarama.ConsumerGroupSession) error { return nil }
+func (h consumerGroupHandler) Cleanup(c sarama.ConsumerGroupSession) error {
+	return h.messageHandler.Cleanup(c)
+}
 
 func (h consumerGroupHandler) ConsumeClaim(sess sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
 	logFields := h.messageLogFields.Copy().Add(watermill.LogFields{

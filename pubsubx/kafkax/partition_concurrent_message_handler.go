@@ -23,6 +23,16 @@ type partitionConcurrentMessageHandler struct {
 	unmarshaler Unmarshaler
 }
 
+// Cleanup implements MessageHandler.
+func (h *partitionConcurrentMessageHandler) Cleanup(sarama.ConsumerGroupSession) error {
+	return nil
+}
+
+// Setup implements MessageHandler.
+func (h *partitionConcurrentMessageHandler) Setup(sarama.ConsumerGroupSession) error {
+	return nil
+}
+
 func NewPartitionConcurrentMessageHandler(
 	outputChannel chan<- *message.Message,
 	unmarshaler Unmarshaler,

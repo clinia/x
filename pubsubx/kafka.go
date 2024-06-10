@@ -2,7 +2,6 @@ package pubsubx
 
 import (
 	"context"
-	"time"
 
 	"github.com/IBM/sarama"
 	"github.com/ThreeDotsLabs/watermill/message"
