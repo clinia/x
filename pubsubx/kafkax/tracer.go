@@ -1,7 +1,7 @@
 package kafkax
 
 import (
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 	"github.com/clinia/x/otelx/instrumentation/otelsaramax"
 )
 
