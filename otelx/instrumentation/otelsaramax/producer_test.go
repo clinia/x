@@ -124,7 +124,7 @@ func TestAsyncProducer_ConcurrencyEdgeCases(t *testing.T) {
 
 func newSaramaConfig() *sarama.Config {
 	cfg := sarama.NewConfig()
-	cfg.Version = sarama.V0_11_0_0
+	cfg.Version = sarama.V2_3_0_0
 	return cfg
 }
 
