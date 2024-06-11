@@ -54,9 +54,15 @@ func testBenchmark(
 	defer close(closing)
 	defer close(outputChannel)
 	go func() {
+		require.NoError(b, handler.Setup(&sess))
+
 		err := handler.ProcessMessages(context.Background(), kafkaMessages, sess, watermill.LogFields{})
 		assert.NoError(b, err)
 	}()
+	b.Cleanup(func() {
+		require.NoError(b, handler.Cleanup(&sess))
+	})
+
 	receivedMessages := make([]*message.Message, 0, messagesInTest)
 	for {
 		select {
