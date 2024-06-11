@@ -216,11 +216,6 @@ func (s *Subscriber) Subscribe(ctx context.Context, topic string) (<-chan *messa
 		// blocking, until s.closing is closed
 		s.handleReconnects(ctx, topic, output, consumeClosed, logFields)
 		close(output)
-
-		s.closedMu.Lock()
-		s.closed = true
-		s.closedMu.Unlock()
-
 		s.subscribersWg.Done()
 	}()
 
@@ -546,14 +541,14 @@ func (s *Subscriber) createMessagesHandler(output chan *message.Message) Message
 }
 
 func (s *Subscriber) Close() error {
-	s.closedMu.RLock()
+	s.closedMu.Lock()
+	defer s.closedMu.Unlock()
 	if s.closed {
-		s.closedMu.RUnlock()
 		return nil
 	}
-	s.closedMu.RUnlock()
 
 	close(s.closing)
+	s.closed = true
 	s.subscribersWg.Wait()
 
 	s.logger.Debug("Kafka subscriber closed", nil)
