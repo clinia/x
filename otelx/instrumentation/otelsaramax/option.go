@@ -6,7 +6,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-const defaultTracerName = "go.opentelemetry.io/contrib/instrumentation/github.com/Shopify/sarama/otelsarama"
+const defaultTracerName = "github.com/dnwe/otelsarama"
 
 type config struct {
 	TracerProvider trace.TracerProvider

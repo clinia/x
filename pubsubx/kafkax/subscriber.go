@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 	"github.com/clinia/x/otelx/instrumentation/otelsaramax"
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
@@ -175,7 +175,7 @@ func (c SubscriberConfig) Validate() error {
 //	// ...
 func DefaultSaramaSubscriberConfig() *sarama.Config {
 	config := sarama.NewConfig()
-	config.Version = sarama.V1_0_0_0
+	config.Version = sarama.V2_3_0_0
 	config.Consumer.Return.Errors = true
 	config.ClientID = "watermill"
 
@@ -216,11 +216,6 @@ func (s *Subscriber) Subscribe(ctx context.Context, topic string) (<-chan *messa
 		// blocking, until s.closing is closed
 		s.handleReconnects(ctx, topic, output, consumeClosed, logFields)
 		close(output)
-
-		s.closedMu.Lock()
-		s.closed = true
-		s.closedMu.Unlock()
-
 		s.subscribersWg.Done()
 	}()
 
@@ -496,6 +491,10 @@ func (s *Subscriber) consumePartition(
 	logFields watermill.LogFields,
 ) {
 	defer func() {
+		if err := messageHandler.Cleanup(nil); err != nil {
+			s.logger.Error("Cannot cleanup message handler", err, logFields)
+		}
+
 		if err := partitionConsumer.Close(); err != nil {
 			s.logger.Error("Cannot close partition consumer", err, logFields)
 		}
@@ -503,6 +502,11 @@ func (s *Subscriber) consumePartition(
 		s.logger.Debug("consumePartition stopped", logFields)
 
 	}()
+
+	if err := messageHandler.Setup(nil); err != nil {
+		s.logger.Error("Cannot setup message handler", err, logFields)
+		return
+	}
 
 	kafkaMessages := partitionConsumer.Messages()
 
@@ -537,14 +541,14 @@ func (s *Subscriber) createMessagesHandler(output chan *message.Message) Message
 }
 
 func (s *Subscriber) Close() error {
-	s.closedMu.RLock()
+	s.closedMu.Lock()
+	defer s.closedMu.Unlock()
 	if s.closed {
-		s.closedMu.RUnlock()
 		return nil
 	}
-	s.closedMu.RUnlock()
 
 	close(s.closing)
+	s.closed = true
 	s.subscribersWg.Wait()
 
 	s.logger.Debug("Kafka subscriber closed", nil)
@@ -560,9 +564,13 @@ type consumerGroupHandler struct {
 	messageLogFields watermill.LogFields
 }
 
-func (consumerGroupHandler) Setup(_ sarama.ConsumerGroupSession) error { return nil }
+func (h consumerGroupHandler) Setup(c sarama.ConsumerGroupSession) error {
+	return h.messageHandler.Setup(&c)
+}
 
-func (consumerGroupHandler) Cleanup(_ sarama.ConsumerGroupSession) error { return nil }
+func (h consumerGroupHandler) Cleanup(c sarama.ConsumerGroupSession) error {
+	return h.messageHandler.Cleanup(&c)
+}
 
 func (h consumerGroupHandler) ConsumeClaim(sess sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
 	logFields := h.messageLogFields.Copy().Add(watermill.LogFields{

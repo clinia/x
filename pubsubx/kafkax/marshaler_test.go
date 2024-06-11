@@ -3,17 +3,17 @@ package kafkax_test
 import (
 	"testing"
 
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
+	"github.com/clinia/x/pubsubx/kafkax"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ThreeDotsLabs/watermill"
-	"github.com/ThreeDotsLabs/watermill-kafka/v2/pkg/kafka"
 	"github.com/ThreeDotsLabs/watermill/message"
 )
 
 func TestDefaultMarshaler_MarshalUnmarshal(t *testing.T) {
-	m := kafka.DefaultMarshaler{}
+	m := kafkax.DefaultMarshaler{}
 
 	msg := message.NewMessage(watermill.NewUUID(), []byte("payload"))
 	msg.Metadata.Set("foo", "bar")
@@ -28,7 +28,7 @@ func TestDefaultMarshaler_MarshalUnmarshal(t *testing.T) {
 }
 
 func BenchmarkDefaultMarshaler_Marshal(b *testing.B) {
-	m := kafka.DefaultMarshaler{}
+	m := kafkax.DefaultMarshaler{}
 
 	msg := message.NewMessage(watermill.NewUUID(), []byte("payload"))
 	msg.Metadata.Set("foo", "bar")
@@ -39,7 +39,7 @@ func BenchmarkDefaultMarshaler_Marshal(b *testing.B) {
 }
 
 func BenchmarkDefaultMarshaler_Unmarshal(b *testing.B) {
-	m := kafka.DefaultMarshaler{}
+	m := kafkax.DefaultMarshaler{}
 
 	msg := message.NewMessage(watermill.NewUUID(), []byte("payload"))
 	msg.Metadata.Set("foo", "bar")
@@ -57,7 +57,7 @@ func BenchmarkDefaultMarshaler_Unmarshal(b *testing.B) {
 }
 
 func TestWithPartitioningMarshaler_MarshalUnmarshal(t *testing.T) {
-	m := kafka.NewWithPartitioningMarshaler(func(topic string, msg *message.Message) (string, error) {
+	m := kafkax.NewWithPartitioningMarshaler(func(topic string, msg *message.Message) (string, error) {
 		return msg.Metadata.Get("partition"), nil
 	})
 

@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 	"github.com/ThreeDotsLabs/watermill"
 	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/pkg/errors"
@@ -14,6 +14,10 @@ import (
 // and perform some task with it. Once consumed, if there is a session, it will the offset
 // will be marked as processed.
 type MessageHandler interface {
+	// Setup is called at the beginning of a new session, before ConsumeClaim (and thus ProcessMessages) is called.
+	// It may have a consumer group session in the case of a consumer group.
+	Setup(*sarama.ConsumerGroupSession) error
+	Cleanup(*sarama.ConsumerGroupSession) error
 	ProcessMessages(
 		ctx context.Context,
 		kafkaMessages <-chan *sarama.ConsumerMessage,
@@ -30,6 +34,16 @@ type messageHandler struct {
 	logger        watermill.LoggerAdapter
 	closing       chan struct{}
 	messageParser messageParser
+}
+
+// Cleanup implements MessageHandler.
+func (h messageHandler) Cleanup(*sarama.ConsumerGroupSession) error {
+	return nil
+}
+
+// Setup implements MessageHandler.
+func (h messageHandler) Setup(*sarama.ConsumerGroupSession) error {
+	return nil
 }
 
 func NewMessageHandler(

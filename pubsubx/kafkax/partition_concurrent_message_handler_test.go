@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 	"github.com/ThreeDotsLabs/watermill"
 	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/stretchr/testify/assert"
@@ -67,8 +67,7 @@ func TestPartitionConcurrentMessageHandler(t *testing.T) {
 
 				testSameMessagesAndLocalOrder(t, receivedMessages, messagesToSend)
 				if sess != nil {
-					assert.Eventually(t, func() bool { return len(mock.Calls) == 9 }, 1*time.Second, 10*time.Millisecond)
-					mock.AssertNumberOfCalls(t, "MarkMessage", 9)
+					mock.AssertMethodEventuallyCalledTimes(t, "MarkMessage", 9)
 					for currentMessage := 0; currentMessage < messagesPerPartition; currentMessage++ {
 						for currentPartition := 0; currentPartition < partitions; currentPartition++ {
 							mock.AssertCalled(t, "MarkMessage", messagesToSend[messagesPerPartition*currentPartition+currentMessage], "")
@@ -121,8 +120,7 @@ func TestPartitionConcurrentMessageHandler(t *testing.T) {
 				assert.Len(t, receivedMessages, len(messagesToSend)+1)
 				testSameMessagesAndLocalOrder(t, receivedMessages[1:], messagesToSend)
 				if sess != nil {
-					assert.Eventually(t, func() bool { return len(mock.Calls) == 9 }, 1*time.Second, 10*time.Millisecond)
-					mock.AssertNumberOfCalls(t, "MarkMessage", 9)
+					mock.AssertMethodEventuallyCalledTimes(t, "MarkMessage", 9)
 					for currentMessage := 0; currentMessage < messagesPerPartition; currentMessage++ {
 						for currentPartition := 0; currentPartition < partitions; currentPartition++ {
 							mock.AssertCalled(t, "MarkMessage", messagesToSend[messagesPerPartition*currentPartition+currentMessage], "")
@@ -161,8 +159,7 @@ func TestPartitionConcurrentMessageHandler(t *testing.T) {
 				assert.Len(t, receivedMessages, len(messagesToSend)+1)
 				testSameMessagesAndLocalOrder(t, receivedMessages[1:], messagesToSend)
 				if sess != nil {
-					assert.Eventually(t, func() bool { return len(mock.Calls) == 1 }, 1*time.Second, 10*time.Millisecond)
-					mock.AssertNumberOfCalls(t, "MarkMessage", 1)
+					mock.AssertMethodEventuallyCalledTimes(t, "MarkMessage", 1)
 					mock.AssertCalled(t, "MarkMessage", messagesToSend[0], "")
 				}
 			})
