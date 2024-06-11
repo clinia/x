@@ -3,6 +3,7 @@ package kafkax
 import (
 	"context"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -69,7 +70,7 @@ func TestBatchMessageHandler(t *testing.T) {
 				}
 				testSameMessagesAndLocalOrder(t, receivedMessages, messagesToSend)
 				if sess != nil {
-					assertCalledMethodTimes(t, mock, "MarkMessage", 3)
+					mock.AssertMethodEventuallyCalledTimes(t, "MarkMessage", 3)
 					mock.AssertCalled(t, "MarkMessage", messagesToSend[0], "")
 					mock.AssertCalled(t, "MarkMessage", messagesToSend[1], "")
 					mock.AssertCalled(t, "MarkMessage", messagesToSend[2], "")
@@ -116,7 +117,7 @@ func TestBatchMessageHandler(t *testing.T) {
 				}
 				testSameMessagesAndLocalOrder(t, receivedMessages, messagesToSend)
 				if sess != nil {
-					assertCalledMethodTimes(t, mock, "MarkMessage", 3)
+					mock.AssertMethodEventuallyCalledTimes(t, "MarkMessage", 3)
 					mock.AssertCalled(t, "MarkMessage", messagesToSend[0], "")
 					mock.AssertCalled(t, "MarkMessage", messagesToSend[1], "")
 					mock.AssertCalled(t, "MarkMessage", messagesToSend[2], "")
@@ -167,7 +168,7 @@ func TestBatchMessageHandler(t *testing.T) {
 				}
 				testSameMessagesAndLocalOrder(t, receivedMessages, messagesToSend)
 				if sess != nil {
-					assertCalledMethodTimes(t, mock, "MarkMessage", 3)
+					mock.AssertMethodEventuallyCalledTimes(t, "MarkMessage", 3)
 					mock.AssertCalled(t, "MarkMessage", messagesToSend[0], "")
 					mock.AssertCalled(t, "MarkMessage", messagesToSend[1], "")
 					mock.AssertCalled(t, "MarkMessage", messagesToSend[2], "")
@@ -221,7 +222,7 @@ func TestBatchMessageHandler(t *testing.T) {
 				receivedMessages[1].Ack()
 				testSameMessagesAndLocalOrder(t, receivedMessages, messagesToSend[2:])
 				if sess != nil {
-					assertCalledMethodTimes(t, mock, "MarkMessage", 2)
+					mock.AssertMethodEventuallyCalledTimes(t, "MarkMessage", 2)
 					mock.AssertCalled(t, "MarkMessage", messagesToSend[1], "")
 					mock.AssertCalled(t, "MarkMessage", messagesToSend[3], "")
 				}
@@ -269,7 +270,7 @@ func TestBatchMessageHandler(t *testing.T) {
 				receivedMessages[1].Ack()
 				testSameMessagesAndLocalOrder(t, receivedMessages, messagesToSend[1:])
 				if sess != nil {
-					assertCalledMethodTimes(t, mock, "MarkMessage", 2)
+					mock.AssertMethodEventuallyCalledTimes(t, "MarkMessage", 2)
 					mock.AssertCalled(t, "MarkMessage", messagesToSend[0], "")
 					mock.AssertCalled(t, "MarkMessage", messagesToSend[2], "")
 				}
@@ -309,7 +310,7 @@ func TestBatchMessageHandler(t *testing.T) {
 				receivedMessages[0].Ack()
 				testSameMessagesAndLocalOrder(t, receivedMessages, messagesToSend)
 				if sess != nil {
-					assertCalledMethodTimes(t, mock, "MarkMessage", 1)
+					mock.AssertMethodEventuallyCalledTimes(t, "MarkMessage", 1)
 					mock.AssertCalled(t, "MarkMessage", messagesToSend[0], "")
 				}
 			})
@@ -338,8 +339,28 @@ func TestBatchMessageHandler(t *testing.T) {
 	}
 }
 
-type mockConsumerGroupSession struct {
+type Mock struct {
 	mock.Mock
+	mu sync.Mutex
+}
+
+func (m *Mock) AssertMethodEventuallyCalledTimes(t *testing.T, method string, times int) {
+	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
+		count := 0
+		m.mu.Lock()
+		for _, call := range m.Calls {
+			if call.Method == method {
+				count++
+			}
+		}
+		m.mu.Unlock()
+
+		assert.Equal(collect, times, count)
+	}, 1*time.Second, 10*time.Millisecond)
+}
+
+type mockConsumerGroupSession struct {
+	Mock
 }
 
 func newMockConsumerGroupSession() *mockConsumerGroupSession {
@@ -347,25 +368,40 @@ func newMockConsumerGroupSession() *mockConsumerGroupSession {
 }
 
 func (cgs *mockConsumerGroupSession) MarkMessage(msg *sarama.ConsumerMessage, metadata string) {
+	cgs.mu.Lock()
+	defer cgs.mu.Unlock()
+
 	cgs.Called(msg, metadata)
 }
 
 func (cgs *mockConsumerGroupSession) Claims() map[string][]int32 {
+	cgs.mu.Lock()
+	defer cgs.mu.Unlock()
+
 	args := cgs.Called()
 	return args.Get(0).(map[string][]int32)
 }
 
 func (cgs *mockConsumerGroupSession) MemberID() string {
+	cgs.mu.Lock()
+	defer cgs.mu.Unlock()
+
 	args := cgs.Called()
 	return args.String(0)
 }
 
 func (cgs *mockConsumerGroupSession) GenerationID() int32 {
+	cgs.mu.Lock()
+	defer cgs.mu.Unlock()
+
 	args := cgs.Called()
 	return int32(args.Int(0))
 }
 
 func (cgs *mockConsumerGroupSession) MarkOffset(topic string, partition int32, offset int64, metadata string) {
+	cgs.mu.Lock()
+	defer cgs.mu.Unlock()
+
 	cgs.Called(topic, partition, offset, metadata)
 }
 
@@ -374,10 +410,16 @@ func (cgs *mockConsumerGroupSession) Commit() {
 }
 
 func (cgs *mockConsumerGroupSession) ResetOffset(topic string, partition int32, offset int64, metadata string) {
+	cgs.mu.Lock()
+	defer cgs.mu.Unlock()
+
 	cgs.Called(topic, partition, offset, metadata)
 }
 
 func (cgs *mockConsumerGroupSession) Context() context.Context {
+	cgs.mu.Lock()
+	defer cgs.mu.Unlock()
+
 	args := cgs.Called()
 	return args.Get(0).(context.Context)
 }
@@ -418,7 +460,7 @@ func testBatchConsumption(
 	return closing, outputChannel, handler
 }
 
-func consumerGroupSession(testConfig testConfig) (sarama.ConsumerGroupSession, *mock.Mock) {
+func consumerGroupSession(testConfig testConfig) (sarama.ConsumerGroupSession, *Mock) {
 	var consumerGroupSession *mockConsumerGroupSession = newMockConsumerGroupSession()
 	var sess sarama.ConsumerGroupSession
 	if testConfig.hasConsumerGroup {
@@ -492,19 +534,6 @@ func assertSameMessage(t testing.TB, message *message.Message, kafkaMessage *sar
 	assert.Equal(t, offset, kafkaMessage.Offset)
 	partition, _ := MessagePartitionFromCtx(message.Context())
 	assert.Equal(t, partition, kafkaMessage.Partition)
-}
-
-func assertCalledMethodTimes(t testing.TB, mock *mock.Mock, method string, times int) {
-	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		count := 0
-		for _, call := range mock.Calls {
-			if call.Method == method {
-				count++
-			}
-		}
-
-		assert.Equal(collect, times, count)
-	}, 1*time.Second, 10*time.Millisecond)
 }
 
 func waitOrFail(t testing.TB, duration time.Duration, outputChannel <-chan *message.Message) {

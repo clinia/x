@@ -31,14 +31,18 @@ type batchedMessageHandler struct {
 	messageParser messageParser
 	messages      chan *messageHolder
 	wg            sync.WaitGroup
+	mu            sync.Mutex
 	cancel        context.CancelFunc
 }
 
 // Cleanup implements MessageHandler.
 func (h *batchedMessageHandler) Cleanup(*sarama.ConsumerGroupSession) error {
+	h.mu.Lock()
 	if h.cancel != nil {
 		h.cancel()
 	}
+	h.mu.Unlock()
+
 	h.wg.Wait()
 	h.logger.Debug("batchedMessageHandler.startProcessing stopped successfully", nil)
 	return nil
@@ -48,7 +52,11 @@ func (h *batchedMessageHandler) Cleanup(*sarama.ConsumerGroupSession) error {
 func (h *batchedMessageHandler) Setup(*sarama.ConsumerGroupSession) error {
 	h.wg.Add(1)
 	ctx, cancel := context.WithCancel(context.Background())
+
+	h.mu.Lock()
 	h.cancel = cancel
+	h.mu.Unlock()
+
 	go h.startProcessing(ctx)
 	return nil
 }
