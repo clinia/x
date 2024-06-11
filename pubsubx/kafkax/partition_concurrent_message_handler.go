@@ -24,12 +24,12 @@ type partitionConcurrentMessageHandler struct {
 }
 
 // Cleanup implements MessageHandler.
-func (h *partitionConcurrentMessageHandler) Cleanup(sarama.ConsumerGroupSession) error {
+func (h *partitionConcurrentMessageHandler) Cleanup(*sarama.ConsumerGroupSession) error {
 	return nil
 }
 
 // Setup implements MessageHandler.
-func (h *partitionConcurrentMessageHandler) Setup(sarama.ConsumerGroupSession) error {
+func (h *partitionConcurrentMessageHandler) Setup(*sarama.ConsumerGroupSession) error {
 	return nil
 }
 

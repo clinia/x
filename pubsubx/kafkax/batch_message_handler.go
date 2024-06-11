@@ -35,7 +35,7 @@ type batchedMessageHandler struct {
 }
 
 // Cleanup implements MessageHandler.
-func (h *batchedMessageHandler) Cleanup(sarama.ConsumerGroupSession) error {
+func (h *batchedMessageHandler) Cleanup(*sarama.ConsumerGroupSession) error {
 	if h.cancel != nil {
 		h.cancel()
 	}
@@ -45,7 +45,7 @@ func (h *batchedMessageHandler) Cleanup(sarama.ConsumerGroupSession) error {
 }
 
 // Setup implements MessageHandler.
-func (h *batchedMessageHandler) Setup(sarama.ConsumerGroupSession) error {
+func (h *batchedMessageHandler) Setup(*sarama.ConsumerGroupSession) error {
 	h.wg.Add(1)
 	ctx, cancel := context.WithCancel(context.Background())
 	h.cancel = cancel

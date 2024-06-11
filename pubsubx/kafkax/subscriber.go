@@ -496,6 +496,10 @@ func (s *Subscriber) consumePartition(
 	logFields watermill.LogFields,
 ) {
 	defer func() {
+		if err := messageHandler.Cleanup(nil); err != nil {
+			s.logger.Error("Cannot cleanup message handler", err, logFields)
+		}
+
 		if err := partitionConsumer.Close(); err != nil {
 			s.logger.Error("Cannot close partition consumer", err, logFields)
 		}
@@ -503,6 +507,11 @@ func (s *Subscriber) consumePartition(
 		s.logger.Debug("consumePartition stopped", logFields)
 
 	}()
+
+	if err := messageHandler.Setup(nil); err != nil {
+		s.logger.Error("Cannot setup message handler", err, logFields)
+		return
+	}
 
 	kafkaMessages := partitionConsumer.Messages()
 
@@ -561,11 +570,11 @@ type consumerGroupHandler struct {
 }
 
 func (h consumerGroupHandler) Setup(c sarama.ConsumerGroupSession) error {
-	return h.messageHandler.Setup(c)
+	return h.messageHandler.Setup(&c)
 }
 
 func (h consumerGroupHandler) Cleanup(c sarama.ConsumerGroupSession) error {
-	return h.messageHandler.Cleanup(c)
+	return h.messageHandler.Cleanup(&c)
 }
 
 func (h consumerGroupHandler) ConsumeClaim(sess sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {

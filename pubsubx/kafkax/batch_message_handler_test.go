@@ -46,9 +46,15 @@ func TestBatchMessageHandler(t *testing.T) {
 					kafkaMessages <- msg
 				}
 				go func() {
+					require.NoError(t, handler.Setup(&sess))
+
 					err := handler.ProcessMessages(context.Background(), kafkaMessages, sess, watermill.LogFields{})
 					assert.NoError(t, err)
 				}()
+
+				t.Cleanup(func() {
+					require.NoError(t, handler.Cleanup(&sess))
+				})
 				receivedMessages := make([]*message.Message, 0, 3)
 				receivedMessages = append(receivedMessages, <-outputChannel)
 				receivedMessages = append(receivedMessages, <-outputChannel)
@@ -63,8 +69,7 @@ func TestBatchMessageHandler(t *testing.T) {
 				}
 				testSameMessagesAndLocalOrder(t, receivedMessages, messagesToSend)
 				if sess != nil {
-					assert.Eventually(t, func() bool { return len(mock.Calls) == 3 }, 1*time.Second, 10*time.Millisecond)
-					mock.AssertNumberOfCalls(t, "MarkMessage", 3)
+					assertCalledMethodTimes(t, mock, "MarkMessage", 3)
 					mock.AssertCalled(t, "MarkMessage", messagesToSend[0], "")
 					mock.AssertCalled(t, "MarkMessage", messagesToSend[1], "")
 					mock.AssertCalled(t, "MarkMessage", messagesToSend[2], "")
@@ -87,9 +92,16 @@ func TestBatchMessageHandler(t *testing.T) {
 					kafkaMessages <- msg
 				}
 				go func() {
+					require.NoError(t, handler.Setup(&sess))
+
 					err := handler.ProcessMessages(context.Background(), kafkaMessages, sess, watermill.LogFields{})
 					assert.NoError(t, err)
 				}()
+
+				t.Cleanup(func() {
+					require.NoError(t, handler.Cleanup(&sess))
+				})
+
 				receivedMessages := make([]*message.Message, 0, 3)
 				receivedMessages = append(receivedMessages, <-outputChannel)
 				receivedMessages = append(receivedMessages, <-outputChannel)
@@ -104,8 +116,7 @@ func TestBatchMessageHandler(t *testing.T) {
 				}
 				testSameMessagesAndLocalOrder(t, receivedMessages, messagesToSend)
 				if sess != nil {
-					assert.Eventually(t, func() bool { return len(mock.Calls) == 3 }, 1*time.Second, 10*time.Millisecond)
-					mock.AssertNumberOfCalls(t, "MarkMessage", 3)
+					assertCalledMethodTimes(t, mock, "MarkMessage", 3)
 					mock.AssertCalled(t, "MarkMessage", messagesToSend[0], "")
 					mock.AssertCalled(t, "MarkMessage", messagesToSend[1], "")
 					mock.AssertCalled(t, "MarkMessage", messagesToSend[2], "")
@@ -128,9 +139,16 @@ func TestBatchMessageHandler(t *testing.T) {
 					kafkaMessages <- msg
 				}
 				go func() {
+					require.NoError(t, handler.Setup(&sess))
+
 					err := handler.ProcessMessages(context.Background(), kafkaMessages, sess, watermill.LogFields{})
 					assert.NoError(t, err)
 				}()
+
+				t.Cleanup(func() {
+					require.NoError(t, handler.Cleanup(&sess))
+				})
+
 				receivedMessages := make([]*message.Message, 0, 3)
 				receivedMessages = append(receivedMessages, <-outputChannel)
 				receivedMessages = append(receivedMessages, <-outputChannel)
@@ -149,8 +167,7 @@ func TestBatchMessageHandler(t *testing.T) {
 				}
 				testSameMessagesAndLocalOrder(t, receivedMessages, messagesToSend)
 				if sess != nil {
-					assert.Eventually(t, func() bool { return len(mock.Calls) == 3 }, 1*time.Second, 10*time.Millisecond)
-					mock.AssertNumberOfCalls(t, "MarkMessage", 3)
+					assertCalledMethodTimes(t, mock, "MarkMessage", 3)
 					mock.AssertCalled(t, "MarkMessage", messagesToSend[0], "")
 					mock.AssertCalled(t, "MarkMessage", messagesToSend[1], "")
 					mock.AssertCalled(t, "MarkMessage", messagesToSend[2], "")
@@ -174,9 +191,16 @@ func TestBatchMessageHandler(t *testing.T) {
 					kafkaMessages <- msg
 				}
 				go func() {
+					require.NoError(t, handler.Setup(&sess))
+
 					err := handler.ProcessMessages(context.Background(), kafkaMessages, sess, watermill.LogFields{})
 					assert.NoError(t, err)
 				}()
+
+				t.Cleanup(func() {
+					require.NoError(t, handler.Cleanup(&sess))
+				})
+
 				receivedMessages := make([]*message.Message, 0, 4)
 				receivedMessages = append(receivedMessages, <-outputChannel)
 				receivedMessages = append(receivedMessages, <-outputChannel)
@@ -197,8 +221,7 @@ func TestBatchMessageHandler(t *testing.T) {
 				receivedMessages[1].Ack()
 				testSameMessagesAndLocalOrder(t, receivedMessages, messagesToSend[2:])
 				if sess != nil {
-					assert.Eventually(t, func() bool { return len(mock.Calls) == 2 }, 1*time.Second, 10*time.Millisecond)
-					mock.AssertNumberOfCalls(t, "MarkMessage", 2)
+					assertCalledMethodTimes(t, mock, "MarkMessage", 2)
 					mock.AssertCalled(t, "MarkMessage", messagesToSend[1], "")
 					mock.AssertCalled(t, "MarkMessage", messagesToSend[3], "")
 				}
@@ -220,9 +243,16 @@ func TestBatchMessageHandler(t *testing.T) {
 					kafkaMessages <- msg
 				}
 				go func() {
+					require.NoError(t, handler.Setup(&sess))
+
 					err := handler.ProcessMessages(context.Background(), kafkaMessages, sess, watermill.LogFields{})
 					assert.NoError(t, err)
 				}()
+
+				t.Cleanup(func() {
+					require.NoError(t, handler.Cleanup(&sess))
+				})
+
 				receivedMessages := make([]*message.Message, 0, 3)
 				receivedMessages = append(receivedMessages, <-outputChannel)
 				receivedMessages = append(receivedMessages, <-outputChannel)
@@ -239,8 +269,7 @@ func TestBatchMessageHandler(t *testing.T) {
 				receivedMessages[1].Ack()
 				testSameMessagesAndLocalOrder(t, receivedMessages, messagesToSend[1:])
 				if sess != nil {
-					assert.Eventually(t, func() bool { return len(mock.Calls) == 2 }, 1*time.Second, 10*time.Millisecond)
-					mock.AssertNumberOfCalls(t, "MarkMessage", 2)
+					assertCalledMethodTimes(t, mock, "MarkMessage", 2)
 					mock.AssertCalled(t, "MarkMessage", messagesToSend[0], "")
 					mock.AssertCalled(t, "MarkMessage", messagesToSend[2], "")
 				}
@@ -261,9 +290,16 @@ func TestBatchMessageHandler(t *testing.T) {
 					kafkaMessages <- msg
 				}
 				go func() {
+					require.NoError(t, handler.Setup(&sess))
+
 					err := handler.ProcessMessages(context.Background(), kafkaMessages, sess, watermill.LogFields{})
 					assert.NoError(t, err)
 				}()
+
+				t.Cleanup(func() {
+					require.NoError(t, handler.Cleanup(&sess))
+				})
+
 				receivedMessages := make([]*message.Message, 0, 1)
 				receivedMessages = append(receivedMessages, <-outputChannel)
 				receivedMessages[0].Nack()
@@ -273,8 +309,7 @@ func TestBatchMessageHandler(t *testing.T) {
 				receivedMessages[0].Ack()
 				testSameMessagesAndLocalOrder(t, receivedMessages, messagesToSend)
 				if sess != nil {
-					assert.Eventually(t, func() bool { return len(mock.Calls) == 1 }, 1*time.Second, 10*time.Millisecond)
-					mock.AssertNumberOfCalls(t, "MarkMessage", 1)
+					assertCalledMethodTimes(t, mock, "MarkMessage", 1)
 					mock.AssertCalled(t, "MarkMessage", messagesToSend[0], "")
 				}
 			})
@@ -288,9 +323,16 @@ func TestBatchMessageHandler(t *testing.T) {
 			kafkaMessages := make(chan *sarama.ConsumerMessage, 10)
 			defer close(kafkaMessages)
 			go func() {
+				require.NoError(t, handler.Setup(nil))
+
 				err := handler.ProcessMessages(context.Background(), kafkaMessages, nil, watermill.LogFields{})
 				assert.NoError(t, err)
 			}()
+
+			t.Cleanup(func() {
+				require.NoError(t, handler.Cleanup(nil))
+			})
+
 			close(closing)
 		})
 	}
@@ -379,6 +421,7 @@ func consumerGroupSession(testConfig testConfig) (sarama.ConsumerGroupSession, *
 		if testConfig.hasCountingConsumerGroup {
 			sess = consumerGroupSession
 			consumerGroupSession.On("MarkMessage", mock.Anything, mock.Anything).Return()
+			consumerGroupSession.On("Context").Return(context.Background())
 		} else {
 			sess = &mockConsumerGroupSessionNoCalls{}
 		}
@@ -445,6 +488,19 @@ func assertSameMessage(t testing.TB, message *message.Message, kafkaMessage *sar
 	assert.Equal(t, offset, kafkaMessage.Offset)
 	partition, _ := MessagePartitionFromCtx(message.Context())
 	assert.Equal(t, partition, kafkaMessage.Partition)
+}
+
+func assertCalledMethodTimes(t testing.TB, mock *mock.Mock, method string, times int) {
+	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
+		count := 0
+		for _, call := range mock.Calls {
+			if call.Method == method {
+				count++
+			}
+		}
+
+		assert.Equal(collect, times, count)
+	}, 1*time.Second, 10*time.Millisecond)
 }
 
 func waitOrFail(t testing.TB, duration time.Duration, outputChannel <-chan *message.Message) {
