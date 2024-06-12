@@ -178,6 +178,7 @@ func DefaultSaramaSubscriberConfig() *sarama.Config {
 	config.Version = sarama.V2_3_0_0
 	config.Consumer.Return.Errors = true
 	config.ClientID = "watermill"
+	config.Consumer.Offsets.Initial = sarama.OffsetOldest
 
 	return config
 }

@@ -36,6 +36,7 @@ type pubSubOptions struct {
 type PubSubOption func(*pubSubOptions)
 
 // WithSaramaPublisherConfig specifies the sarama config to use for the publisher.
+// PublisherConfig should be started with default config using kafkax.DefaultSaramaSyncPublisherConfig
 func WithSaramaPublisherConfig(config *sarama.Config) PubSubOption {
 	return func(opts *pubSubOptions) {
 		opts.SaramaPublisherConfig = config
@@ -43,6 +44,7 @@ func WithSaramaPublisherConfig(config *sarama.Config) PubSubOption {
 }
 
 // WithSaramaSubscriberConfig specifies the sarama config to use for the subscriber.
+// SubscriberConfig should be started with default config using kafkax.DefaultSaramaSubscriberConfig
 func WithSaramaSubscriberConfig(config *sarama.Config) PubSubOption {
 	return func(opts *pubSubOptions) {
 		opts.SaramaSubscriberConfig = config
