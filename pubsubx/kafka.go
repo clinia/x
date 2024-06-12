@@ -3,7 +3,6 @@ package pubsubx
 import (
 	"context"
 
-	"github.com/IBM/sarama"
 	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/clinia/x/logrusx"
 	"github.com/clinia/x/otelx/instrumentation/otelsaramax"
@@ -19,11 +18,11 @@ type kafkaPublisher struct {
 
 var _ Publisher = (*kafkaPublisher)(nil)
 
-// TODO: add publisher configs
 func setupKafkaPublisher(l *logrusx.Logger, c *Config, opts *pubSubOptions) (Publisher, error) {
 	conf := kafkax.PublisherConfig{
-		Brokers:   c.Providers.Kafka.Brokers,
-		Marshaler: kafkax.DefaultMarshaler{},
+		Brokers:               c.Providers.Kafka.Brokers,
+		OverwriteSaramaConfig: opts.SaramaPublisherConfig,
+		Marshaler:             kafkax.DefaultMarshaler{},
 	}
 	// Setup tracer if provided
 	if opts.tracerProvider != nil {
@@ -76,16 +75,12 @@ type kafkaSubscriber struct {
 
 var _ Subscriber = (*kafkaSubscriber)(nil)
 
-// TODO: add subscriber configs
 func setupKafkaSubscriber(l *logrusx.Logger, c *Config, opts *pubSubOptions, group string, subOpts *subscriberOptions, onClosed func(error)) (Subscriber, error) {
-	saramaSubscriberConfig := kafkax.DefaultSaramaSubscriberConfig()
-	saramaSubscriberConfig.Consumer.Offsets.Initial = sarama.OffsetOldest
-	saramaSubscriberConfig.Version = sarama.V2_3_0_0
 
 	conf := kafkax.SubscriberConfig{
 		Brokers:               c.Providers.Kafka.Brokers,
+		OverwriteSaramaConfig: opts.SaramaSubscriberConfig,
 		Unmarshaler:           kafkax.DefaultMarshaler{},
-		OverwriteSaramaConfig: saramaSubscriberConfig,
 		Tracer:                kafkax.NewOTELSaramaTracer(otelsaramax.WithTracerProvider(opts.tracerProvider)),
 	}
 
