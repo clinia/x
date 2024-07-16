@@ -27,8 +27,13 @@ func unmarsharlBody[T any](res *httptest.ResponseRecorder) T {
 	return data
 }
 
-func PutJson[T any](s *http.Server, url string, jsonStr string) (*httptest.ResponseRecorder, T) {
+type requestOption func(req *http.Request)
+
+func PutJson[T any](s *http.Server, url string, jsonStr string, opts ...requestOption) (*httptest.ResponseRecorder, T) {
 	req, _ := http.NewRequest("PUT", url, bytes.NewBuffer([]byte(strings.ReplaceAll(jsonStr, "\n", ""))))
+	for _, opt := range opts {
+		opt(req)
+	}
 	req.Header.Set("Content-Type", "application/json")
 
 	res := executeRequest(req, s)
@@ -36,16 +41,22 @@ func PutJson[T any](s *http.Server, url string, jsonStr string) (*httptest.Respo
 	return res, unmarsharlBody[T](res)
 }
 
-func PostJson[T any](s *http.Server, url string, jsonStr string) (*httptest.ResponseRecorder, T) {
+func PostJson[T any](s *http.Server, url string, jsonStr string, opts ...requestOption) (*httptest.ResponseRecorder, T) {
 	req, _ := http.NewRequest("POST", url, bytes.NewBuffer([]byte(strings.ReplaceAll(jsonStr, "\n", ""))))
+	for _, opt := range opts {
+		opt(req)
+	}
 	req.Header.Set("Content-Type", "application/json")
 
 	res := executeRequest(req, s)
 	return res, unmarsharlBody[T](res)
 }
 
-func PatchJson[T any](s *http.Server, url string, jsonStr string) (*httptest.ResponseRecorder, T) {
+func PatchJson[T any](s *http.Server, url string, jsonStr string, opts ...requestOption) (*httptest.ResponseRecorder, T) {
 	req, _ := http.NewRequest("PATCH", url, bytes.NewBuffer([]byte(strings.ReplaceAll(jsonStr, "\n", ""))))
+	for _, opt := range opts {
+		opt(req)
+	}
 	req.Header.Set("Content-Type", "application/json")
 
 	res := executeRequest(req, s)
@@ -53,23 +64,39 @@ func PatchJson[T any](s *http.Server, url string, jsonStr string) (*httptest.Res
 	return res, unmarsharlBody[T](res)
 }
 
-func GetJson[T any](s *http.Server, url string) (*httptest.ResponseRecorder, T) {
+func GetJson[T any](s *http.Server, url string, opts ...requestOption) (*httptest.ResponseRecorder, T) {
 	req, _ := http.NewRequest("GET", url, nil)
+	for _, opt := range opts {
+		opt(req)
+	}
+
 	req.Header.Set("Content-Type", "application/json")
 
 	res := executeRequest(req, s)
 	return res, unmarsharlBody[T](res)
 }
 
-func DeleteJson[T any](s *http.Server, url string) (*httptest.ResponseRecorder, T) {
+func DeleteJson[T any](s *http.Server, url string, opts ...requestOption) (*httptest.ResponseRecorder, T) {
 	req, _ := http.NewRequest("DELETE", url, nil)
+	for _, opt := range opts {
+		opt(req)
+	}
 
 	res := executeRequest(req, s)
 	return res, unmarsharlBody[T](res)
 }
 
-func Delete(s *http.Server, url string) *httptest.ResponseRecorder {
+func Delete(s *http.Server, url string, opts ...requestOption) *httptest.ResponseRecorder {
 	req, _ := http.NewRequest("DELETE", url, nil)
+	for _, opt := range opts {
+		opt(req)
+	}
 
 	return executeRequest(req, s)
+}
+
+func WithHeader(key, value string) requestOption {
+	return func(req *http.Request) {
+		req.Header.Set(key, value)
+	}
 }
