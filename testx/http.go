@@ -69,9 +69,6 @@ func GetJson[T any](s *http.Server, url string, opts ...requestOption) (*httptes
 	for _, opt := range opts {
 		opt(req)
 	}
-	for _, opt := range opts {
-		opt(req)
-	}
 
 	req.Header.Set("Content-Type", "application/json")
 
