@@ -7,6 +7,7 @@ import (
 	"github.com/elastic/go-elasticsearch/v8/typedapi/core/msearch"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/core/search"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types"
+	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/searchtype"
 )
 
 // Engine provides access to all indexes in a single engine.
@@ -28,15 +29,31 @@ type Engine interface {
 	Query(ctx context.Context, query *search.Request, indices ...string) (*search.Response, error)
 
 	// Queries performs a multi search request to Elastic Search
-	Queries(ctx context.Context, queries ...MultiQuery) (*msearch.Response, error)
+	Queries(ctx context.Context, items []MultiSearchItem, queryParams SearchQueryParams) (*msearch.Response, error)
 
 	// Bulk performs a bulk request to Elastic Search
 	Bulk(ctx context.Context, ops []BulkOperation) (*bulk.Response, error)
 }
 
-type MultiQuery struct {
-	IndexName string
-	Request   types.MultisearchBody
+type SearchQueryParams struct {
+	AllowNoIndices             *bool
+	CcsMinimizeRoundtrips      *bool
+	ExpandWildcards            *types.ExpandWildcards
+	IgnoreThrottled            *bool
+	IgnoreUnavailable          *bool
+	IncludeNamedQueriesScore   *bool
+	MaxConcurrentSearches      *string
+	MaxConcurrentShardRequests *string
+	PreFilterShardSize         *string
+	RestTotalHitsAsInt         *bool
+	Routing                    *string
+	SearchType                 *searchtype.SearchType
+	TypedKeys                  *bool
+}
+
+type MultiSearchItem struct {
+	Header types.MultisearchHeader
+	Body   types.MultisearchBody
 }
 
 type BulkOperation struct {

@@ -310,25 +310,29 @@ func TestEngineQueries(t *testing.T) {
 			Do(ctx)
 		assert.NoError(t, err)
 
-		res, err := engine.Queries(ctx, []MultiQuery{
+		res, err := engine.Queries(ctx, []MultiSearchItem{
 			{
-				IndexName: index.Info().Name,
-				Request: types.MultisearchBody{
+				Header: types.MultisearchHeader{
+					Index: []string{index.Info().Name},
+				},
+				Body: types.MultisearchBody{
 					Query: &types.Query{
 						MatchAll: &types.MatchAllQuery{},
 					},
 				},
 			},
 			{
-				IndexName: index.Info().Name,
-				Request: types.MultisearchBody{
+				Header: types.MultisearchHeader{
+					Index: []string{index.Info().Name},
+				},
+				Body: types.MultisearchBody{
 					Query: &types.Query{
 						MatchAll: &types.MatchAllQuery{},
 					},
 					From: pointerx.Ptr(0),
 				},
 			},
-		}...)
+		}, SearchQueryParams{})
 
 		assert.NoError(t, err)
 		assert.Len(t, res.Responses, 2)
