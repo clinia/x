@@ -6,9 +6,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 	"github.com/ThreeDotsLabs/watermill"
 	"github.com/ThreeDotsLabs/watermill/message"
+	"github.com/clinia/x/errorx"
 	"github.com/clinia/x/timerx"
 )
 
@@ -30,7 +31,34 @@ type batchedMessageHandler struct {
 	messageParser messageParser
 	messages      chan *messageHolder
 	wg            sync.WaitGroup
+	mu            sync.Mutex
 	cancel        context.CancelFunc
+}
+
+// Cleanup implements MessageHandler.
+func (h *batchedMessageHandler) Cleanup(*sarama.ConsumerGroupSession) error {
+	h.mu.Lock()
+	if h.cancel != nil {
+		h.cancel()
+	}
+	h.mu.Unlock()
+
+	h.wg.Wait()
+	h.logger.Debug("batchedMessageHandler.startProcessing stopped successfully", nil)
+	return nil
+}
+
+// Setup implements MessageHandler.
+func (h *batchedMessageHandler) Setup(*sarama.ConsumerGroupSession) error {
+	h.wg.Add(1)
+	ctx, cancel := context.WithCancel(context.Background())
+
+	h.mu.Lock()
+	h.cancel = cancel
+	h.mu.Unlock()
+
+	go h.startProcessing(ctx)
+	return nil
 }
 
 func NewBatchedMessageHandler(
@@ -55,10 +83,7 @@ func NewBatchedMessageHandler(
 		messages: make(chan *messageHolder),
 		wg:       sync.WaitGroup{},
 	}
-	handler.wg.Add(1)
-	ctx, cancel := context.WithCancel(context.Background())
-	handler.cancel = cancel
-	go handler.startProcessing(ctx)
+
 	return handler
 }
 
@@ -111,17 +136,18 @@ func (h *batchedMessageHandler) startProcessing(ctx context.Context) {
 			batch++
 			logFields["batch"] = batch
 			if err != nil {
+				h.logger.Error("Error processing batch", err, logFields)
+				// We don't return here as the context might not be done yet.
+			} else if newBuffer == nil {
 				return
-			}
-			if newBuffer == nil {
-				return
-			}
-			buffer = newBuffer
-			// if there are messages in the buffer, it means there was NACKs, so we wait
-			if len(buffer) > 0 && mustSleep {
-				timerx.StopTimer(timer)
-				timer.Reset(h.nackResendSleep)
-				<-timer.C
+			} else {
+				buffer = newBuffer
+				// if there are messages in the buffer, it means there was NACKs, so we wait
+				if len(buffer) > 0 && mustSleep {
+					timerx.StopTimer(timer)
+					timer.Reset(h.nackResendSleep)
+					<-timer.C
+				}
 			}
 		}
 		timerx.StopTimer(timer)
@@ -143,16 +169,19 @@ func (h *batchedMessageHandler) ProcessMessages(
 			h.logger.Debug("cancel is nil, not calling it", logFields)
 			return
 		}
-		h.wg.Wait()
-		h.logger.Debug("messageHandler stopped successfully, returning", logFields)
 	}()
 
 	for {
 		select {
-		case kafkaMsg := <-kafkaMessages:
+		case kafkaMsg, ok := <-kafkaMessages:
 			if kafkaMsg == nil {
-				h.logger.Debug("kafkaMsg is closed, stopping ProcessMessages", logFields)
-				return nil
+				if !ok {
+					h.logger.Debug("kafkaMsg is closed, stopping ProcessMessages", logFields)
+					return nil
+				} else {
+					h.logger.Debug("kafkaMsg is nil but not closed, continuing", logFields)
+					continue
+				}
 			}
 			msg, err := h.messageParser.prepareAndProcessMessage(ctx, kafkaMsg, h.logger, logFields, sess)
 			if err != nil {
@@ -225,9 +254,18 @@ func (h *batchedMessageHandler) processBatch(
 	// each partition as done. This is required, because if we did not mark anything we might re-process
 	// messages unnecessarily. If we marked the latest in the bulk, we could lose NACKed messages.
 	for _, lastComittable := range lastComittableMessages {
-		if lastComittable.sess != nil {
+		if lastComittable.sess == nil {
+			h.logger.Trace("No session provided, not marking offset as complete", lastComittable.logFields)
+			continue
+		}
+
+		if lastComittable.sess.Context().Err() == nil {
 			h.logger.Trace("Marking offset as complete for", lastComittable.logFields)
 			lastComittable.sess.MarkMessage(lastComittable.kafkaMessage, "")
+		} else {
+			err := errorx.InternalErrorf("session was closed")
+			h.logger.Error("Not marking offset as complete, session was closed", err, lastComittable.logFields)
+			return nil, err
 		}
 	}
 

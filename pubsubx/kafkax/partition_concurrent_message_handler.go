@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 	"github.com/ThreeDotsLabs/watermill"
 	"github.com/ThreeDotsLabs/watermill/message"
 )
@@ -21,6 +21,16 @@ type partitionConcurrentMessageHandler struct {
 	logger      watermill.LoggerAdapter
 	closing     chan struct{}
 	unmarshaler Unmarshaler
+}
+
+// Cleanup implements MessageHandler.
+func (h *partitionConcurrentMessageHandler) Cleanup(*sarama.ConsumerGroupSession) error {
+	return nil
+}
+
+// Setup implements MessageHandler.
+func (h *partitionConcurrentMessageHandler) Setup(*sarama.ConsumerGroupSession) error {
+	return nil
 }
 
 func NewPartitionConcurrentMessageHandler(

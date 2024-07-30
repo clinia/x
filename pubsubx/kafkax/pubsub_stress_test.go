@@ -7,8 +7,8 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/ThreeDotsLabs/watermill-kafka/v2/pkg/kafka"
 	"github.com/ThreeDotsLabs/watermill/pubsub/tests"
+	"github.com/clinia/x/pubsubx/kafkax"
 )
 
 func init() {
@@ -26,8 +26,8 @@ func TestPublishSubscribe_stress(t *testing.T) {
 				GuaranteedOrder:     false,
 				Persistent:          true,
 			},
-			createPubSub(kafka.Default),
-			createPubSubWithConsumerGroup(kafka.Default),
+			createPubSub(kafkax.Default),
+			createPubSubWithConsumerGroup(kafkax.Default),
 		)
 	})
 
@@ -40,8 +40,8 @@ func TestPublishSubscribe_stress(t *testing.T) {
 				GuaranteedOrder:     true,
 				Persistent:          true,
 			},
-			createPartitionedPubSub(kafka.Batch),
-			createPubSubWithConsumerGroup(kafka.Batch),
+			createPartitionedPubSub(kafkax.Batch),
+			createPubSubWithConsumerGroup(kafkax.Batch),
 		)
 	})
 
@@ -54,8 +54,8 @@ func TestPublishSubscribe_stress(t *testing.T) {
 				GuaranteedOrder:     false,
 				Persistent:          true,
 			},
-			createPubSub(kafka.PartitionConcurrent),
-			createPubSubWithConsumerGroup(kafka.PartitionConcurrent),
+			createPubSub(kafkax.PartitionConcurrent),
+			createPubSubWithConsumerGroup(kafkax.PartitionConcurrent),
 		)
 	})
 }
@@ -70,8 +70,8 @@ func TestPublishSubscribe_ordered_stress(t *testing.T) {
 				GuaranteedOrder:     true,
 				Persistent:          true,
 			},
-			createPartitionedPubSub(kafka.Default),
-			createPubSubWithConsumerGroup(kafka.Default),
+			createPartitionedPubSub(kafkax.Default),
+			createPubSubWithConsumerGroup(kafkax.Default),
 		)
 	})
 
@@ -84,8 +84,8 @@ func TestPublishSubscribe_ordered_stress(t *testing.T) {
 				GuaranteedOrder:     true,
 				Persistent:          true,
 			},
-			createPartitionedPubSub(kafka.Batch),
-			createPubSubWithConsumerGroup(kafka.Batch),
+			createPartitionedPubSub(kafkax.Batch),
+			createPubSubWithConsumerGroup(kafkax.Batch),
 		)
 	})
 
@@ -98,8 +98,8 @@ func TestPublishSubscribe_ordered_stress(t *testing.T) {
 				GuaranteedOrder:     true,
 				Persistent:          true,
 			},
-			createPartitionedPubSub(kafka.PartitionConcurrent),
-			createPubSubWithConsumerGroup(kafka.PartitionConcurrent),
+			createPartitionedPubSub(kafkax.PartitionConcurrent),
+			createPubSubWithConsumerGroup(kafkax.PartitionConcurrent),
 		)
 	})
 }

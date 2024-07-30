@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 	"github.com/pkg/errors"
 
 	"github.com/ThreeDotsLabs/watermill"
@@ -94,7 +94,7 @@ func DefaultSaramaSyncPublisherConfig() *sarama.Config {
 
 	config.Producer.Retry.Max = 10
 	config.Producer.Return.Successes = true
-	config.Version = sarama.V1_0_0_0
+	config.Version = sarama.V2_3_0_0
 	config.Metadata.Retry.Backoff = time.Second * 2
 	config.ClientID = "watermill"
 

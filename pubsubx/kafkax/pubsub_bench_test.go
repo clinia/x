@@ -3,7 +3,7 @@ package kafkax_test
 import (
 	"testing"
 
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 	"github.com/clinia/x/pubsubx/kafkax"
 
 	"github.com/ThreeDotsLabs/watermill"

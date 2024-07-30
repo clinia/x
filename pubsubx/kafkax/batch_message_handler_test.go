@@ -3,10 +3,11 @@ package kafkax
 import (
 	"context"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 	"github.com/ThreeDotsLabs/watermill"
 	"github.com/ThreeDotsLabs/watermill/message"
 	"github.com/stretchr/testify/assert"
@@ -46,9 +47,15 @@ func TestBatchMessageHandler(t *testing.T) {
 					kafkaMessages <- msg
 				}
 				go func() {
+					require.NoError(t, handler.Setup(&sess))
+
 					err := handler.ProcessMessages(context.Background(), kafkaMessages, sess, watermill.LogFields{})
 					assert.NoError(t, err)
 				}()
+
+				t.Cleanup(func() {
+					require.NoError(t, handler.Cleanup(&sess))
+				})
 				receivedMessages := make([]*message.Message, 0, 3)
 				receivedMessages = append(receivedMessages, <-outputChannel)
 				receivedMessages = append(receivedMessages, <-outputChannel)
@@ -63,8 +70,7 @@ func TestBatchMessageHandler(t *testing.T) {
 				}
 				testSameMessagesAndLocalOrder(t, receivedMessages, messagesToSend)
 				if sess != nil {
-					assert.Eventually(t, func() bool { return len(mock.Calls) == 3 }, 1*time.Second, 10*time.Millisecond)
-					mock.AssertNumberOfCalls(t, "MarkMessage", 3)
+					mock.AssertMethodEventuallyCalledTimes(t, "MarkMessage", 3)
 					mock.AssertCalled(t, "MarkMessage", messagesToSend[0], "")
 					mock.AssertCalled(t, "MarkMessage", messagesToSend[1], "")
 					mock.AssertCalled(t, "MarkMessage", messagesToSend[2], "")
@@ -87,9 +93,16 @@ func TestBatchMessageHandler(t *testing.T) {
 					kafkaMessages <- msg
 				}
 				go func() {
+					require.NoError(t, handler.Setup(&sess))
+
 					err := handler.ProcessMessages(context.Background(), kafkaMessages, sess, watermill.LogFields{})
 					assert.NoError(t, err)
 				}()
+
+				t.Cleanup(func() {
+					require.NoError(t, handler.Cleanup(&sess))
+				})
+
 				receivedMessages := make([]*message.Message, 0, 3)
 				receivedMessages = append(receivedMessages, <-outputChannel)
 				receivedMessages = append(receivedMessages, <-outputChannel)
@@ -104,8 +117,7 @@ func TestBatchMessageHandler(t *testing.T) {
 				}
 				testSameMessagesAndLocalOrder(t, receivedMessages, messagesToSend)
 				if sess != nil {
-					assert.Eventually(t, func() bool { return len(mock.Calls) == 3 }, 1*time.Second, 10*time.Millisecond)
-					mock.AssertNumberOfCalls(t, "MarkMessage", 3)
+					mock.AssertMethodEventuallyCalledTimes(t, "MarkMessage", 3)
 					mock.AssertCalled(t, "MarkMessage", messagesToSend[0], "")
 					mock.AssertCalled(t, "MarkMessage", messagesToSend[1], "")
 					mock.AssertCalled(t, "MarkMessage", messagesToSend[2], "")
@@ -128,9 +140,16 @@ func TestBatchMessageHandler(t *testing.T) {
 					kafkaMessages <- msg
 				}
 				go func() {
+					require.NoError(t, handler.Setup(&sess))
+
 					err := handler.ProcessMessages(context.Background(), kafkaMessages, sess, watermill.LogFields{})
 					assert.NoError(t, err)
 				}()
+
+				t.Cleanup(func() {
+					require.NoError(t, handler.Cleanup(&sess))
+				})
+
 				receivedMessages := make([]*message.Message, 0, 3)
 				receivedMessages = append(receivedMessages, <-outputChannel)
 				receivedMessages = append(receivedMessages, <-outputChannel)
@@ -149,8 +168,7 @@ func TestBatchMessageHandler(t *testing.T) {
 				}
 				testSameMessagesAndLocalOrder(t, receivedMessages, messagesToSend)
 				if sess != nil {
-					assert.Eventually(t, func() bool { return len(mock.Calls) == 3 }, 1*time.Second, 10*time.Millisecond)
-					mock.AssertNumberOfCalls(t, "MarkMessage", 3)
+					mock.AssertMethodEventuallyCalledTimes(t, "MarkMessage", 3)
 					mock.AssertCalled(t, "MarkMessage", messagesToSend[0], "")
 					mock.AssertCalled(t, "MarkMessage", messagesToSend[1], "")
 					mock.AssertCalled(t, "MarkMessage", messagesToSend[2], "")
@@ -174,9 +192,16 @@ func TestBatchMessageHandler(t *testing.T) {
 					kafkaMessages <- msg
 				}
 				go func() {
+					require.NoError(t, handler.Setup(&sess))
+
 					err := handler.ProcessMessages(context.Background(), kafkaMessages, sess, watermill.LogFields{})
 					assert.NoError(t, err)
 				}()
+
+				t.Cleanup(func() {
+					require.NoError(t, handler.Cleanup(&sess))
+				})
+
 				receivedMessages := make([]*message.Message, 0, 4)
 				receivedMessages = append(receivedMessages, <-outputChannel)
 				receivedMessages = append(receivedMessages, <-outputChannel)
@@ -197,8 +222,7 @@ func TestBatchMessageHandler(t *testing.T) {
 				receivedMessages[1].Ack()
 				testSameMessagesAndLocalOrder(t, receivedMessages, messagesToSend[2:])
 				if sess != nil {
-					assert.Eventually(t, func() bool { return len(mock.Calls) == 2 }, 1*time.Second, 10*time.Millisecond)
-					mock.AssertNumberOfCalls(t, "MarkMessage", 2)
+					mock.AssertMethodEventuallyCalledTimes(t, "MarkMessage", 2)
 					mock.AssertCalled(t, "MarkMessage", messagesToSend[1], "")
 					mock.AssertCalled(t, "MarkMessage", messagesToSend[3], "")
 				}
@@ -220,9 +244,16 @@ func TestBatchMessageHandler(t *testing.T) {
 					kafkaMessages <- msg
 				}
 				go func() {
+					require.NoError(t, handler.Setup(&sess))
+
 					err := handler.ProcessMessages(context.Background(), kafkaMessages, sess, watermill.LogFields{})
 					assert.NoError(t, err)
 				}()
+
+				t.Cleanup(func() {
+					require.NoError(t, handler.Cleanup(&sess))
+				})
+
 				receivedMessages := make([]*message.Message, 0, 3)
 				receivedMessages = append(receivedMessages, <-outputChannel)
 				receivedMessages = append(receivedMessages, <-outputChannel)
@@ -239,8 +270,7 @@ func TestBatchMessageHandler(t *testing.T) {
 				receivedMessages[1].Ack()
 				testSameMessagesAndLocalOrder(t, receivedMessages, messagesToSend[1:])
 				if sess != nil {
-					assert.Eventually(t, func() bool { return len(mock.Calls) == 2 }, 1*time.Second, 10*time.Millisecond)
-					mock.AssertNumberOfCalls(t, "MarkMessage", 2)
+					mock.AssertMethodEventuallyCalledTimes(t, "MarkMessage", 2)
 					mock.AssertCalled(t, "MarkMessage", messagesToSend[0], "")
 					mock.AssertCalled(t, "MarkMessage", messagesToSend[2], "")
 				}
@@ -261,9 +291,16 @@ func TestBatchMessageHandler(t *testing.T) {
 					kafkaMessages <- msg
 				}
 				go func() {
+					require.NoError(t, handler.Setup(&sess))
+
 					err := handler.ProcessMessages(context.Background(), kafkaMessages, sess, watermill.LogFields{})
 					assert.NoError(t, err)
 				}()
+
+				t.Cleanup(func() {
+					require.NoError(t, handler.Cleanup(&sess))
+				})
+
 				receivedMessages := make([]*message.Message, 0, 1)
 				receivedMessages = append(receivedMessages, <-outputChannel)
 				receivedMessages[0].Nack()
@@ -273,8 +310,7 @@ func TestBatchMessageHandler(t *testing.T) {
 				receivedMessages[0].Ack()
 				testSameMessagesAndLocalOrder(t, receivedMessages, messagesToSend)
 				if sess != nil {
-					assert.Eventually(t, func() bool { return len(mock.Calls) == 1 }, 1*time.Second, 10*time.Millisecond)
-					mock.AssertNumberOfCalls(t, "MarkMessage", 1)
+					mock.AssertMethodEventuallyCalledTimes(t, "MarkMessage", 1)
 					mock.AssertCalled(t, "MarkMessage", messagesToSend[0], "")
 				}
 			})
@@ -288,16 +324,43 @@ func TestBatchMessageHandler(t *testing.T) {
 			kafkaMessages := make(chan *sarama.ConsumerMessage, 10)
 			defer close(kafkaMessages)
 			go func() {
+				require.NoError(t, handler.Setup(nil))
+
 				err := handler.ProcessMessages(context.Background(), kafkaMessages, nil, watermill.LogFields{})
 				assert.NoError(t, err)
 			}()
+
+			t.Cleanup(func() {
+				require.NoError(t, handler.Cleanup(nil))
+			})
+
 			close(closing)
 		})
 	}
 }
 
-type mockConsumerGroupSession struct {
+type Mock struct {
 	mock.Mock
+	mu sync.Mutex
+}
+
+func (m *Mock) AssertMethodEventuallyCalledTimes(t *testing.T, method string, times int) {
+	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
+		count := 0
+		m.mu.Lock()
+		for _, call := range m.Calls {
+			if call.Method == method {
+				count++
+			}
+		}
+		m.mu.Unlock()
+
+		assert.Equal(collect, times, count)
+	}, 1*time.Second, 10*time.Millisecond)
+}
+
+type mockConsumerGroupSession struct {
+	Mock
 }
 
 func newMockConsumerGroupSession() *mockConsumerGroupSession {
@@ -305,25 +368,40 @@ func newMockConsumerGroupSession() *mockConsumerGroupSession {
 }
 
 func (cgs *mockConsumerGroupSession) MarkMessage(msg *sarama.ConsumerMessage, metadata string) {
+	cgs.mu.Lock()
+	defer cgs.mu.Unlock()
+
 	cgs.Called(msg, metadata)
 }
 
 func (cgs *mockConsumerGroupSession) Claims() map[string][]int32 {
+	cgs.mu.Lock()
+	defer cgs.mu.Unlock()
+
 	args := cgs.Called()
 	return args.Get(0).(map[string][]int32)
 }
 
 func (cgs *mockConsumerGroupSession) MemberID() string {
+	cgs.mu.Lock()
+	defer cgs.mu.Unlock()
+
 	args := cgs.Called()
 	return args.String(0)
 }
 
 func (cgs *mockConsumerGroupSession) GenerationID() int32 {
+	cgs.mu.Lock()
+	defer cgs.mu.Unlock()
+
 	args := cgs.Called()
 	return int32(args.Int(0))
 }
 
 func (cgs *mockConsumerGroupSession) MarkOffset(topic string, partition int32, offset int64, metadata string) {
+	cgs.mu.Lock()
+	defer cgs.mu.Unlock()
+
 	cgs.Called(topic, partition, offset, metadata)
 }
 
@@ -332,16 +410,26 @@ func (cgs *mockConsumerGroupSession) Commit() {
 }
 
 func (cgs *mockConsumerGroupSession) ResetOffset(topic string, partition int32, offset int64, metadata string) {
+	cgs.mu.Lock()
+	defer cgs.mu.Unlock()
+
 	cgs.Called(topic, partition, offset, metadata)
 }
 
 func (cgs *mockConsumerGroupSession) Context() context.Context {
+	cgs.mu.Lock()
+	defer cgs.mu.Unlock()
+
 	args := cgs.Called()
 	return args.Get(0).(context.Context)
 }
 
 type mockConsumerGroupSessionNoCalls struct {
 	mockConsumerGroupSession
+}
+
+func (cgs *mockConsumerGroupSessionNoCalls) Context() context.Context {
+	return context.Background()
 }
 
 func (cgs *mockConsumerGroupSessionNoCalls) MarkMessage(msg *sarama.ConsumerMessage, metadata string) {
@@ -372,13 +460,14 @@ func testBatchConsumption(
 	return closing, outputChannel, handler
 }
 
-func consumerGroupSession(testConfig testConfig) (sarama.ConsumerGroupSession, *mock.Mock) {
+func consumerGroupSession(testConfig testConfig) (sarama.ConsumerGroupSession, *Mock) {
 	var consumerGroupSession *mockConsumerGroupSession = newMockConsumerGroupSession()
 	var sess sarama.ConsumerGroupSession
 	if testConfig.hasConsumerGroup {
 		if testConfig.hasCountingConsumerGroup {
 			sess = consumerGroupSession
 			consumerGroupSession.On("MarkMessage", mock.Anything, mock.Anything).Return()
+			consumerGroupSession.On("Context").Return(context.Background())
 		} else {
 			sess = &mockConsumerGroupSessionNoCalls{}
 		}

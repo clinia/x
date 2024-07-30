@@ -1,7 +1,7 @@
 package otelsaramax
 
 import (
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 )
 
 type partitionConsumer struct {

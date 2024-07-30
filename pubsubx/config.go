@@ -5,6 +5,7 @@ import (
 	_ "embed"
 	"io"
 
+	"github.com/IBM/sarama"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -27,10 +28,28 @@ type KafkaConfig struct {
 }
 
 type pubSubOptions struct {
-	tracerProvider trace.TracerProvider
-	propagator     propagation.TextMapPropagator
+	SaramaPublisherConfig  *sarama.Config
+	SaramaSubscriberConfig *sarama.Config
+	tracerProvider         trace.TracerProvider
+	propagator             propagation.TextMapPropagator
 }
 type PubSubOption func(*pubSubOptions)
+
+// WithSaramaPublisherConfig specifies the sarama config to use for the publisher.
+// PublisherConfig should be started with default config using kafkax.DefaultSaramaSyncPublisherConfig
+func WithSaramaPublisherConfig(config *sarama.Config) PubSubOption {
+	return func(opts *pubSubOptions) {
+		opts.SaramaPublisherConfig = config
+	}
+}
+
+// WithSaramaSubscriberConfig specifies the sarama config to use for the subscriber.
+// SubscriberConfig should be started with default config using kafkax.DefaultSaramaSubscriberConfig
+func WithSaramaSubscriberConfig(config *sarama.Config) PubSubOption {
+	return func(opts *pubSubOptions) {
+		opts.SaramaSubscriberConfig = config
+	}
+}
 
 // WithTracerProvider specifies a tracer provider to use for creating a tracer.
 // If none is specified, no tracer is configured
