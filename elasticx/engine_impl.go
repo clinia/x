@@ -102,7 +102,7 @@ func (e *engine) Remove(ctx context.Context) error {
 	return nil
 }
 
-func (e *engine) Query(ctx context.Context, request *search.Request, indices ...string) (*search.Response, error) {
+func (e *engine) Search(ctx context.Context, request *search.Request, indices ...string) (*search.Response, error) {
 	indexPaths := []string{}
 	for _, name := range indices {
 		indexPaths = append(indexPaths, NewIndexName(enginesIndexName, pathEscape(e.name), pathEscape(name)).String())
@@ -114,19 +114,68 @@ func (e *engine) Query(ctx context.Context, request *search.Request, indices ...
 		Do(ctx)
 }
 
-func (e *engine) Queries(ctx context.Context, queries ...MultiQuery) (*msearch.Response, error) {
+func (e *engine) MultiSearch(ctx context.Context, queries []MultiSearchItem, queryParams SearchQueryParams) (*msearch.Response, error) {
 	items := []types.MsearchRequestItem{}
 	for _, query := range queries {
-		// Append header
-		items = append(items, types.MultisearchHeader{
-			Index: []string{NewIndexName(enginesIndexName, pathEscape(e.name), pathEscape(query.IndexName)).String()},
-		})
+		// Build index names
+		indices := []string{}
+		for _, index := range query.Header.Index {
+			indices = append(indices, NewIndexName(enginesIndexName, pathEscape(e.name), pathEscape(index)).String())
+		}
+		query.Header.Index = indices
 
+		// Append header
+		items = append(items, query.Header)
 		// Append body
-		items = append(items, query.Request)
+		items = append(items, query.Body)
 	}
 
-	res, err := e.es.Msearch().Request(items).Do(ctx)
+	ms := e.es.Msearch().Request(&items)
+	if queryParams.AllowNoIndices != nil {
+		ms.AllowNoIndices(*queryParams.AllowNoIndices)
+	}
+
+	if queryParams.CcsMinimizeRoundtrips != nil {
+		ms.CcsMinimizeRoundtrips(*queryParams.CcsMinimizeRoundtrips)
+	}
+
+	if queryParams.ExpandWildcards != nil {
+		ms.ExpandWildcards(*queryParams.ExpandWildcards...)
+	}
+
+	if queryParams.IgnoreThrottled != nil {
+		ms.IgnoreThrottled(*queryParams.IgnoreThrottled)
+	}
+
+	if queryParams.IgnoreUnavailable != nil {
+		ms.IgnoreUnavailable(*queryParams.IgnoreUnavailable)
+	}
+
+	if queryParams.MaxConcurrentSearches != nil {
+		ms.MaxConcurrentSearches(*queryParams.MaxConcurrentSearches)
+	}
+
+	if queryParams.MaxConcurrentShardRequests != nil {
+		ms.MaxConcurrentShardRequests(*queryParams.MaxConcurrentShardRequests)
+	}
+
+	if queryParams.PreFilterShardSize != nil {
+		ms.PreFilterShardSize(*queryParams.PreFilterShardSize)
+	}
+
+	if queryParams.RestTotalHitsAsInt != nil {
+		ms.RestTotalHitsAsInt(*queryParams.RestTotalHitsAsInt)
+	}
+
+	if queryParams.Routing != nil {
+		ms.Routing(*queryParams.Routing)
+	}
+
+	if queryParams.SearchType != nil {
+		ms.SearchType(*queryParams.SearchType)
+	}
+
+	res, err := ms.Do(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -135,7 +184,7 @@ func (e *engine) Queries(ctx context.Context, queries ...MultiQuery) (*msearch.R
 }
 
 func (e *engine) Bulk(ctx context.Context, actions []BulkOperation) (*bulk.Response, error) {
-	request := []interface{}{}
+	request := []any{}
 	for _, action := range actions {
 		indexName := NewIndexName(enginesIndexName, pathEscape(e.name), pathEscape(action.IndexName)).String()
 		op := types.OperationContainer{}
@@ -174,7 +223,7 @@ func (e *engine) Bulk(ctx context.Context, actions []BulkOperation) (*bulk.Respo
 
 	}
 
-	res, err := e.es.Bulk().Request(request).Do(ctx)
+	res, err := e.es.Bulk().Request(&request).Do(ctx)
 	if err != nil {
 		return nil, err
 	}

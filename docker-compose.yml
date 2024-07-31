@@ -9,7 +9,7 @@ services:
       - "8529:8529"
   
   elasticsearch:
-    image: elasticsearch:8.9.0
+    image: elasticsearch:8.14.3
     environment:
       - node.name=es
       - cluster.name=docker-cluster
@@ -20,7 +20,7 @@ services:
       - '9200:9200'
 
   kibana:
-    image: kibana:8.9.0
+    image: kibana:8.14.3
     environment:
       - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
     ports:
