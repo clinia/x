@@ -25,11 +25,11 @@ type Engine interface {
 	// Index functions
 	EngineIndexes
 
-	// Query performs a search request to Elastic Search
-	Query(ctx context.Context, query *search.Request, indices ...string) (*search.Response, error)
+	// Search performs a search request to Elastic Search
+	Search(ctx context.Context, query *search.Request, indices ...string) (*search.Response, error)
 
-	// Queries performs a multi search request to Elastic Search
-	Queries(ctx context.Context, items []MultiSearchItem, queryParams SearchQueryParams) (*msearch.Response, error)
+	// MultiSearch performs a multi search request to Elastic Search
+	MultiSearch(ctx context.Context, items []MultiSearchItem, queryParams SearchQueryParams) (*msearch.Response, error)
 
 	// Bulk performs a bulk request to Elastic Search
 	Bulk(ctx context.Context, ops []BulkOperation) (*bulk.Response, error)
@@ -41,7 +41,6 @@ type SearchQueryParams struct {
 	ExpandWildcards            *types.ExpandWildcards
 	IgnoreThrottled            *bool
 	IgnoreUnavailable          *bool
-	IncludeNamedQueriesScore   *bool
 	MaxConcurrentSearches      *string
 	MaxConcurrentShardRequests *string
 	PreFilterShardSize         *string

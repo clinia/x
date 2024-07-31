@@ -10,8 +10,10 @@ import (
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/dynamicmapping"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/refresh"
+	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/totalhitsrelation"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestEngineRemove(t *testing.T) {
@@ -273,7 +275,7 @@ func TestEngineQuery(t *testing.T) {
 			Do(ctx)
 		assert.NoError(t, err)
 
-		res, err := engine.Query(ctx, &search.Request{
+		res, err := engine.Search(ctx, &search.Request{
 			Query: &types.Query{
 				MatchAll: &types.MatchAllQuery{},
 			},
@@ -294,11 +296,24 @@ func TestEngineQueries(t *testing.T) {
 	ctx := f.ctx
 
 	name := "test-engine-queries"
+	if exists, err := f.client.EngineExists(ctx, name); err == nil && exists {
+		engine, err := f.client.Engine(ctx, name)
+		require.NoError(t, err)
+		require.NoError(t, engine.Remove(ctx))
+	}
 	engine, err := f.client.CreateEngine(ctx, name)
 	assert.NoError(t, err)
 
-	t.Run("should be able to execute queries", func(t *testing.T) {
-		index, err := engine.CreateIndex(ctx, "index-1", nil)
+	t.Run("should be able to execute multi search", func(t *testing.T) {
+		index, err := engine.CreateIndex(ctx, "index-1", &CreateIndexOptions{
+			Settings: &types.IndexSettings{},
+			Mappings: &types.TypeMapping{
+				Properties: map[string]types.Property{
+					"id":   types.NewKeywordProperty(),
+					"name": &types.TextProperty{},
+				},
+			},
+		})
 		assert.NoError(t, err)
 
 		_, err = f.es.Index(NewIndexName(enginesIndexName, name, index.Info().Name).String()).
@@ -310,14 +325,19 @@ func TestEngineQueries(t *testing.T) {
 			Do(ctx)
 		assert.NoError(t, err)
 
-		res, err := engine.Queries(ctx, []MultiSearchItem{
+		res, err := engine.MultiSearch(ctx, []MultiSearchItem{
 			{
 				Header: types.MultisearchHeader{
 					Index: []string{index.Info().Name},
 				},
 				Body: types.MultisearchBody{
 					Query: &types.Query{
-						MatchAll: &types.MatchAllQuery{},
+						Match: map[string]types.MatchQuery{
+							"name": {
+								Query:      "test",
+								QueryName_: pointerx.Ptr("match-name"),
+							},
+						},
 					},
 				},
 			},
@@ -335,7 +355,54 @@ func TestEngineQueries(t *testing.T) {
 		}, SearchQueryParams{})
 
 		assert.NoError(t, err)
-		assert.Len(t, res.Responses, 2)
+
+		for i, item := range []types.MsearchResponseItem{
+			&types.MultiSearchItem{
+				Status:   pointerx.Ptr(200),
+				TimedOut: false,
+				Hits: types.HitsMetadata{
+					Total: &types.TotalHits{
+						Value: 1,
+						Relation: totalhitsrelation.TotalHitsRelation{
+							Name: "eq",
+						},
+					},
+					Hits: []types.Hit{
+						{
+							Source_: jsonx.RawMessage(`{"id":"1","name":"test"}`),
+							MatchedQueries: []string{
+								"match-name",
+							},
+						},
+					},
+				},
+			},
+			&types.MultiSearchItem{
+				Status:   pointerx.Ptr(200),
+				TimedOut: false,
+				Hits: types.HitsMetadata{
+					Total: &types.TotalHits{
+						Value: 1,
+						Relation: totalhitsrelation.TotalHitsRelation{
+							Name: "eq",
+						},
+					},
+					Hits: []types.Hit{
+						{
+							Source_: jsonx.RawMessage(`{"id":"1","name":"test"}`),
+						},
+					},
+				},
+			},
+		} {
+			actual := res.Responses[i]
+			assertx.Equal(t, item, actual,
+				cmpopts.IgnoreFields(types.MultiSearchItem{}, "Took", "Shards_", "Aggregations", "Suggest", "Fields"),
+				cmpopts.IgnoreFields(types.HitsMetadata{}, "MaxScore"),
+				cmpopts.IgnoreFields(types.Hit{}, "Id_", "Index_", "Score_"),
+			)
+		}
+
 	})
 
 	t.Cleanup(func() {

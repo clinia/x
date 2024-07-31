@@ -151,7 +151,7 @@ func (m *Migrator) Version(ctx context.Context) (migrationVersionInfo, error) {
 		}, err
 	}
 
-	searchResponse, err := m.engine.Query(ctx, &search.Request{
+	searchResponse, err := m.engine.Search(ctx, &search.Request{
 		Query: &types.Query{
 			Term: map[string]types.TermQuery{
 				"package": {

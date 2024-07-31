@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
-	"strconv"
 	"strings"
 
 	"github.com/clinia/x/errorx"
@@ -103,7 +102,7 @@ func (e *engine) Remove(ctx context.Context) error {
 	return nil
 }
 
-func (e *engine) Query(ctx context.Context, request *search.Request, indices ...string) (*search.Response, error) {
+func (e *engine) Search(ctx context.Context, request *search.Request, indices ...string) (*search.Response, error) {
 	indexPaths := []string{}
 	for _, name := range indices {
 		indexPaths = append(indexPaths, NewIndexName(enginesIndexName, pathEscape(e.name), pathEscape(name)).String())
@@ -115,7 +114,7 @@ func (e *engine) Query(ctx context.Context, request *search.Request, indices ...
 		Do(ctx)
 }
 
-func (e *engine) Queries(ctx context.Context, queries []MultiSearchItem, queryParams SearchQueryParams) (*msearch.Response, error) {
+func (e *engine) MultiSearch(ctx context.Context, queries []MultiSearchItem, queryParams SearchQueryParams) (*msearch.Response, error) {
 	items := []types.MsearchRequestItem{}
 	for _, query := range queries {
 		// Build index names
@@ -123,6 +122,7 @@ func (e *engine) Queries(ctx context.Context, queries []MultiSearchItem, queryPa
 		for _, index := range query.Header.Index {
 			indices = append(indices, NewIndexName(enginesIndexName, pathEscape(e.name), pathEscape(index)).String())
 		}
+		query.Header.Index = indices
 
 		// Append header
 		items = append(items, query.Header)
@@ -175,49 +175,12 @@ func (e *engine) Queries(ctx context.Context, queries []MultiSearchItem, queryPa
 		ms.SearchType(*queryParams.SearchType)
 	}
 
-	// Based on the elastic go implementation
-	ms.TypedKeys(true)
-
-	httpReq, err := ms.Request(&items).HttpRequest(ctx)
+	res, err := ms.Do(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	// TEMP: This is a workaround to fix the issue with the msearch request not allowing include named queries score
-	if queryParams.IncludeNamedQueriesScore != nil {
-		values := httpReq.URL.Query()
-		values.Set("include_named_queries_score", strconv.FormatBool(*queryParams.IncludeNamedQueriesScore))
-		httpReq.URL.RawQuery = values.Encode()
-	}
-
-	response := msearch.NewResponse()
-
-	res, err := e.es.Transport.Perform(httpReq)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode < 299 {
-		err = json.NewDecoder(res.Body).Decode(response)
-		if err != nil {
-			return nil, err
-		}
-
-		return response, nil
-	}
-
-	errorResponse := types.NewElasticsearchError()
-	err = json.NewDecoder(res.Body).Decode(errorResponse)
-	if err != nil {
-		return nil, err
-	}
-
-	if errorResponse.Status == 0 {
-		errorResponse.Status = res.StatusCode
-	}
-
-	return nil, errorResponse
+	return res, nil
 }
 
 func (e *engine) Bulk(ctx context.Context, actions []BulkOperation) (*bulk.Response, error) {
