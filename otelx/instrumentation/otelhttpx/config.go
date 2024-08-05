@@ -69,9 +69,12 @@ func newConfig(opts ...Option) *config {
 		c.Tracer = newTracer(c.TracerProvider)
 	}
 
-	c.Meter = c.MeterProvider.Meter(
-		ScopeName,
-	)
+	// Meter is initialized if not provided.
+	if c.Meter == nil {
+		c.Meter = c.MeterProvider.Meter(
+			ScopeName,
+		)
+	}
 
 	return c
 }
@@ -92,6 +95,15 @@ func WithMeterProvider(provider metric.MeterProvider) Option {
 	return optionFunc(func(cfg *config) {
 		if provider != nil {
 			cfg.MeterProvider = provider
+		}
+	})
+}
+
+// WithMeter specifies a meter to use for creating metrics.
+func WithMeter(meter metric.Meter) Option {
+	return optionFunc(func(cfg *config) {
+		if meter != nil {
+			cfg.Meter = meter
 		}
 	})
 }
