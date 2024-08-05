@@ -9,23 +9,24 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.7.0"
 )
 
-func SetupPrometheusMeter(meterName string, c *MeterConfig) (metric.Meter, error) {
-
+func SetupPrometheusMeterProvider(meterName string, c *MeterConfig) (metric.MeterProvider, error) {
 	// The exporter embeds a default OpenTelemetry Reader and implements prometheus.Collector
 	// TODO: Customize exporter. Meter reader
 	exporter, err := prometheus.New()
 	if err != nil {
 		return nil, err
 	}
+
 	atts := append([]attribute.KeyValue{}, semconv.ServiceNameKey.String(c.ServiceName))
 	atts = append(atts, c.ResourceAttributes...)
 
-	mp := sdkmetric.NewMeterProvider(
+	mOpts := []sdkmetric.Option{
 		sdkmetric.WithReader(exporter),
 		sdkmetric.WithResource(resource.NewWithAttributes(
 			semconv.SchemaURL,
 			atts...,
-		)))
+		)),
+	}
 
-	return mp.Meter(meterName), nil
+	return sdkmetric.NewMeterProvider(mOpts...), nil
 }

@@ -100,7 +100,7 @@ func getTraceExporter(c *TracerConfig) (*otlptrace.Exporter, error) {
 	return nil, errors.Errorf("unknown protocol: %s", c.Providers.OTLP.Protocol)
 }
 
-func SetupOTLPMeter(meterName string, c *MeterConfig) (metric.Meter, error) {
+func SetupOTLPMeterProvider(meterName string, c *MeterConfig) (metric.MeterProvider, error) {
 	exp, err := getMetricExporter(c)
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -119,9 +119,7 @@ func SetupOTLPMeter(meterName string, c *MeterConfig) (metric.Meter, error) {
 		)),
 	}
 
-	mp := sdkmetric.NewMeterProvider(mOpts...)
-
-	return mp.Meter(meterName), nil
+	return sdkmetric.NewMeterProvider(mOpts...), nil
 }
 
 func getMetricExporter(c *MeterConfig) (sdkmetric.Exporter, error) {
