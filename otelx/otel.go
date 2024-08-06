@@ -5,11 +5,14 @@ package otelx
 
 import (
 	"github.com/clinia/x/logrusx"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/metric/noop"
 )
 
 type Otel struct {
-	t *Tracer
-	m *Meter
+	t    *Tracer
+	mp   metric.MeterProvider
+	opts *OtelOptions
 }
 
 type OtelOptions struct {
@@ -27,8 +30,8 @@ func New(l *logrusx.Logger, opts ...OtelOption) (*Otel, error) {
 	}
 
 	o := &Otel{
-		t: &Tracer{},
-		m: &Meter{},
+		t:    &Tracer{},
+		opts: otelOpts,
 	}
 
 	if otelOpts.TracerConfig != nil {
@@ -41,12 +44,14 @@ func New(l *logrusx.Logger, opts ...OtelOption) (*Otel, error) {
 	}
 
 	if otelOpts.MeterConfig != nil {
-		if err := o.m.setup(l, otelOpts.MeterConfig); err != nil {
+		if mp, err := NewMeterProvider(l, otelOpts.MeterConfig); err != nil {
 			return nil, err
+		} else {
+			o.mp = mp
 		}
 	} else {
 		l.Infof("Meter config is missing! - skipping meter setup")
-		o.m = NewNoopMeter("no-op-meter")
+		o.mp = noop.NewMeterProvider()
 	}
 
 	return o, nil
@@ -60,7 +65,7 @@ func WithTracer(config *TracerConfig) OtelOption {
 	}
 }
 
-func WithMeter(config *MeterConfig) OtelOption {
+func WithMeterConfig(config *MeterConfig) OtelOption {
 	return func(opts *OtelOptions) {
 		if config != nil {
 			opts.MeterConfig = config
@@ -71,8 +76,8 @@ func WithMeter(config *MeterConfig) OtelOption {
 // Creates a new no-op tracer and meter.
 func NewNoop() *Otel {
 	return &Otel{
-		t: NewNoopTracer("no-op-tracer"),
-		m: NewNoopMeter("no-op-meter"),
+		t:  NewNoopTracer("no-op-tracer"),
+		mp: noop.NewMeterProvider(),
 	}
 }
 
@@ -81,7 +86,12 @@ func (o *Otel) Tracer() *Tracer {
 	return o.t
 }
 
-// Meter returns the underlying OpenTelemetry meter.
-func (o *Otel) Meter() *Meter {
-	return o.m
+// MeterProvider returns the underlying OpenTelemetry meter provider.
+func (o *Otel) MeterProvider() metric.MeterProvider {
+	return o.mp
+}
+
+func (o *Otel) Meter(opts ...metric.MeterOption) metric.Meter {
+	opts = append(opts, metric.WithInstrumentationAttributes(o.opts.MeterConfig.ResourceAttributes...))
+	return o.MeterProvider().Meter(o.opts.MeterConfig.Name, opts...)
 }

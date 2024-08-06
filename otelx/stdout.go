@@ -50,7 +50,7 @@ func SetupStdoutTracer(tracerName string, c *TracerConfig) (trace.Tracer, propag
 	return tp.Tracer(tracerName), prop, nil
 }
 
-func SetupStdoutMeter(meterName string, c *MeterConfig) (metric.Meter, error) {
+func SetupStdoutMeterProvider(meterName string, c *MeterConfig) (metric.MeterProvider, error) {
 	// Print with a JSON encoder that indents with two spaces.
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
@@ -73,7 +73,5 @@ func SetupStdoutMeter(meterName string, c *MeterConfig) (metric.Meter, error) {
 		)),
 	}
 
-	mp := sdkmetric.NewMeterProvider(mOpts...)
-
-	return mp.Meter(meterName), nil
+	return sdkmetric.NewMeterProvider(mOpts...), nil
 }

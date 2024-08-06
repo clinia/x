@@ -59,10 +59,9 @@ func TestNewWithMeterConfig(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		otel, err := New(logrusx.New("clinia/x", "1"), WithMeter(tc.config))
+		otel, err := New(logrusx.New("clinia/x", "1"), WithMeterConfig(tc.config))
 
 		assert.NoError(t, err)
-		assert.NotNil(t, otel.Meter())
-		assert.NotNil(t, otel.Meter().Provider())
+		assert.NotNil(t, otel.MeterProvider())
 	}
 }
