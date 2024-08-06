@@ -91,6 +91,7 @@ func (o *Otel) MeterProvider() metric.MeterProvider {
 	return o.mp
 }
 
-func (o *Otel) Meter() metric.Meter {
-	return o.MeterProvider().Meter(o.opts.MeterConfig.Name, metric.WithInstrumentationAttributes(o.opts.MeterConfig.ResourceAttributes...))
+func (o *Otel) Meter(opts ...metric.MeterOption) metric.Meter {
+	opts = append(opts, metric.WithInstrumentationAttributes(o.opts.MeterConfig.ResourceAttributes...))
+	return o.MeterProvider().Meter(o.opts.MeterConfig.Name, opts...)
 }
