@@ -442,6 +442,8 @@ func TestEngineBulk(t *testing.T) {
 					"name": "test",
 				},
 			},
+		}, BulkQueryParams{
+			Refresh: &refresh.Waitfor,
 		})
 
 		assert.NoError(t, err)
