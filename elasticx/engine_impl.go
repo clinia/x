@@ -183,7 +183,7 @@ func (e *engine) MultiSearch(ctx context.Context, queries []MultiSearchItem, que
 	return res, nil
 }
 
-func (e *engine) Bulk(ctx context.Context, actions []BulkOperation) (*bulk.Response, error) {
+func (e *engine) Bulk(ctx context.Context, actions []BulkOperation, queryParams BulkQueryParams) (*bulk.Response, error) {
 	request := []any{}
 	for _, action := range actions {
 		indexName := NewIndexName(enginesIndexName, pathEscape(e.name), pathEscape(action.IndexName)).String()
@@ -223,7 +223,61 @@ func (e *engine) Bulk(ctx context.Context, actions []BulkOperation) (*bulk.Respo
 
 	}
 
-	res, err := e.es.Bulk().Request(&request).Do(ctx)
+	bulkReq := e.es.Bulk().Request(&request)
+
+	if queryParams.Refresh != nil {
+		bulkReq.Refresh(*queryParams.Refresh)
+	}
+
+	if queryParams.Pipeline != nil {
+		bulkReq.Pipeline(*queryParams.Pipeline)
+	}
+
+	if queryParams.Routing != nil {
+		bulkReq.Routing(*queryParams.Routing)
+	}
+
+	if queryParams.Source_ != nil {
+		bulkReq.Source_(*queryParams.Source_)
+	}
+
+	if queryParams.SourceExcludes_ != nil {
+		bulkReq.SourceExcludes_(*queryParams.SourceExcludes_...)
+	}
+
+	if queryParams.SourceIncludes_ != nil {
+		bulkReq.SourceIncludes_(*queryParams.SourceIncludes_...)
+	}
+
+	if queryParams.Timeout != nil {
+		bulkReq.Timeout(*queryParams.Timeout)
+	}
+
+	if queryParams.WaitForActiveShards != nil {
+		bulkReq.WaitForActiveShards(*queryParams.WaitForActiveShards)
+	}
+
+	if queryParams.RequireAlias != nil {
+		bulkReq.RequireAlias(*queryParams.RequireAlias)
+	}
+
+	if queryParams.ErrorTrace != nil {
+		bulkReq.ErrorTrace(*queryParams.ErrorTrace)
+	}
+
+	if queryParams.FilterPath != nil {
+		bulkReq.FilterPath(*queryParams.FilterPath...)
+	}
+
+	if queryParams.Human != nil {
+		bulkReq.Human(*queryParams.Human)
+	}
+
+	if queryParams.Pretty != nil {
+		bulkReq.Pretty(*queryParams.Pretty)
+	}
+
+	res, err := bulkReq.Do(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -314,9 +368,4 @@ func (e *engine) CreateIndex(ctx context.Context, name string, options *CreateIn
 	}
 
 	return index, nil
-}
-
-func (e *engine) indexName() IndexName {
-	escapedName := pathEscape(e.name)
-	return NewIndexName(enginesIndexName, escapedName)
 }
