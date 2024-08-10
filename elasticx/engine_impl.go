@@ -7,6 +7,9 @@ import (
 	"regexp"
 	"strings"
 
+	elasticxbulk "github.com/clinia/x/elasticx/bulk"
+	elasticxmsearch "github.com/clinia/x/elasticx/msearch"
+	elasticxsearch "github.com/clinia/x/elasticx/search"
 	"github.com/clinia/x/errorx"
 	"github.com/clinia/x/pointerx"
 	"github.com/elastic/go-elasticsearch/v8"
@@ -102,19 +105,22 @@ func (e *engine) Remove(ctx context.Context) error {
 	return nil
 }
 
-func (e *engine) Search(ctx context.Context, request *search.Request, indices ...string) (*search.Response, error) {
+func (e *engine) Search(ctx context.Context, request *search.Request, indices []string, opts ...elasticxsearch.Option) (*search.Response, error) {
 	indexPaths := []string{}
 	for _, name := range indices {
 		indexPaths = append(indexPaths, NewIndexName(enginesIndexName, pathEscape(e.name), pathEscape(name)).String())
 	}
 
-	return e.es.Search().
-		Index(strings.Join(indexPaths, ",")).
-		Request(request).
-		Do(ctx)
+	s := e.es.Search().Index(strings.Join(indexPaths, ",")).Request(request)
+
+	for _, opt := range opts {
+		opt(s)
+	}
+
+	return s.Do(ctx)
 }
 
-func (e *engine) MultiSearch(ctx context.Context, queries []MultiSearchItem, queryParams SearchQueryParams) (*msearch.Response, error) {
+func (e *engine) MultiSearch(ctx context.Context, queries []elasticxmsearch.Item, opts ...elasticxmsearch.Option) (*msearch.Response, error) {
 	items := []types.MsearchRequestItem{}
 	for _, query := range queries {
 		// Build index names
@@ -131,48 +137,9 @@ func (e *engine) MultiSearch(ctx context.Context, queries []MultiSearchItem, que
 	}
 
 	ms := e.es.Msearch().Request(&items)
-	if queryParams.AllowNoIndices != nil {
-		ms.AllowNoIndices(*queryParams.AllowNoIndices)
-	}
 
-	if queryParams.CcsMinimizeRoundtrips != nil {
-		ms.CcsMinimizeRoundtrips(*queryParams.CcsMinimizeRoundtrips)
-	}
-
-	if queryParams.ExpandWildcards != nil {
-		ms.ExpandWildcards(*queryParams.ExpandWildcards...)
-	}
-
-	if queryParams.IgnoreThrottled != nil {
-		ms.IgnoreThrottled(*queryParams.IgnoreThrottled)
-	}
-
-	if queryParams.IgnoreUnavailable != nil {
-		ms.IgnoreUnavailable(*queryParams.IgnoreUnavailable)
-	}
-
-	if queryParams.MaxConcurrentSearches != nil {
-		ms.MaxConcurrentSearches(*queryParams.MaxConcurrentSearches)
-	}
-
-	if queryParams.MaxConcurrentShardRequests != nil {
-		ms.MaxConcurrentShardRequests(*queryParams.MaxConcurrentShardRequests)
-	}
-
-	if queryParams.PreFilterShardSize != nil {
-		ms.PreFilterShardSize(*queryParams.PreFilterShardSize)
-	}
-
-	if queryParams.RestTotalHitsAsInt != nil {
-		ms.RestTotalHitsAsInt(*queryParams.RestTotalHitsAsInt)
-	}
-
-	if queryParams.Routing != nil {
-		ms.Routing(*queryParams.Routing)
-	}
-
-	if queryParams.SearchType != nil {
-		ms.SearchType(*queryParams.SearchType)
+	for _, opt := range opts {
+		opt(ms)
 	}
 
 	res, err := ms.Do(ctx)
@@ -183,34 +150,34 @@ func (e *engine) MultiSearch(ctx context.Context, queries []MultiSearchItem, que
 	return res, nil
 }
 
-func (e *engine) Bulk(ctx context.Context, actions []BulkOperation, queryParams BulkQueryParams) (*bulk.Response, error) {
+func (e *engine) Bulk(ctx context.Context, actions []elasticxbulk.Operation, opts ...elasticxbulk.Option) (*bulk.Response, error) {
 	request := []any{}
 	for _, action := range actions {
 		indexName := NewIndexName(enginesIndexName, pathEscape(e.name), pathEscape(action.IndexName)).String()
 		op := types.OperationContainer{}
 
 		switch action.Action {
-		case BulkActionCreate:
+		case elasticxbulk.ActionCreate:
 			op.Create = &types.CreateOperation{
 				Index_: pointerx.Ptr(indexName),
 			}
 			request = append(request, op)
 			request = append(request, action.Doc)
-		case BulkActionIndex:
+		case elasticxbulk.ActionIndex:
 			op.Index = &types.IndexOperation{
 				Index_: pointerx.Ptr(indexName),
 				Id_:    pointerx.Ptr(action.DocumentID),
 			}
 			request = append(request, op)
 			request = append(request, action.Doc)
-		case BulkActionUpdate:
+		case elasticxbulk.ActionUpdate:
 			op.Update = &types.UpdateOperation{
 				Index_: pointerx.Ptr(indexName),
 				Id_:    pointerx.Ptr(action.DocumentID),
 			}
 			request = append(request, op)
 			request = append(request, action.Doc)
-		case BulkActionDelete:
+		case elasticxbulk.ActionDelete:
 			op.Delete = &types.DeleteOperation{
 				Index_: pointerx.Ptr(indexName),
 				Id_:    pointerx.Ptr(action.DocumentID),
@@ -225,56 +192,8 @@ func (e *engine) Bulk(ctx context.Context, actions []BulkOperation, queryParams 
 
 	bulkReq := e.es.Bulk().Request(&request)
 
-	if queryParams.Refresh != nil {
-		bulkReq.Refresh(*queryParams.Refresh)
-	}
-
-	if queryParams.Pipeline != nil {
-		bulkReq.Pipeline(*queryParams.Pipeline)
-	}
-
-	if queryParams.Routing != nil {
-		bulkReq.Routing(*queryParams.Routing)
-	}
-
-	if queryParams.Source_ != nil {
-		bulkReq.Source_(*queryParams.Source_)
-	}
-
-	if queryParams.SourceExcludes_ != nil {
-		bulkReq.SourceExcludes_(*queryParams.SourceExcludes_...)
-	}
-
-	if queryParams.SourceIncludes_ != nil {
-		bulkReq.SourceIncludes_(*queryParams.SourceIncludes_...)
-	}
-
-	if queryParams.Timeout != nil {
-		bulkReq.Timeout(*queryParams.Timeout)
-	}
-
-	if queryParams.WaitForActiveShards != nil {
-		bulkReq.WaitForActiveShards(*queryParams.WaitForActiveShards)
-	}
-
-	if queryParams.RequireAlias != nil {
-		bulkReq.RequireAlias(*queryParams.RequireAlias)
-	}
-
-	if queryParams.ErrorTrace != nil {
-		bulkReq.ErrorTrace(*queryParams.ErrorTrace)
-	}
-
-	if queryParams.FilterPath != nil {
-		bulkReq.FilterPath(*queryParams.FilterPath...)
-	}
-
-	if queryParams.Human != nil {
-		bulkReq.Human(*queryParams.Human)
-	}
-
-	if queryParams.Pretty != nil {
-		bulkReq.Pretty(*queryParams.Pretty)
+	for _, opt := range opts {
+		opt(bulkReq)
 	}
 
 	res, err := bulkReq.Do(ctx)
