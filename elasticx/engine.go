@@ -3,11 +3,13 @@ package elasticx
 import (
 	"context"
 
+	elasticxbulk "github.com/clinia/x/elasticx/bulk"
+	elasticxmsearch "github.com/clinia/x/elasticx/msearch"
+	elasticxsearch "github.com/clinia/x/elasticx/search"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/core/bulk"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/core/msearch"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/core/search"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types"
-	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/searchtype"
 )
 
 // Engine provides access to all indexes in a single engine.
@@ -26,50 +28,14 @@ type Engine interface {
 	EngineIndexes
 
 	// Search performs a search request to Elastic Search
-	Search(ctx context.Context, query *search.Request, indices ...string) (*search.Response, error)
+	Search(ctx context.Context, query *search.Request, indices []string, opts ...elasticxsearch.Option) (*search.Response, error)
 
 	// MultiSearch performs a multi search request to Elastic Search
-	MultiSearch(ctx context.Context, items []MultiSearchItem, queryParams SearchQueryParams) (*msearch.Response, error)
+	MultiSearch(ctx context.Context, items []elasticxmsearch.Item, opts ...elasticxmsearch.Option) (*msearch.Response, error)
 
 	// Bulk performs a bulk request to Elastic Search
-	Bulk(ctx context.Context, ops []BulkOperation) (*bulk.Response, error)
+	Bulk(ctx context.Context, ops []elasticxbulk.Operation, opts ...elasticxbulk.Option) (*bulk.Response, error)
 }
-
-type SearchQueryParams struct {
-	AllowNoIndices             *bool
-	CcsMinimizeRoundtrips      *bool
-	ExpandWildcards            *types.ExpandWildcards
-	IgnoreThrottled            *bool
-	IgnoreUnavailable          *bool
-	MaxConcurrentSearches      *string
-	MaxConcurrentShardRequests *string
-	PreFilterShardSize         *string
-	RestTotalHitsAsInt         *bool
-	Routing                    *string
-	SearchType                 *searchtype.SearchType
-	TypedKeys                  *bool
-}
-
-type MultiSearchItem struct {
-	Header types.MultisearchHeader
-	Body   types.MultisearchBody
-}
-
-type BulkOperation struct {
-	IndexName  string
-	Action     BulkAction
-	DocumentID string
-	Doc        interface{}
-}
-
-type BulkAction string
-
-const (
-	BulkActionIndex  BulkAction = "index"
-	BulkActionCreate BulkAction = "create"
-	BulkActionUpdate BulkAction = "update"
-	BulkActionDelete BulkAction = "delete"
-)
 
 type EngineInfo struct {
 	// The name of the engine.

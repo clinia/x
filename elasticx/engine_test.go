@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/clinia/x/assertx"
+	elasticxbulk "github.com/clinia/x/elasticx/bulk"
+	elasticxmsearch "github.com/clinia/x/elasticx/msearch"
 	"github.com/clinia/x/jsonx"
 	"github.com/clinia/x/pointerx"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/core/search"
@@ -279,7 +281,7 @@ func TestEngineQuery(t *testing.T) {
 			Query: &types.Query{
 				MatchAll: &types.MatchAllQuery{},
 			},
-		}, index.Info().Name)
+		}, []string{index.Info().Name})
 
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(res.Hits.Hits))
@@ -325,7 +327,7 @@ func TestEngineQueries(t *testing.T) {
 			Do(ctx)
 		assert.NoError(t, err)
 
-		res, err := engine.MultiSearch(ctx, []MultiSearchItem{
+		res, err := engine.MultiSearch(ctx, []elasticxmsearch.Item{
 			{
 				Header: types.MultisearchHeader{
 					Index: []string{index.Info().Name},
@@ -352,7 +354,7 @@ func TestEngineQueries(t *testing.T) {
 					From: pointerx.Ptr(0),
 				},
 			},
-		}, SearchQueryParams{})
+		})
 
 		assert.NoError(t, err)
 
@@ -423,26 +425,29 @@ func TestEngineBulk(t *testing.T) {
 		index, err := engine.CreateIndex(ctx, "index-1", nil)
 		assert.NoError(t, err)
 
-		res, err := engine.Bulk(ctx, []BulkOperation{
-			{
-				IndexName:  index.Info().Name,
-				Action:     BulkActionIndex,
-				DocumentID: "1",
-				Doc: map[string]interface{}{
-					"id":   "1",
-					"name": "test",
+		res, err := engine.Bulk(ctx,
+			[]elasticxbulk.Operation{
+				{
+					IndexName:  index.Info().Name,
+					Action:     elasticxbulk.ActionIndex,
+					DocumentID: "1",
+					Doc: map[string]interface{}{
+						"id":   "1",
+						"name": "test",
+					},
+				},
+				{
+					IndexName:  index.Info().Name,
+					Action:     elasticxbulk.ActionIndex,
+					DocumentID: "2",
+					Doc: map[string]interface{}{
+						"id":   "2",
+						"name": "test",
+					},
 				},
 			},
-			{
-				IndexName:  index.Info().Name,
-				Action:     BulkActionIndex,
-				DocumentID: "2",
-				Doc: map[string]interface{}{
-					"id":   "2",
-					"name": "test",
-				},
-			},
-		})
+			elasticxbulk.Refresh(refresh.Waitfor),
+		)
 
 		assert.NoError(t, err)
 		assert.Equal(t, 2, len(res.Items))

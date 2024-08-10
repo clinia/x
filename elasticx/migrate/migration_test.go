@@ -269,7 +269,7 @@ func TestMigration(t *testing.T) {
 						},
 					},
 				},
-			}, m.migrationsIndex)
+			}, []string{m.migrationsIndex})
 
 			require.NoError(t, err)
 
