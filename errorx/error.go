@@ -12,7 +12,10 @@ type CliniaError struct {
 	Type    ErrorType `json:"type"`
 	Message string    `json:"message"`
 
-	OriginalError error // Not returned to clients
+	// Not returned to clients
+	OriginalError error
+	// List of errors that caused the error if applicable
+	Details []CliniaError
 }
 
 var _ error = (*CliniaError)(nil)
@@ -21,6 +24,15 @@ type CliniaRetryableError = CliniaError
 
 func (e CliniaError) Error() string {
 	return fmt.Sprintf("[%s] %s", e.Type.String(), e.Message)
+}
+
+// WithDetails allows to attach multiple errors to the error
+func (c *CliniaError) WithDetails(details ...CliniaError) *CliniaError {
+	if c.Details == nil {
+		c.Details = make([]CliniaError, 0, len(details))
+	}
+	c.Details = append(c.Details, details...)
+	return c
 }
 
 func NewCliniaErrorFromMessage(msg string) (*CliniaError, error) {
