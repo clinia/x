@@ -27,12 +27,12 @@ func (e CliniaError) Error() string {
 }
 
 // WithDetails allows to attach multiple errors to the error
-func (c *CliniaError) WithDetails(details ...CliniaError) *CliniaError {
+func (c *CliniaError) WithDetails(details ...CliniaError) CliniaError {
 	if c.Details == nil {
 		c.Details = make([]CliniaError, 0, len(details))
 	}
 	c.Details = append(c.Details, details...)
-	return c
+	return *c
 }
 
 func NewCliniaErrorFromMessage(msg string) (*CliniaError, error) {
