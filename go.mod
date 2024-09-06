@@ -1,6 +1,6 @@
 module github.com/clinia/x
 
-go 1.21
+go 1.23
 
 require (
 	github.com/IBM/sarama v1.43.2

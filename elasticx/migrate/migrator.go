@@ -4,7 +4,9 @@ package migrate
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -24,13 +26,13 @@ type (
 	}
 
 	versionRecord struct {
-		Version     uint64    `json:"version"`
+		Version     uint      `json:"version"`
 		Description string    `json:"description,omitempty"`
 		Package     string    `json:"package"`
 		Timestamp   time.Time `json:"timestamp"`
 	}
 	migrationVersionInfo struct {
-		Version     uint64 `json:"version"`
+		Version     uint   `json:"version"`
 		Description string `json:"description"`
 	}
 )
@@ -61,7 +63,7 @@ type NewMigratorOptions struct {
 func NewMigrator(opts NewMigratorOptions) *Migrator {
 	internalMigrations := make([]Migration, len(opts.Migrations))
 	copy(internalMigrations, opts.Migrations)
-	vers := map[uint64]bool{}
+	vers := map[uint]bool{}
 	for _, m := range opts.Migrations {
 		if vers[m.Version] {
 			panic(fmt.Sprintf("duplicated migration version %v", m.Version))
@@ -199,7 +201,7 @@ func (m *Migrator) Version(ctx context.Context) (migrationVersionInfo, error) {
 }
 
 // setVersion forcibly changes database version to provided.
-func (m *Migrator) setVersion(ctx context.Context, version uint64, description string) error {
+func (m *Migrator) setVersion(ctx context.Context, version uint, description string) error {
 	rec := versionRecord{
 		Version:     version,
 		Package:     m.pkg,
@@ -232,7 +234,7 @@ func (m *Migrator) setVersion(ctx context.Context, version uint64, description s
 	return nil
 }
 
-func (m *Migrator) removeVersion(ctx context.Context, version uint64) error {
+func (m *Migrator) removeVersion(ctx context.Context, version uint) error {
 	index, err := m.engine.Index(ctx, m.migrationsIndex)
 	if err != nil {
 		return err
@@ -261,11 +263,16 @@ func (m *Migrator) Up(ctx context.Context, targetVersion int) error {
 		return err
 	}
 
-	var target uint64
+	var target uint
 	if latest := m.migrations[len(m.migrations)-1].Version; targetVersion <= 0 {
 		target = latest
 	} else {
-		target = uint64(mathx.Clamp(targetVersion, 0, int(latest)))
+		latestInt, err := safeUintToInt(latest)
+		if err != nil {
+			return err
+		}
+
+		target = uint(mathx.Clamp(targetVersion, 0, latestInt))
 	}
 
 	version := currentVersion.Version
@@ -306,7 +313,13 @@ func (m *Migrator) Down(ctx context.Context, targetVersion int) error {
 	}
 
 	latestVer := m.migrations[len(m.migrations)-1].Version
-	target := uint64(mathx.Clamp(targetVersion, 0, int(latestVer)))
+
+	latestVerInt, err := safeUintToInt(latestVer)
+	if err != nil {
+		return err
+	}
+
+	target := uint(mathx.Clamp(targetVersion, 0, latestVerInt))
 	version := currentVersion.Version
 
 	for i := len(m.migrations) - 1; i >= 0; i-- {
@@ -315,7 +328,7 @@ func (m *Migrator) Down(ctx context.Context, targetVersion int) error {
 			continue
 		}
 
-		if migration.Version <= uint64(target) {
+		if migration.Version <= target {
 			// We down-ed enough
 			break
 		}
@@ -335,4 +348,13 @@ func (m *Migrator) Down(ctx context.Context, targetVersion int) error {
 		}
 	}
 	return nil
+}
+
+func safeUintToInt(u uint) (int, error) {
+	if u > math.MaxInt {
+		return 0, errors.New("uint value is too large to fit in an int")
+	}
+	// Suppress gosec warning for safe conversion
+	// #nosec G115
+	return int(u), nil
 }

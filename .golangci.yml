@@ -1,9 +1,9 @@
 linters:
   enable:
     - gosec
-    - vet
+    - govet
   disable-all: true
 
-run:
-  skip-files:
-    - ".+_test.go"
+issues:
+  exclude-files:
+    - ".*_test.go"

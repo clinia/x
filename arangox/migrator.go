@@ -3,7 +3,9 @@ package arangox
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"math"
 	"time"
 
 	arangoDriver "github.com/arangodb/go-driver"
@@ -13,7 +15,7 @@ import (
 )
 
 type versionRecord struct {
-	Version     uint64    `json:"version"`
+	Version     uint      `json:"version"`
 	Description string    `json:"description,omitempty"`
 	Package     string    `json:"package"`
 	Timestamp   time.Time `json:"timestamp"`
@@ -49,7 +51,7 @@ type NewMigratorOptions struct {
 func NewMigrator(in NewMigratorOptions) *Migrator {
 	internalMigrations := make(Migrations, len(in.Migrations))
 	copy(internalMigrations, in.Migrations)
-	vers := map[uint64]bool{}
+	vers := map[uint]bool{}
 	for _, m := range in.Migrations {
 		if vers[m.Version] {
 			panic(fmt.Sprintf("duplicated migration version %v", m.Version))
@@ -108,7 +110,7 @@ func (m *Migrator) createCollectionIfNotExist(ctx context.Context, name string) 
 }
 
 // Version returns current database version and comment.
-func (m *Migrator) Version(ctx context.Context) (current uint64, latest uint64, desc string, outErr error) {
+func (m *Migrator) Version(ctx context.Context) (current uint, latest uint, desc string, outErr error) {
 	m.migrations.Sort()
 	if len(m.migrations) > 0 {
 		latest = m.migrations[len(m.migrations)-1].Version
@@ -155,11 +157,16 @@ func (m *Migrator) Up(ctx context.Context, targetVersion int) error {
 		return err
 	}
 
-	var target uint64
+	latestInt, err := safeUintToInt(latest)
+	if err != nil {
+		return err
+	}
+
+	var target uint
 	if targetVersion <= 0 {
 		target = latest
 	} else {
-		target = uint64(mathx.Clamp(targetVersion, 0, int(latest)))
+		target = uint(mathx.Clamp(targetVersion, 0, latestInt))
 	}
 
 	col, err := m.db.Collection(ctx, m.migrationsCollection)
@@ -212,8 +219,13 @@ func (m *Migrator) Down(ctx context.Context, targetVersion int) error {
 		return err
 	}
 
+	latestInt, err := safeUintToInt(latest)
+	if err != nil {
+		return err
+	}
+
 	version := curVersion
-	target := uint64(mathx.Clamp(targetVersion, 0, int(latest)))
+	target := uint(mathx.Clamp(targetVersion, 0, latestInt))
 
 	for i := len(m.migrations) - 1; i >= 0; i-- {
 		migration := m.migrations[i]
@@ -221,7 +233,7 @@ func (m *Migrator) Down(ctx context.Context, targetVersion int) error {
 			continue
 		}
 
-		if migration.Version <= uint64(target) {
+		if migration.Version <= uint(target) {
 			// We down-ed enough
 			break
 		}
@@ -267,4 +279,13 @@ func (m *Migrator) Down(ctx context.Context, targetVersion int) error {
 	}
 
 	return nil
+}
+
+func safeUintToInt(u uint) (int, error) {
+	if u > math.MaxInt {
+		return 0, errors.New("uint value is too large to fit in an int")
+	}
+	// Suppress gosec warning for safe conversion
+	// #nosec G115
+	return int(u), nil
 }

@@ -32,7 +32,7 @@ func TestMigration(t *testing.T) {
 			Package: "",
 			Migrations: []Migration{
 				{
-					Version:     uint64(1),
+					Version:     1,
 					Description: "Test initial migration",
 					Up: func(ctx context.Context, engine elasticx.Engine) error {
 						_, err := engine.CreateIndex(ctx, "test-index", nil)
@@ -63,14 +63,14 @@ func TestMigration(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, res.Found)
 		assertx.EqualAsJSONExcept(t, versionRecord{
-			Version:     uint64(1),
+			Version:     1,
 			Description: "Test initial migration",
 		}, res.Source_, []string{"timestamp"})
 
 		verInfo, err := migrator.Version(ctx)
 		assert.NoError(t, err)
 		assert.Equal(t, migrationVersionInfo{
-			Version:     uint64(1),
+			Version:     1,
 			Description: "Test initial migration",
 		}, verInfo)
 	})
@@ -85,7 +85,7 @@ func TestMigration(t *testing.T) {
 			Package: "package-1",
 			Migrations: []Migration{
 				{
-					Version:     uint64(1),
+					Version:     1,
 					Description: "Test initial migration",
 					Up: func(ctx context.Context, engine elasticx.Engine) error {
 						_, err := engine.CreateIndex(ctx, "test-index", nil)
@@ -110,7 +110,7 @@ func TestMigration(t *testing.T) {
 			Package: "package-2",
 			Migrations: []Migration{
 				{
-					Version:     uint64(1),
+					Version:     1,
 					Description: "Test initial migration",
 					Up: func(ctx context.Context, engine elasticx.Engine) error {
 						_, err := engine.CreateIndex(ctx, "test-index-2", nil)
@@ -144,7 +144,7 @@ func TestMigration(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, res.Found)
 		assertx.EqualAsJSONExcept(t, versionRecord{
-			Version:     uint64(1),
+			Version:     1,
 			Package:     "package-1",
 			Description: "Test initial migration",
 		}, res.Source_, []string{"timestamp"})
@@ -153,7 +153,7 @@ func TestMigration(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, res2.Found)
 		assertx.EqualAsJSONExcept(t, versionRecord{
-			Version:     uint64(1),
+			Version:     1,
 			Package:     "package-2",
 			Description: "Test initial migration",
 		}, res2.Source_, []string{"timestamp"})
@@ -178,7 +178,7 @@ func TestMigration(t *testing.T) {
 			Package: "package-1",
 			Migrations: []Migration{
 				{
-					Version:     uint64(1),
+					Version:     1,
 					Description: "Test initial migration",
 					Up: func(ctx context.Context, engine elasticx.Engine) error {
 						return nil
@@ -188,7 +188,7 @@ func TestMigration(t *testing.T) {
 					},
 				},
 				{
-					Version:     uint64(1),
+					Version:     1,
 					Description: "Duplicated migration",
 					Up: func(ctx context.Context, engine elasticx.Engine) error {
 						return nil
@@ -211,7 +211,7 @@ func TestMigration(t *testing.T) {
 			Package: "package-1",
 			Migrations: []Migration{
 				{
-					Version:     uint64(1),
+					Version:     1,
 					Description: "Test initial migration",
 					Up: func(ctx context.Context, engine elasticx.Engine) error {
 						_, err := engine.CreateIndex(ctx, "test-index", nil)
@@ -229,7 +229,7 @@ func TestMigration(t *testing.T) {
 					},
 				},
 				{
-					Version:     uint64(2),
+					Version:     2,
 					Description: "Test second migration",
 					Up: func(ctx context.Context, engine elasticx.Engine) error {
 						return nil
@@ -239,7 +239,7 @@ func TestMigration(t *testing.T) {
 					},
 				},
 				{
-					Version:     uint64(3),
+					Version:     3,
 					Description: "Test third migration",
 					Up: func(ctx context.Context, engine elasticx.Engine) error {
 						return nil
@@ -302,7 +302,7 @@ func TestMigration(t *testing.T) {
 		assert.Len(t, versions, 1)
 		assertx.ElementsMatch(t, versions, []versionRecord{
 			{
-				Version:     uint64(1),
+				Version:     1,
 				Package:     "package-1",
 				Description: "Test initial migration",
 			},
@@ -315,17 +315,17 @@ func TestMigration(t *testing.T) {
 		assert.Len(t, versions, 3)
 		assertx.ElementsMatch(t, versions, []versionRecord{
 			{
-				Version:     uint64(1),
+				Version:     1,
 				Package:     "package-1",
 				Description: "Test initial migration",
 			},
 			{
-				Version:     uint64(2),
+				Version:     2,
 				Package:     "package-1",
 				Description: "Test second migration",
 			},
 			{
-				Version:     uint64(3),
+				Version:     3,
 				Package:     "package-1",
 				Description: "Test third migration",
 			},
@@ -338,12 +338,12 @@ func TestMigration(t *testing.T) {
 		assert.Len(t, versions, 2)
 		assertx.ElementsMatch(t, versions, []versionRecord{
 			{
-				Version:     uint64(1),
+				Version:     1,
 				Package:     "package-1",
 				Description: "Test initial migration",
 			},
 			{
-				Version:     uint64(2),
+				Version:     2,
 				Package:     "package-1",
 				Description: "Test second migration",
 			},
