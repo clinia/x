@@ -1808,3 +1808,4 @@ message LogSettingsResponse
   //@@
   map<string, SettingValue> settings = 1;
 }
+option go_package = "github.com/clinia/tritonx/tritongrpc";

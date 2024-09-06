@@ -2077,3 +2077,4 @@ message ModelConfig
   //@@
   ModelResponseCache response_cache = 24;
 }
+option go_package = "github.com/clinia/tritonx/tritongrpc";

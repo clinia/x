@@ -15,6 +15,7 @@ test_kafka_race:
 lint:
 	golangci-lint run
 
-.PHONY: download-triton-proto
-download-triton-proto:
-	./scripts/download_proto.sh
+generate-triton:
+	./scripts/generate-triton.sh
+
+
