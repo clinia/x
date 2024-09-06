@@ -14,3 +14,8 @@ test_kafka_race:
 .PHONY: lint
 lint:
 	golangci-lint run
+
+generate-triton:
+	./scripts/generate-triton.sh
+
+

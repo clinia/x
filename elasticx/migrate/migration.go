@@ -21,7 +21,7 @@ type MigrationFunc func(ctx context.Context, engine elasticx.Engine) error
 //
 // - down: callback which will be called in "down" migration process for reverting changes
 type Migration struct {
-	Version     uint64
+	Version     uint
 	Description string
 	Up          MigrationFunc
 	Down        MigrationFunc
@@ -35,7 +35,7 @@ func (m Migrations) Sort() {
 	})
 }
 
-func HasVersion(migrations []Migration, version uint64) bool {
+func HasVersion(migrations []Migration, version uint) bool {
 	for _, m := range migrations {
 		if m.Version == version {
 			return true

@@ -195,6 +195,8 @@ func splitHostPort(hostport string) (host string, port int) {
 	if err != nil {
 		return
 	}
+	// Suppress gosec warning for safe conversion
+	// #nosec G115
 	return host, int(p)
 }
 

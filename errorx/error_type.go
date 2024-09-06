@@ -1,9 +1,5 @@
 package errorx
 
-import (
-	"fmt"
-)
-
 type ErrorType string
 
 // Errors status code are defined here:
@@ -49,6 +45,6 @@ func (e ErrorType) Validate() error {
 		ErrorTypePermissionDenied:
 		return nil
 	default:
-		return InvalidArgumentErrorf(fmt.Sprintf("invalid error type: %s", e))
+		return InvalidArgumentErrorf("invalid error type: %s", e)
 	}
 }

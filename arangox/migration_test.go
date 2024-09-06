@@ -21,7 +21,7 @@ func TestMigration(t *testing.T) {
 			Package:  "package-1",
 			Migrations: []Migration{
 				{
-					Version:     uint64(1),
+					Version:     1,
 					Description: "Test initial migration",
 					Up: func(ctx context.Context, db driver.Database) error {
 						return nil
@@ -38,7 +38,7 @@ func TestMigration(t *testing.T) {
 			Package:  "package-2",
 			Migrations: []Migration{
 				{
-					Version:     uint64(1),
+					Version:     1,
 					Description: "Test initial migration for second package",
 					Up: func(ctx context.Context, db driver.Database) error {
 						return nil
@@ -62,12 +62,12 @@ func TestMigration(t *testing.T) {
 		assert.Len(t, versions, 2)
 		assertx.ElementsMatch(t, versions, []versionRecord{
 			{
-				Version:     uint64(1),
+				Version:     1,
 				Package:     "package-1",
 				Description: "Test initial migration",
 			},
 			{
-				Version:     uint64(1),
+				Version:     1,
 				Package:     "package-2",
 				Description: "Test initial migration for second package",
 			},
@@ -89,7 +89,7 @@ func TestMigration(t *testing.T) {
 			Package:  "package-2",
 			Migrations: []Migration{
 				{
-					Version:     uint64(1),
+					Version:     1,
 					Description: "Test initial migration for second package",
 					Up: func(ctx context.Context, db driver.Database) error {
 						return nil
@@ -99,7 +99,7 @@ func TestMigration(t *testing.T) {
 					},
 				},
 				{
-					Version:     uint64(1),
+					Version:     1,
 					Description: "I should fail since I have the same version within the same package",
 					Up: func(ctx context.Context, db driver.Database) error {
 						return nil
@@ -119,7 +119,7 @@ func TestMigration(t *testing.T) {
 			Package:  "package-3",
 			Migrations: []Migration{
 				{
-					Version:     uint64(1),
+					Version:     1,
 					Description: "Test initial migration",
 					Up: func(ctx context.Context, db driver.Database) error {
 						return nil
@@ -138,7 +138,7 @@ func TestMigration(t *testing.T) {
 		assert.NoError(t, err)
 
 		_, err = col.CreateDocument(ctx, versionRecord{
-			Version:     uint64(1),
+			Version:     1,
 			Package:     "package-3",
 			Description: "Should fail since I have the same version within the same package",
 		})
@@ -153,7 +153,7 @@ func TestMigration(t *testing.T) {
 			Package:  "package-4",
 			Migrations: []Migration{
 				{
-					Version:     uint64(1),
+					Version:     1,
 					Description: "Test initial migration",
 					Up: func(ctx context.Context, db driver.Database) error {
 						return nil
@@ -163,7 +163,7 @@ func TestMigration(t *testing.T) {
 					},
 				},
 				{
-					Version:     uint64(2),
+					Version:     2,
 					Description: "Test second migration",
 					Up: func(ctx context.Context, db driver.Database) error {
 						return nil
@@ -173,7 +173,7 @@ func TestMigration(t *testing.T) {
 					},
 				},
 				{
-					Version:     uint64(3),
+					Version:     3,
 					Description: "Test third migration",
 					Up: func(ctx context.Context, db driver.Database) error {
 						return nil
@@ -206,7 +206,7 @@ func TestMigration(t *testing.T) {
 		versions = getVersions()
 		assertx.ElementsMatch(t, versions, []versionRecord{
 			{
-				Version:     uint64(1),
+				Version:     1,
 				Package:     "package-4",
 				Description: "Test initial migration",
 			},
@@ -218,17 +218,17 @@ func TestMigration(t *testing.T) {
 		versions = getVersions()
 		assertx.ElementsMatch(t, versions, []versionRecord{
 			{
-				Version:     uint64(1),
+				Version:     1,
 				Package:     "package-4",
 				Description: "Test initial migration",
 			},
 			{
-				Version:     uint64(2),
+				Version:     2,
 				Package:     "package-4",
 				Description: "Test second migration",
 			},
 			{
-				Version:     uint64(3),
+				Version:     3,
 				Package:     "package-4",
 				Description: "Test third migration",
 			},
@@ -246,7 +246,7 @@ func TestDownMigrations(t *testing.T) {
 				Package:  pkg,
 				Migrations: []Migration{
 					{
-						Version:     uint64(1),
+						Version:     1,
 						Description: "Test initial migration",
 						Up: func(ctx context.Context, db driver.Database) error {
 							return nil
@@ -256,7 +256,7 @@ func TestDownMigrations(t *testing.T) {
 						},
 					},
 					{
-						Version:     uint64(2),
+						Version:     2,
 						Description: "Test second migration",
 						Up: func(ctx context.Context, db driver.Database) error {
 							return nil
@@ -283,12 +283,12 @@ func TestDownMigrations(t *testing.T) {
 
 				assertx.ElementsMatch(t, versions, []versionRecord{
 					{
-						Version:     uint64(1),
+						Version:     1,
 						Package:     pkg,
 						Description: "Test initial migration",
 					},
 					{
-						Version:     uint64(2),
+						Version:     2,
 						Package:     pkg,
 						Description: "Test second migration",
 					},
@@ -314,12 +314,12 @@ func TestDownMigrations(t *testing.T) {
 			versions := fetchMigrations(t, ctx, db, m)
 			assertx.ElementsMatch(t, versions, []versionRecord{
 				{
-					Version:     uint64(1),
+					Version:     1,
 					Package:     pkg,
 					Description: "Test initial migration",
 				},
 				{
-					Version:     uint64(2),
+					Version:     2,
 					Package:     pkg,
 					Description: "Test second migration",
 				},
@@ -333,7 +333,7 @@ func TestDownMigrations(t *testing.T) {
 
 			assertx.ElementsMatch(t, versions, []versionRecord{
 				{
-					Version:     uint64(1),
+					Version:     1,
 					Package:     pkg,
 					Description: "Test initial migration",
 				},
@@ -348,7 +348,7 @@ func TestDownMigrations(t *testing.T) {
 
 			assertx.ElementsMatch(t, versions, []versionRecord{
 				{
-					Version:     uint64(1),
+					Version:     1,
 					Package:     pkg,
 					Description: "Test initial migration",
 				},
@@ -368,7 +368,7 @@ func TestDownMigrations(t *testing.T) {
 			Package:  "package-1",
 			Migrations: []Migration{
 				{
-					Version:     uint64(1),
+					Version:     1,
 					Description: "Test initial migration",
 					Up: func(ctx context.Context, db driver.Database) error {
 						return nil
@@ -378,7 +378,7 @@ func TestDownMigrations(t *testing.T) {
 					},
 				},
 				{
-					Version:     uint64(2),
+					Version:     2,
 					Description: "Test second migration",
 					Up: func(ctx context.Context, db driver.Database) error {
 						return nil
@@ -397,12 +397,12 @@ func TestDownMigrations(t *testing.T) {
 
 		assertx.ElementsMatch(t, versions, []versionRecord{
 			{
-				Version:     uint64(1),
+				Version:     1,
 				Package:     "package-1",
 				Description: "Test initial migration",
 			},
 			{
-				Version:     uint64(2),
+				Version:     2,
 				Package:     "package-1",
 				Description: "Test second migration",
 			},
@@ -414,7 +414,7 @@ func TestDownMigrations(t *testing.T) {
 		versions = fetchMigrations(t, ctx, db, m)
 		assertx.ElementsMatch(t, versions, []versionRecord{
 			{
-				Version:     uint64(1),
+				Version:     1,
 				Package:     "package-1",
 				Description: "Test initial migration",
 			},
@@ -429,7 +429,7 @@ func TestDryRun(t *testing.T) {
 		Package:  "package-1",
 		Migrations: []Migration{
 			{
-				Version:     uint64(1),
+				Version:     1,
 				Description: "Test initial migration",
 				Up: func(ctx context.Context, db driver.Database) error {
 					return nil
@@ -439,7 +439,7 @@ func TestDryRun(t *testing.T) {
 				},
 			},
 			{
-				Version:     uint64(2),
+				Version:     2,
 				Description: "Test second migration",
 				Up: func(ctx context.Context, db driver.Database) error {
 					return nil
