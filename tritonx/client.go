@@ -8,13 +8,13 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-type TritonClient struct {
+type Client struct {
 	conn *grpc.ClientConn
 
 	Inference tritongrpc.GRPCInferenceServiceClient
 }
 
-func NewTritonClient(ctx context.Context, cfg Config) (*TritonClient, error) {
+func NewClient(ctx context.Context, cfg Config) (*Client, error) {
 	opts := []grpc.DialOption{}
 
 	if cfg.Insecure {
@@ -26,12 +26,12 @@ func NewTritonClient(ctx context.Context, cfg Config) (*TritonClient, error) {
 		return nil, err
 	}
 
-	return &TritonClient{
+	return &Client{
 		conn:      conn,
 		Inference: tritongrpc.NewGRPCInferenceServiceClient(conn),
 	}, nil
 }
 
-func (t *TritonClient) Close() error {
+func (t *Client) Close() error {
 	return t.conn.Close()
 }
