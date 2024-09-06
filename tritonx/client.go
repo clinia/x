@@ -11,7 +11,7 @@ import (
 type TritonClient struct {
 	conn *grpc.ClientConn
 
-	inferenceServiceClient tritongrpc.GRPCInferenceServiceClient
+	Inference tritongrpc.GRPCInferenceServiceClient
 }
 
 func NewTritonClient(ctx context.Context, cfg Config) (*TritonClient, error) {
@@ -27,7 +27,11 @@ func NewTritonClient(ctx context.Context, cfg Config) (*TritonClient, error) {
 	}
 
 	return &TritonClient{
-		conn:                   conn,
-		inferenceServiceClient: tritongrpc.NewGRPCInferenceServiceClient(conn),
+		conn:      conn,
+		Inference: tritongrpc.NewGRPCInferenceServiceClient(conn),
 	}, nil
+}
+
+func (t *TritonClient) Close() error {
+	return t.conn.Close()
 }
