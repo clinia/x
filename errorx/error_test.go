@@ -33,4 +33,36 @@ func TestError(t *testing.T) {
 		err := NotFoundErrorf("test")
 		assert.True(t, IsNotFoundError(err))
 	})
+
+	t.Run("should append details to existing error", func(t *testing.T) {
+		cerr := FailedPreconditionErrorf("test")
+		cerr = cerr.WithDetails(NotFoundErrorf("testnotfound"))
+		assert.Equal(t, CliniaError{
+			Type:    ErrorTypeFailedPrecondition,
+			Message: "test",
+			Details: []CliniaError{
+				{
+					Type:    ErrorTypeNotFound,
+					Message: "testnotfound",
+				},
+			},
+		}, cerr)
+
+		// Append more details
+		cerr = cerr.WithDetails(InvalidArgumentErrorf("testinvalid"))
+		assert.Equal(t, CliniaError{
+			Type:    ErrorTypeFailedPrecondition,
+			Message: "test",
+			Details: []CliniaError{
+				{
+					Type:    ErrorTypeNotFound,
+					Message: "testnotfound",
+				},
+				{
+					Type:    ErrorTypeInvalidArgument,
+					Message: "testinvalid",
+				},
+			},
+		}, cerr)
+	})
 }
