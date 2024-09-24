@@ -91,9 +91,7 @@ func (p *PubSub) Subscriber(group string, topics []messagex.Topic, opts ...pubsu
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	o := &pubsubx.SubscriberOptions{
-		MaxBatchSize: 100,
-	}
+	o := pubsubx.NewDefaultSubscriberOptions()
 	for _, opt := range opts {
 		opt(o)
 	}
