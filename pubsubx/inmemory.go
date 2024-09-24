@@ -111,9 +111,9 @@ func (m *memorySubscriber) Subscribe(ctx context.Context, topicHandlers Handlers
 	for _, topic := range m.topics {
 		handler, exists := topicHandlers[topic]
 		if !exists {
-			return errorx.InvalidArgumentErrorf("missing handler for topic %s", topic)
+			return errorx.InternalErrorf("missing handler for topic %s", topic)
 		} else if handler == nil {
-			return errorx.InvalidArgumentErrorf("nil handler for topic %s", topic)
+			return errorx.InternalErrorf("nil handler for topic %s", topic)
 		}
 	}
 
