@@ -2,44 +2,24 @@ package pubsubx
 
 import (
 	"context"
-	"time"
 
-	"github.com/ThreeDotsLabs/watermill/message"
+	"github.com/clinia/x/pubsubx/messagex"
+)
+
+type (
+	// Handler represents a function that handles messages received by a subscriber.
+	// It takes a context.Context and a slice of *messagex.Message as input parameters.
+	// The function should return a slice of errors, representing per-message failures,
+	// and an error, representing the processing failure in general.
+	Handler  func(ctx context.Context, msgs []*messagex.Message) ([]error, error)
+	Handlers map[messagex.Topic]Handler
 )
 
 type Subscriber interface {
-	// Subscribe subscribes to the topic.
-	Subscribe(ctx context.Context, topic string) (<-chan *message.Message, error)
+	// Subscribe subscribes to all topics that are configured in the subscriber.
+	// It takes a context and a map of topic handlers as input.
+	// - If there are topics missing handlers, it will return an error immediately.
+	Subscribe(ctx context.Context, topicHandlers Handlers) error
 	// Close closes the subscriber.
 	Close() error
-}
-
-type BatchConsumerOptions struct {
-	// MaxBatchSize max amount of elements the batch will contain.
-	// Default value is 100 if nothing is specified.
-	MaxBatchSize int16
-	// MaxWaitTime max time that it will be waited until MaxBatchSize elements are received.
-	// Default value is 100ms if nothing is specified.
-	MaxWaitTime time.Duration
-}
-
-type subscriberOptions struct {
-	consumerModel        ConsumerModel
-	batchConsumerOptions *BatchConsumerOptions
-}
-
-type SubscriberOption func(*subscriberOptions)
-
-func WithDefaultConsumerModel() SubscriberOption {
-	return func(o *subscriberOptions) {
-		o.consumerModel = ConsumerModelDefault
-		o.batchConsumerOptions = nil
-	}
-}
-
-func WithBatchConsumerModel(batchOptions *BatchConsumerOptions) SubscriberOption {
-	return func(o *subscriberOptions) {
-		o.consumerModel = ConsumerModelBatch
-		o.batchConsumerOptions = batchOptions
-	}
 }
