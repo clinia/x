@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths:
-      - 'pubsubx/kafkax/**'
+      - 'pubsubx/kgox/**'
       
 
 jobs:
@@ -20,8 +20,9 @@ jobs:
       - run: docker compose -f docker-compose.kafkax.yml up -d
       - run: go run github.com/ThreeDotsLabs/wait-for@latest localhost:9091 localhost:9092 localhost:9093 localhost:9094 localhost:9095
       - run: make test_kafka
+        env:
+          KAFKA: localhost:9091,localhost:9092,localhost:9093,localhost:9094,localhost:9095
         timeout-minutes: 30
-      - run: make test_kafka_short
       - run: make test_kafka_race
-
-      
+        env:
+          KAFKA: localhost:9091,localhost:9092,localhost:9093,localhost:9094,localhost:9095

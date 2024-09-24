@@ -1,15 +1,12 @@
 .PHONY: test
 test:
-	go test `go list ./... | grep -v pubsubx/kafkax`
+	go test `go list ./... | grep -v pubsubx/kgox`
 
 test_kafka:
-	go test -v ./pubsubx/kafkax/...
-
-test_kafka_short:
-	go test ./pubsubx/kafkax/... -short
+	go test -v ./pubsubx/kgox/...
 
 test_kafka_race:
-	go test ./pubsubx/kafkax/... -short -race
+	go test ./pubsubx/kgox/... -short -race
 
 .PHONY: lint
 lint:

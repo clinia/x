@@ -3,7 +3,6 @@ package kgox
 import (
 	"context"
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
@@ -15,20 +14,7 @@ import (
 
 func TestPublisher(t *testing.T) {
 	l := logrusx.New("test", "")
-	kafkaURL := "localhost:19092"
-	kafkaURLFromEnv := os.Getenv("KAFKA")
-	if len(kafkaURLFromEnv) > 0 {
-		kafkaURL = kafkaURLFromEnv
-	}
-	config := &pubsubx.Config{
-		Scope:    "test-scope",
-		Provider: "kafka",
-		Providers: pubsubx.ProvidersConfig{
-			Kafka: pubsubx.KafkaConfig{
-				Brokers: []string{kafkaURL},
-			},
-		},
-	}
+	config := getPubsubConfig(t)
 
 	receivedMessages := func(t *testing.T, group string, topic messagex.Topic) <-chan *messagex.Message {
 		t.Helper()
@@ -60,14 +46,14 @@ func TestPublisher(t *testing.T) {
 		return msgsCh
 	}
 
-	expectReceivedMessages := func(t *testing.T, msgsCh <-chan *messagex.Message, duration time.Duration, expectedMsgs ...*messagex.Message) {
+	expectReceivedMessages := func(t *testing.T, msgsCh <-chan *messagex.Message, expectedMsgs ...*messagex.Message) {
 		t.Helper()
 
 		for _, expectedMsg := range expectedMsgs {
 			select {
 			case receivedMsg := <-msgsCh:
 				require.Equal(t, expectedMsg, receivedMsg)
-			case <-time.After(duration):
+			case <-time.After(defaultExpectedReceiveTimeout):
 				t.Fatal("timed out waiting for message")
 			}
 		}
@@ -79,7 +65,7 @@ func TestPublisher(t *testing.T) {
 		select {
 		case <-msgsCh:
 			t.Fatal("received unexpected message")
-		case <-time.After(1 * time.Second):
+		case <-time.After(defaultExpectedNoReceiveTimeout):
 			// Expected
 		}
 	}
@@ -99,7 +85,7 @@ func TestPublisher(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, errs.FirstNonNil())
 
-		expectReceivedMessages(t, receivedMsgsCh, 1*time.Second, msg)
+		expectReceivedMessages(t, receivedMsgsCh, msg)
 
 		// Should be able to publish multiple messages
 		msgs := []*messagex.Message{}
@@ -111,7 +97,7 @@ func TestPublisher(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, errs.FirstNonNil())
 
-		expectReceivedMessages(t, receivedMsgsCh, 1*time.Second, msgs...)
+		expectReceivedMessages(t, receivedMsgsCh, msgs...)
 	})
 
 	t.Run("PublishAsync", func(t *testing.T) {
@@ -128,7 +114,7 @@ func TestPublisher(t *testing.T) {
 		err := p.PublishAsync(context.Background(), testTopic, msg)
 		require.NoError(t, err)
 
-		expectReceivedMessages(t, receivedMsgsCh, 10*time.Second, msg)
+		expectReceivedMessages(t, receivedMsgsCh, msg)
 
 		// Should be able to publish multiple messages
 		msgs := []*messagex.Message{}
@@ -139,7 +125,7 @@ func TestPublisher(t *testing.T) {
 		err = p.PublishAsync(context.Background(), testTopic, msgs...)
 		require.NoError(t, err)
 
-		expectReceivedMessages(t, receivedMsgsCh, 10*time.Second, msgs...)
+		expectReceivedMessages(t, receivedMsgsCh, msgs...)
 	})
 
 	t.Run("should be able to cancel sending messages with PublishAsync", func(t *testing.T) {
@@ -188,7 +174,7 @@ func TestPublisher(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, errs.FirstNonNil())
 
-		expectReceivedMessages(t, receivedMsgsCh, 1*time.Second, msg)
+		expectReceivedMessages(t, receivedMsgsCh, msg)
 
 		err = p.Close()
 		require.NoError(t, err)

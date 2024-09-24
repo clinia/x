@@ -38,8 +38,11 @@ func NewPubSub(l *logrusx.Logger, config *pubsubx.Config, opts *pubsubx.PubSubOp
 	}
 
 	// Setup kotel
-	kotelService := newKotel(opts.TracerProvider, opts.Propagator, opts.MeterProvider)
-	kopts = append(kopts, kgo.WithHooks(kotelService.Hooks()...))
+	var kotelService *kotel.Kotel
+	if opts != nil {
+		kotelService = newKotel(opts.TracerProvider, opts.Propagator, opts.MeterProvider)
+		kopts = append(kopts, kgo.WithHooks(kotelService.Hooks()...))
+	}
 
 	wc, err := kgo.NewClient(kopts...)
 	if err != nil {

@@ -2,7 +2,6 @@ package kgox
 
 import (
 	"context"
-	"os"
 	"sync"
 	"testing"
 	"time"
@@ -17,20 +16,7 @@ import (
 
 func TestConsumer_Subscribe_Concurrency(t *testing.T) {
 	l := logrusx.New("test", "")
-	kafkaURL := "localhost:19092"
-	kafkaURLFromEnv := os.Getenv("KAFKA")
-	if len(kafkaURLFromEnv) > 0 {
-		kafkaURL = kafkaURLFromEnv
-	}
-	config := &pubsubx.Config{
-		Scope: "test-scope",
-		Providers: pubsubx.ProvidersConfig{
-			Kafka: pubsubx.KafkaConfig{
-				Brokers: []string{kafkaURL},
-			},
-		},
-	}
-
+	config := getPubsubConfig(t)
 	opts := &pubsubx.SubscriberOptions{MaxBatchSize: 10}
 
 	getWriteClient := func(t *testing.T) *kgo.Client {
@@ -169,7 +155,7 @@ func TestConsumer_Subscribe_Concurrency(t *testing.T) {
 
 		// Wait for the message to be consumed
 		select {
-		case <-time.After(1 * time.Second):
+		case <-time.After(defaultExpectedReceiveTimeout):
 			t.Fatalf("timed out waiting for message to be consumed")
 		case msg := <-receivedMsgs:
 			assert.Equal(t, expectedMsg, msg)
@@ -197,7 +183,7 @@ func TestConsumer_Subscribe_Concurrency(t *testing.T) {
 
 		// Wait for the message to be consumed
 		select {
-		case <-time.After(1 * time.Second):
+		case <-time.After(defaultExpectedReceiveTimeout):
 			t.Fatalf("timed out waiting for message to be consumed")
 		case msg := <-receivedMsgs:
 			assert.Equal(t, expectedMsg2, msg)
@@ -210,6 +196,9 @@ func TestConsumer_Subscribe_Concurrency(t *testing.T) {
 		// If we subscribe with another consumer group, we should receive both messages
 		anotherGroup, _ := getRandomGroupTopics(t, 1)
 		anotherConsumer, err := newConsumer(l, nil, config, anotherGroup, topics, opts)
+		t.Cleanup(func() {
+			anotherConsumer.Close()
+		})
 		require.NoError(t, err)
 
 		anotherReceivedMsgs := make(chan *messagex.Message, 10)
@@ -230,7 +219,7 @@ func TestConsumer_Subscribe_Concurrency(t *testing.T) {
 		expectedMsgs := []*messagex.Message{expectedMsg, expectedMsg2}
 		for _, expectedMsg := range expectedMsgs {
 			select {
-			case <-time.After(1 * time.Second):
+			case <-time.After(defaultExpectedReceiveTimeout):
 				t.Fatalf("timed out waiting for message to be consumed")
 			case msg := <-anotherReceivedMsgs:
 				assert.Equal(t, expectedMsg, msg)

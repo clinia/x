@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/clinia/x/logrusx"
 	"github.com/clinia/x/pubsubx"
@@ -14,6 +16,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kgo"
+)
+
+const (
+	defaultExpectedReceiveTimeout   = 30 * time.Second
+	defaultExpectedNoReceiveTimeout = 5 * time.Second
 )
 
 func getRandomGroupTopics(t *testing.T, count int) (Group string, Topics []messagex.Topic) {
@@ -26,6 +33,25 @@ func getRandomGroupTopics(t *testing.T, count int) (Group string, Topics []messa
 	}
 
 	return
+}
+
+func getPubsubConfig(t *testing.T) *pubsubx.Config {
+	t.Helper()
+	kafkaURLs := []string{"localhost:9091", "localhost:9092", "localhost:9093", "localhost:9094", "localhost:9095"}
+	kafkaURLsFromEnv := os.Getenv("KAFKA")
+	if len(kafkaURLsFromEnv) > 0 {
+		kafkaURLs = strings.Split(kafkaURLsFromEnv, ",")
+	}
+
+	return &pubsubx.Config{
+		Scope:    "test-scope",
+		Provider: "kafka",
+		Providers: pubsubx.ProvidersConfig{
+			Kafka: pubsubx.KafkaConfig{
+				Brokers: kafkaURLs,
+			},
+		},
+	}
 }
 
 func createTopic(t *testing.T, conf *pubsubx.Config, topic messagex.Topic) {
