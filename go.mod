@@ -4,7 +4,6 @@ go 1.23
 
 require (
 	github.com/IBM/sarama v1.43.2
-	github.com/ThreeDotsLabs/watermill v1.3.5
 	github.com/arangodb/go-driver v1.6.0
 	github.com/bradleyjkemp/cupaloy/v2 v2.8.0
 	github.com/cenkalti/backoff v2.2.1+incompatible
@@ -22,6 +21,7 @@ require (
 	github.com/pelletier/go-toml v1.9.5
 	github.com/pkg/errors v0.9.1
 	github.com/rs/cors v1.9.0
+	github.com/samber/lo v1.47.0
 	github.com/segmentio/ksuid v1.0.4
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cast v1.5.1
@@ -29,6 +29,9 @@ require (
 	github.com/stretchr/testify v1.9.0
 	github.com/tidwall/gjson v1.16.0
 	github.com/tidwall/sjson v1.2.5
+	github.com/twmb/franz-go v1.17.1
+	github.com/twmb/franz-go/pkg/kadm v1.13.0
+	github.com/twmb/franz-go/plugin/kotel v1.5.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace v0.42.0
 	go.opentelemetry.io/contrib/propagators/b3 v1.17.0
 	go.opentelemetry.io/contrib/propagators/jaeger v1.17.0
@@ -54,6 +57,7 @@ require (
 	github.com/prometheus/common v0.44.0 // indirect
 	github.com/prometheus/procfs v0.11.1 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
+	github.com/twmb/franz-go/pkg/kmsg v1.8.0 // indirect
 )
 
 require (
@@ -73,7 +77,7 @@ require (
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.17.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
-	github.com/hashicorp/go-multierror v1.1.1
+	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/go-uuid v1.0.3 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
@@ -84,13 +88,11 @@ require (
 	github.com/jcmturner/gokrb5/v8 v8.4.4 // indirect
 	github.com/jcmturner/rpc/v2 v2.0.3 // indirect
 	github.com/klauspost/compress v1.17.8 // indirect
-	github.com/lithammer/shortuuid/v3 v3.0.7 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/nyaruka/phonenumbers v1.1.8 // indirect
-	github.com/oklog/ulid v1.3.1 // indirect
 	github.com/ory/go-acc v0.2.9-0.20230103102148-6b1c9a70dbbe // indirect
 	github.com/pelletier/go-toml/v2 v2.0.9 // indirect
 	github.com/pierrec/lz4/v4 v4.1.21 // indirect
