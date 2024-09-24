@@ -132,10 +132,9 @@ func (c *consumer) start(ctx context.Context) {
 			// TODO: Handle errors
 			// If its a context canceled error, we should return
 			l := c.l.WithFields(
-				newLogFields(c.attributes(nil)...),
+				logrusx.NewLogFields(c.attributes(nil)...),
 			)
 			if errs[0].Err == context.Canceled {
-				// TODO: Add logger
 				l.Infof("context canceled, stopping consumer")
 				return
 			}
@@ -147,7 +146,7 @@ func (c *consumer) start(ctx context.Context) {
 		fetches.EachTopic(func(tp kgo.FetchTopic) {
 			topic := messagex.TopicFromName(tp.Topic)
 			l := c.l.WithFields(
-				newLogFields(c.attributes(&topic)...),
+				logrusx.NewLogFields(c.attributes(&topic)...),
 			)
 			records := tp.Records()
 			allMsgs := make([]*messagex.Message, 0, len(records))

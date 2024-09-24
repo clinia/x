@@ -1,4 +1,4 @@
-package kgox
+package logrusx
 
 import (
 	"strings"
@@ -7,8 +7,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
-// TODO: [ENG-1359] Move me to logrusx
-func newLogFields(kvs ...attribute.KeyValue) logrus.Fields {
+func NewLogFields(kvs ...attribute.KeyValue) logrus.Fields {
 	f := logrus.Fields{}
 	for _, kv := range kvs {
 		k := strings.ReplaceAll(string(kv.Key), ".", "__")
