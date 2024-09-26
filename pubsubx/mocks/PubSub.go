@@ -14,6 +14,26 @@ type PubSub struct {
 	mock.Mock
 }
 
+// AdminClient provides a mock function with given fields:
+func (_m *PubSub) AdminClient() pubsubx.PubSubAdminClient {
+	ret := _m.Called()
+
+	if len(ret) == 0 {
+		panic("no return value specified for AdminClient")
+	}
+
+	var r0 pubsubx.PubSubAdminClient
+	if rf, ok := ret.Get(0).(func() pubsubx.PubSubAdminClient); ok {
+		r0 = rf()
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(pubsubx.PubSubAdminClient)
+		}
+	}
+
+	return r0
+}
+
 // Close provides a mock function with given fields:
 func (_m *PubSub) Close() error {
 	ret := _m.Called()
