@@ -21,13 +21,13 @@ func TestSetPerm(t *testing.T) {
 	_ = (&UnixPermission{
 		Owner: "",
 		Group: "",
-		Mode:  0654,
+		Mode:  0o654,
 	}).SetPermission(path)
 
 	stat, err := f.Stat()
 	require.NoError(t, err)
 
-	assert.Equal(t, os.FileMode(0654), stat.Mode())
+	assert.Equal(t, os.FileMode(0o654), stat.Mode())
 
 	require.NoError(t, f.Close())
 	require.NoError(t, os.Remove(path))

@@ -8,7 +8,6 @@ import (
 )
 
 func TestError(t *testing.T) {
-
 	t.Run("should return clinia error from stack", func(t *testing.T) {
 		err := NewAlreadyExistsError("test")
 		serr := errors.WithStack(err)

@@ -168,7 +168,6 @@ func (c *client) Engines(ctx context.Context) ([]EngineInfo, error) {
 			},
 		).
 		Do(ctx)
-
 	if err != nil {
 		return nil, err
 	}
@@ -201,7 +200,6 @@ func (c *client) CreateEngine(ctx context.Context, name string) (Engine, error) 
 		}).
 		Refresh(refresh.Waitfor).
 		Do(ctx)
-
 	if err != nil {
 		if isElasticAlreadyExistsError(err) {
 			return nil, errorx.AlreadyExistsErrorf("engine '%s' already exists", name)
@@ -219,7 +217,6 @@ func (c *client) ensureConnection(ctx context.Context) error {
 
 	return backoff.Retry(func() error {
 		ok, err := c.es.Ping().Do(ctx)
-
 		if err != nil {
 			return err
 		}

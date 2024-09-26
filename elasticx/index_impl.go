@@ -65,7 +65,6 @@ func (i *index) DocumentExists(ctx context.Context, id string) (bool, error) {
 
 func (i *index) ReadDocument(ctx context.Context, id string, result interface{}) (*DocumentMeta, error) {
 	res, err := i.es.Get(i.indexName().String(), id).Do(ctx)
-
 	if err != nil {
 		if isElasticNotFoundError(err) {
 			return nil, errorx.NotFoundErrorf("document with key '%s' does not exist", id)

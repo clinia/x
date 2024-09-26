@@ -20,7 +20,7 @@ func TestKoanfFile(t *testing.T) {
 	setupFile := func(t *testing.T, fn, fc, subKey string) (*KoanfFile, context.CancelFunc) {
 		dir := t.TempDir()
 		fn = filepath.Join(dir, fn)
-		require.NoError(t, os.WriteFile(fn, []byte(fc), 0600))
+		require.NoError(t, os.WriteFile(fn, []byte(fc), 0o600))
 
 		ctx, cancel := context.WithCancel(context.Background())
 		kf, err := NewKoanfFileSubKey(ctx, fn, subKey)

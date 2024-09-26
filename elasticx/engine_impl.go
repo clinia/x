@@ -56,7 +56,6 @@ func (e *engine) Name() string {
 // Info fetches the information about the engine.
 func (e *engine) Info(ctx context.Context) (*EngineInfo, error) {
 	res, err := e.es.Get(enginesIndexName, e.name).Do(ctx)
-
 	if err != nil {
 		return nil, err
 	}

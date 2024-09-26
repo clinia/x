@@ -139,7 +139,8 @@ func TestAdvancedConfigs(t *testing.T) {
 			configs: []string{"stub/multi/a.yaml", "stub/multi/b.yaml"},
 			isValid: true, envs: [][2]string{
 				{"DSN", "sqlite:///var/lib/sqlite/db.sqlite?_fk=true"},
-			}},
+			},
+		},
 		{
 			stub:    "from-files",
 			isValid: true, envs: [][2]string{
