@@ -116,5 +116,5 @@ func (p *PubSub) Subscriber(group string, topics []messagex.Topic, opts ...pubsu
 
 // AdminClient implements pubsubx.PubSub.
 func (p *PubSub) AdminClient() pubsubx.PubSubAdminClient {
-	panic("unimplemented")
+	return p.admClient
 }
