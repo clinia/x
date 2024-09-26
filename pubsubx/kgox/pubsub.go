@@ -9,6 +9,7 @@ import (
 	"github.com/clinia/x/errorx"
 	"github.com/clinia/x/logrusx"
 	"github.com/clinia/x/pubsubx/messagex"
+	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/plugin/kotel"
 )
@@ -17,14 +18,16 @@ type PubSub struct {
 	conf         *pubsubx.Config
 	kotelService *kotel.Kotel
 	writeClient  *kgo.Client
+	admClient    pubsubx.PubSubAdminClient
 	l            *logrusx.Logger
 
 	mu        sync.RWMutex
 	consumers map[messagex.ConsumerGroup]*consumer
 }
 
+var _ pubsubx.PubSub = (*PubSub)(nil)
+
 func NewPubSub(l *logrusx.Logger, config *pubsubx.Config, opts *pubsubx.PubSubOptions) (*PubSub, error) {
-	// TODO: Use propagator to inject trace context
 	if l == nil {
 		return nil, errorx.FailedPreconditionErrorf("logger is required")
 	}
@@ -39,9 +42,11 @@ func NewPubSub(l *logrusx.Logger, config *pubsubx.Config, opts *pubsubx.PubSubOp
 
 	// Setup kotel
 	var kotelService *kotel.Kotel
+	var defaultCreateTopicConfigEntries map[string]*string
 	if opts != nil {
 		kotelService = newKotel(opts.TracerProvider, opts.Propagator, opts.MeterProvider)
 		kopts = append(kopts, kgo.WithHooks(kotelService.Hooks()...))
+		defaultCreateTopicConfigEntries = opts.DefaultCreateTopicConfigEntries
 	}
 
 	wc, err := kgo.NewClient(kopts...)
@@ -49,11 +54,14 @@ func NewPubSub(l *logrusx.Logger, config *pubsubx.Config, opts *pubsubx.PubSubOp
 		return nil, errorx.InternalErrorf("failed to create kafka client: %v", err)
 	}
 
+	admClient := NewPubSubAdminClient(kadm.NewClient(wc), defaultCreateTopicConfigEntries)
+
 	return &PubSub{
 		l:            l,
 		conf:         config,
 		kotelService: kotelService,
 		writeClient:  wc,
+		admClient:    admClient,
 		consumers:    make(map[messagex.ConsumerGroup]*consumer),
 	}, nil
 }
@@ -104,4 +112,9 @@ func (p *PubSub) Subscriber(group string, topics []messagex.Topic, opts ...pubsu
 
 	p.consumers[messagex.ConsumerGroup(group)] = cs
 	return cs, nil
+}
+
+// AdminClient implements pubsubx.PubSub.
+func (p *PubSub) AdminClient() pubsubx.PubSubAdminClient {
+	panic("unimplemented")
 }

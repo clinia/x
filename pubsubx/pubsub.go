@@ -15,6 +15,9 @@ type PubSub interface {
 	// A subscriber should define ALL the topics it wants to subscribe to.
 	Subscriber(group string, topics []messagex.Topic, opts ...SubscriberOption) (Subscriber, error)
 
+	// PubSubAdminClient returns a PubSubAdminClient instance for managing topics and configurations.
+	AdminClient() PubSubAdminClient
+
 	// Close closes all publishers and subscribers associated with the PubSub instance.
 	// It returns an error if any.
 	Close() error
