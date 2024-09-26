@@ -54,9 +54,9 @@ func (n *NoopAdminClient) DeleteTopic(ctx context.Context, topic string) (kadm.D
 	}, nil
 }
 
-// DescribeTopicConfigs implements pubsubx.PubSubAdminClient.
-func (n *NoopAdminClient) DescribeTopicConfigs(ctx context.Context, topics ...string) (kadm.ResourceConfigs, error) {
-	return kadm.ResourceConfigs{}, nil
+// HealthCheck implements pubsubx.PubSubAdminClient.
+func (n *NoopAdminClient) HealthCheck(ctx context.Context) error {
+	return nil
 }
 
 // ListTopics implements pubsubx.PubSubAdminClient.
