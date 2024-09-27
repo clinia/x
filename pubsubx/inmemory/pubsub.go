@@ -126,5 +126,9 @@ func (m *memorySubscriber) Subscribe(ctx context.Context, topicHandlers pubsubx.
 
 // AdminClient implements PubSub.
 func (m *memoryPubSub) AdminClient() pubsubx.PubSubAdminClient {
+	if m.admClient == nil {
+		m.admClient = NewNoopAdminClient()
+	}
+
 	return m.admClient
 }
