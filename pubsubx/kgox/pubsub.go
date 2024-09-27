@@ -15,11 +15,12 @@ import (
 )
 
 type PubSub struct {
-	conf         *pubsubx.Config
-	kotelService *kotel.Kotel
-	writeClient  *kgo.Client
-	admClient    pubsubx.PubSubAdminClient
-	l            *logrusx.Logger
+	conf                            *pubsubx.Config
+	kopts                           []kgo.Opt
+	defaultCreateTopicConfigEntries map[string]*string
+	kotelService                    *kotel.Kotel
+	writeClient                     *kgo.Client
+	l                               *logrusx.Logger
 
 	mu        sync.RWMutex
 	consumers map[messagex.ConsumerGroup]*consumer
@@ -54,15 +55,14 @@ func NewPubSub(l *logrusx.Logger, config *pubsubx.Config, opts *pubsubx.PubSubOp
 		return nil, errorx.InternalErrorf("failed to create kafka client: %v", err)
 	}
 
-	admClient := NewPubSubAdminClient(kadm.NewClient(wc), defaultCreateTopicConfigEntries)
-
 	return &PubSub{
-		l:            l,
-		conf:         config,
-		kotelService: kotelService,
-		writeClient:  wc,
-		admClient:    admClient,
-		consumers:    make(map[messagex.ConsumerGroup]*consumer),
+		l:                               l,
+		conf:                            config,
+		kotelService:                    kotelService,
+		kopts:                           kopts,
+		defaultCreateTopicConfigEntries: defaultCreateTopicConfigEntries,
+		writeClient:                     wc,
+		consumers:                       make(map[messagex.ConsumerGroup]*consumer),
 	}, nil
 }
 
@@ -115,6 +115,12 @@ func (p *PubSub) Subscriber(group string, topics []messagex.Topic, opts ...pubsu
 }
 
 // AdminClient implements pubsubx.PubSub.
-func (p *PubSub) AdminClient() pubsubx.PubSubAdminClient {
-	return p.admClient
+func (p *PubSub) AdminClient() (pubsubx.PubSubAdminClient, error) {
+	wc, err := kgo.NewClient(p.kopts...)
+	if err != nil {
+		return nil, errorx.InternalErrorf("failed to create kafka client: %v", err)
+	}
+
+	admClient := NewPubSubAdminClient(kadm.NewClient(wc), p.defaultCreateTopicConfigEntries)
+	return admClient, nil
 }

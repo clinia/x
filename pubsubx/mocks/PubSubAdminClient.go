@@ -82,41 +82,22 @@ func (_m *PubSubAdminClient) DeleteTopic(ctx context.Context, topic string) (kad
 	return r0, r1
 }
 
-// DescribeTopicConfigs provides a mock function with given fields: ctx, topics
-func (_m *PubSubAdminClient) DescribeTopicConfigs(ctx context.Context, topics ...string) (kadm.ResourceConfigs, error) {
-	_va := make([]interface{}, len(topics))
-	for _i := range topics {
-		_va[_i] = topics[_i]
-	}
-	var _ca []interface{}
-	_ca = append(_ca, ctx)
-	_ca = append(_ca, _va...)
-	ret := _m.Called(_ca...)
+// HealthCheck provides a mock function with given fields: ctx
+func (_m *PubSubAdminClient) HealthCheck(ctx context.Context) error {
+	ret := _m.Called(ctx)
 
 	if len(ret) == 0 {
-		panic("no return value specified for DescribeTopicConfigs")
+		panic("no return value specified for HealthCheck")
 	}
 
-	var r0 kadm.ResourceConfigs
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, ...string) (kadm.ResourceConfigs, error)); ok {
-		return rf(ctx, topics...)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, ...string) kadm.ResourceConfigs); ok {
-		r0 = rf(ctx, topics...)
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context) error); ok {
+		r0 = rf(ctx)
 	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(kadm.ResourceConfigs)
-		}
+		r0 = ret.Error(0)
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, ...string) error); ok {
-		r1 = rf(ctx, topics...)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
+	return r0
 }
 
 // ListTopics provides a mock function with given fields: ctx, topics

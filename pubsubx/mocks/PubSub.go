@@ -15,7 +15,7 @@ type PubSub struct {
 }
 
 // AdminClient provides a mock function with given fields:
-func (_m *PubSub) AdminClient() pubsubx.PubSubAdminClient {
+func (_m *PubSub) AdminClient() (pubsubx.PubSubAdminClient, error) {
 	ret := _m.Called()
 
 	if len(ret) == 0 {
@@ -23,6 +23,10 @@ func (_m *PubSub) AdminClient() pubsubx.PubSubAdminClient {
 	}
 
 	var r0 pubsubx.PubSubAdminClient
+	var r1 error
+	if rf, ok := ret.Get(0).(func() (pubsubx.PubSubAdminClient, error)); ok {
+		return rf()
+	}
 	if rf, ok := ret.Get(0).(func() pubsubx.PubSubAdminClient); ok {
 		r0 = rf()
 	} else {
@@ -31,7 +35,13 @@ func (_m *PubSub) AdminClient() pubsubx.PubSubAdminClient {
 		}
 	}
 
-	return r0
+	if rf, ok := ret.Get(1).(func() error); ok {
+		r1 = rf()
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
 }
 
 // Close provides a mock function with given fields:

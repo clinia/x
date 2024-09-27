@@ -16,7 +16,8 @@ type PubSub interface {
 	Subscriber(group string, topics []messagex.Topic, opts ...SubscriberOption) (Subscriber, error)
 
 	// PubSubAdminClient returns a PubSubAdminClient instance for managing topics and configurations.
-	AdminClient() PubSubAdminClient
+	// A new client is always returned on each call. Caller is responsible for closing the client.
+	AdminClient() (PubSubAdminClient, error)
 
 	// Close closes all publishers and subscribers associated with the PubSub instance.
 	// It returns an error if any.

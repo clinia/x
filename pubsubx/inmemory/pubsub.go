@@ -16,7 +16,6 @@ type (
 		scope       string
 		mu          sync.RWMutex
 		subscribers []*memorySubscriber
-		admClient   pubsubx.PubSubAdminClient
 	}
 	memorySubscriber struct {
 		m             *memoryPubSub
@@ -125,10 +124,6 @@ func (m *memorySubscriber) Subscribe(ctx context.Context, topicHandlers pubsubx.
 }
 
 // AdminClient implements PubSub.
-func (m *memoryPubSub) AdminClient() pubsubx.PubSubAdminClient {
-	if m.admClient == nil {
-		m.admClient = NewNoopAdminClient()
-	}
-
-	return m.admClient
+func (m *memoryPubSub) AdminClient() (pubsubx.PubSubAdminClient, error) {
+	return NewNoopAdminClient(), nil
 }
