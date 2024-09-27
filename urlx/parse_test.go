@@ -15,7 +15,7 @@ func TestParseURL(t *testing.T) {
 		expectedPath string
 		expectedStr  string
 	}
-	var testURLs = []testData{
+	testURLs := []testData{
 		{"File:///home/test/file1.txt", "/home/test/file1.txt", "file:///home/test/file1.txt"},
 		{"fIle:/home/test/file2.txt", "/home/test/file2.txt", "file:///home/test/file2.txt"},
 		{"fiLe:///../test/update/file3.txt", "/../test/update/file3.txt", "file:///../test/update/file3.txt"},

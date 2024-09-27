@@ -44,6 +44,20 @@ jobs:
           check-latest: true
           cache: true
       
+      - name: Install gofumpt
+        run: make install
+
+      - name: Check format
+        run: |
+          format_output=$(gofumpt -l .)
+          if [ "$format_output" = "" ]; then
+            echo "✅ All files are formatted correctly."
+            exit 0
+          else
+            echo "::error::The following files are not formatted correctly: $format_output"
+            exit 1
+          fi
+
       - name: Lint
         uses: golangci/golangci-lint-action@v6
         with:

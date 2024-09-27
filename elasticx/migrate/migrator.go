@@ -171,7 +171,6 @@ func (m *Migrator) Version(ctx context.Context) (migrationVersionInfo, error) {
 			},
 		},
 	}, []string{m.migrationsIndex})
-
 	if err != nil {
 		return migrationVersionInfo{
 			Version:     0,

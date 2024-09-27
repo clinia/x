@@ -110,7 +110,6 @@ func TestMigration(t *testing.T) {
 				},
 			},
 		})
-
 	})
 
 	t.Run("should not be able to create a migration with the same version directly in the database", func(t *testing.T) {

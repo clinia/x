@@ -3,6 +3,7 @@ package autosetup
 import (
 	"github.com/clinia/x/logrusx"
 	"github.com/clinia/x/pubsubx"
+	inmemorypubsub "github.com/clinia/x/pubsubx/inmemory"
 	"github.com/clinia/x/pubsubx/kgox"
 	"github.com/clinia/x/stringsx"
 )
@@ -22,7 +23,7 @@ func setup(l *logrusx.Logger, c *pubsubx.Config, opts *pubsubx.PubSubOptions) (p
 		return kgox.NewPubSub(l, c, opts)
 
 	case f.AddCase("inmemory"):
-		ps, err := pubsubx.SetupInMemoryPubSub(l, c)
+		ps, err := inmemorypubsub.SetupInMemoryPubSub(l, c)
 		if err != nil {
 			return nil, err
 		}

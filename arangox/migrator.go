@@ -101,7 +101,6 @@ func (m *Migrator) createCollectionIfNotExist(ctx context.Context, name string) 
 	_, _, err = col.EnsurePersistentIndex(ctx, []string{"version", "package"}, &arangoDriver.EnsurePersistentIndexOptions{
 		Unique: true,
 	})
-
 	if err != nil {
 		return err
 	}

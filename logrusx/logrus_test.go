@@ -10,7 +10,6 @@ import (
 )
 
 func TestSensitiveValues(t *testing.T) {
-
 	t.Run("should leak sensitive values when explicitly set", func(t *testing.T) {
 		var buf bytes.Buffer
 		redacted := "REDACTED"
@@ -71,5 +70,4 @@ func TestSensitiveValues(t *testing.T) {
 		assert.Equal(t, strings.Count(output, redacted), 5, "all so far sensitive headers should be redacted")
 		assert.NotContains(t, output, sensitiveValue, "should not show sensitive values")
 	})
-
 }

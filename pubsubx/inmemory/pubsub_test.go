@@ -1,9 +1,10 @@
-package pubsubx
+package inmemorypubsub
 
 import (
 	"context"
 	"testing"
 
+	"github.com/clinia/x/pubsubx"
 	"github.com/clinia/x/pubsubx/messagex"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -19,7 +20,7 @@ func TestSubscriber(t *testing.T) {
 		require.NoError(t, err)
 
 		seen1 := make(chan []*messagex.Message, 10)
-		handlers1 := Handlers{
+		handlers1 := pubsubx.Handlers{
 			"topic1": func(ctx context.Context, messages []*messagex.Message) ([]error, error) {
 				seen1 <- messages
 				return make([]error, len(messages)), nil
@@ -30,7 +31,7 @@ func TestSubscriber(t *testing.T) {
 
 		seen2Topic1 := make(chan []*messagex.Message, 10)
 		seen2Topic2 := make(chan []*messagex.Message, 10)
-		handlers2 := Handlers{
+		handlers2 := pubsubx.Handlers{
 			"topic1": func(ctx context.Context, messages []*messagex.Message) ([]error, error) {
 				seen2Topic1 <- messages
 				return make([]error, len(messages)), nil

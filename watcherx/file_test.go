@@ -216,7 +216,7 @@ func TestFileWatcher(t *testing.T) {
 
 		fn := filepath.Join(dir, "example.file")
 		initialContent := "initial content"
-		require.NoError(t, ioutil.WriteFile(fn, []byte(initialContent), 0600))
+		require.NoError(t, ioutil.WriteFile(fn, []byte(initialContent), 0o600))
 
 		d, err := WatchFile(ctx, fn, c)
 		require.NoError(t, err)

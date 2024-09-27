@@ -61,6 +61,7 @@ const TracerConfigSchemaID = "clinia://tracer-config"
 // The interface is specified instead of `jsonschema.Compiler` to allow the use of any jsonschema library fork or version.
 func AddTracerConfigSchema(c interface {
 	AddResource(url string, r io.Reader) error
-}) error {
+},
+) error {
 	return c.AddResource(TracerConfigSchemaID, bytes.NewBufferString(TracerConfigSchema))
 }

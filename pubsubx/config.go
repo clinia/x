@@ -29,9 +29,10 @@ type KafkaConfig struct {
 }
 
 type PubSubOptions struct {
-	TracerProvider trace.TracerProvider
-	Propagator     propagation.TextMapPropagator
-	MeterProvider  metric.MeterProvider
+	TracerProvider                  trace.TracerProvider
+	Propagator                      propagation.TextMapPropagator
+	MeterProvider                   metric.MeterProvider
+	DefaultCreateTopicConfigEntries map[string]*string
 }
 
 type PubSubOption func(*PubSubOptions)
@@ -59,6 +60,12 @@ func WithMeterProvider(provider metric.MeterProvider) PubSubOption {
 		if provider != nil {
 			opts.MeterProvider = provider
 		}
+	}
+}
+
+func WithDefaultCreateTopicConfigEntries(entries map[string]*string) PubSubOption {
+	return func(opts *PubSubOptions) {
+		opts.DefaultCreateTopicConfigEntries = entries
 	}
 }
 

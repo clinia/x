@@ -38,6 +38,7 @@ const MeterConfigSchemaID = "clinia://meter-config"
 // The interface is specified instead of `jsonschema.Compiler` to allow the use of any jsonschema library fork or version.
 func AddMeterConfigSchema(c interface {
 	AddResource(url string, r io.Reader) error
-}) error {
+},
+) error {
 	return c.AddResource(MeterConfigSchemaID, bytes.NewBufferString(MeterConfigSchema))
 }

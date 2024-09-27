@@ -8,7 +8,6 @@ import (
 )
 
 func TestRandom(t *testing.T) {
-
 	for k, tc := range []struct {
 		length int
 	}{

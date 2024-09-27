@@ -54,7 +54,6 @@ func ElementsMatch(t assert.TestingT, listA, listB interface{}, opts ...cmp.Opti
 
 // isEmpty gets whether the specified object is considered empty or not.
 func isEmpty(object interface{}) bool {
-
 	// get nil case out of the way
 	if object == nil {
 		return true

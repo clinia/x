@@ -50,7 +50,8 @@ var defaultSensitiveHeaders = []string{
 // The interface is specified instead of `jsonschema.Compiler` to allow the use of any jsonschema library fork or version.
 func AddConfigSchema(c interface {
 	AddResource(url string, r io.Reader) error
-}) error {
+},
+) error {
 	return c.AddResource(ConfigSchemaID, bytes.NewBufferString(ConfigSchema))
 }
 
@@ -221,7 +222,8 @@ func New(name string, version string, opts ...Option) *Logger {
 		sensitiveHeadersLowered: o.sensitiveHeadersLowered,
 		redactionText:           stringsx.DefaultIfEmpty(o.redactionText, `Value is sensitive and has been redacted. To see the value set config key "log.leak_sensitive_values = true" or environment variable "LOG_LEAK_SENSITIVE_VALUES=true".`),
 		Entry: newLogger(o.l, o).WithFields(logrus.Fields{
-			"audience": "application", "service_name": name, "service_version": version}),
+			"audience": "application", "service_name": name, "service_version": version,
+		}),
 	}
 }
 
@@ -237,7 +239,7 @@ func (l *Logger) UseConfig(c configurator) {
 	setFormatter(l.Entry.Logger, o)
 
 	if c.String("log.write_to_file") != "" {
-		logFile, err := os.OpenFile(c.String("log.write_to_file"), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
+		logFile, err := os.OpenFile(c.String("log.write_to_file"), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
 		if err != nil {
 			l.WithError(err).Errorf("unable to open file '%s'", c.String("log.write_to_file"))
 		} else {

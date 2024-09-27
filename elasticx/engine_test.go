@@ -404,7 +404,6 @@ func TestEngineQueries(t *testing.T) {
 				cmpopts.IgnoreFields(types.Hit{}, "Id_", "Index_", "Score_"),
 			)
 		}
-
 	})
 
 	t.Cleanup(func() {

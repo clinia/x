@@ -8,7 +8,6 @@ import (
 )
 
 func TestSingleLine(t *testing.T) {
-
 	for k, tc := range []struct {
 		value    string
 		expected string

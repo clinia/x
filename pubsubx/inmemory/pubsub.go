@@ -1,4 +1,4 @@
-package pubsubx
+package inmemorypubsub
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 
 	"github.com/clinia/x/errorx"
 	"github.com/clinia/x/logrusx"
+	"github.com/clinia/x/pubsubx"
 	"github.com/clinia/x/pubsubx/messagex"
 	"github.com/samber/lo"
 )
@@ -19,18 +20,18 @@ type (
 	memorySubscriber struct {
 		m             *memoryPubSub
 		topics        []messagex.Topic
-		topicHandlers Handlers
+		topicHandlers pubsubx.Handlers
 		closeFn       func() error
 	}
 )
 
 var (
-	_ PubSub     = (*memoryPubSub)(nil)
-	_ Publisher  = (*memoryPubSub)(nil)
-	_ Subscriber = (*memorySubscriber)(nil)
+	_ pubsubx.PubSub     = (*memoryPubSub)(nil)
+	_ pubsubx.Publisher  = (*memoryPubSub)(nil)
+	_ pubsubx.Subscriber = (*memorySubscriber)(nil)
 )
 
-func SetupInMemoryPubSub(l *logrusx.Logger, c *Config) (*memoryPubSub, error) {
+func SetupInMemoryPubSub(l *logrusx.Logger, c *pubsubx.Config) (*memoryPubSub, error) {
 	return &memoryPubSub{
 		scope:       c.Scope,
 		subscribers: make([]*memorySubscriber, 0),
@@ -49,7 +50,7 @@ func (m *memoryPubSub) PublishAsync(ctx context.Context, topic messagex.Topic, m
 }
 
 // PublishSync implements Publisher.
-func (m *memoryPubSub) PublishSync(ctx context.Context, topic messagex.Topic, messages ...*messagex.Message) (Errors, error) {
+func (m *memoryPubSub) PublishSync(ctx context.Context, topic messagex.Topic, messages ...*messagex.Message) (pubsubx.Errors, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -61,17 +62,17 @@ func (m *memoryPubSub) PublishSync(ctx context.Context, topic messagex.Topic, me
 		}
 	}
 
-	errs := make(Errors, len(messages))
+	errs := make(pubsubx.Errors, len(messages))
 	return errs, nil
 }
 
 // Publisher implements PubSub.
-func (m *memoryPubSub) Publisher() Publisher {
+func (m *memoryPubSub) Publisher() pubsubx.Publisher {
 	return m
 }
 
 // Subscriber implements PubSub.
-func (m *memoryPubSub) Subscriber(group string, topics []messagex.Topic, opts ...SubscriberOption) (Subscriber, error) {
+func (m *memoryPubSub) Subscriber(group string, topics []messagex.Topic, opts ...pubsubx.SubscriberOption) (pubsubx.Subscriber, error) {
 	var out *memorySubscriber
 	out = &memorySubscriber{
 		m:      m,
@@ -105,7 +106,7 @@ func (m *memorySubscriber) Close() error {
 }
 
 // Subscribe implements Subscriber.
-func (m *memorySubscriber) Subscribe(ctx context.Context, topicHandlers Handlers) error {
+func (m *memorySubscriber) Subscribe(ctx context.Context, topicHandlers pubsubx.Handlers) error {
 	m.m.mu.Lock()
 	defer m.m.mu.Unlock()
 	for _, topic := range m.topics {
@@ -120,4 +121,9 @@ func (m *memorySubscriber) Subscribe(ctx context.Context, topicHandlers Handlers
 	m.topicHandlers = topicHandlers
 
 	return nil
+}
+
+// AdminClient implements PubSub.
+func (m *memoryPubSub) AdminClient() (pubsubx.PubSubAdminClient, error) {
+	return NewNoopAdminClient(), nil
 }
