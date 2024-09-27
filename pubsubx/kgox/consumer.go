@@ -3,7 +3,6 @@ package kgox
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 
@@ -141,13 +140,13 @@ func (c *consumer) start(ctx context.Context) {
 			l := c.l.WithFields(
 				logrusx.NewLogFields(c.attributes(nil)...),
 			)
-			if errs[0].Err == context.Canceled {
+			if lo.SomeBy(errs, func(err kgo.FetchError) bool { return errs[0].Err == context.Canceled }) {
 				l.Infof("context canceled, stopping consumer")
 				return
 			}
 
-			l.WithError(errs[0].Err).Error("error while polling records")
-			panic(fmt.Sprintf("unexpected error: %v", errs[0].Err))
+			l.WithError(errors.Join(lo.Map(errs, func(err kgo.FetchError, i int) error { return err.Err })...)).Error("error while polling records, Stopping consumer")
+			return
 		}
 
 		fetches.EachTopic(func(tp kgo.FetchTopic) {
@@ -177,7 +176,6 @@ func (c *consumer) start(ctx context.Context) {
 				defer func() {
 					if r := recover(); r != nil {
 						l.Errorf("panic while handling messages: %v", r)
-						// TODO: this should either be retried, or if it continues failing we should have a way to signal that the consumer is not healthy
 						outErr = errorx.InternalErrorf("panic while handling messages")
 					}
 				}()
