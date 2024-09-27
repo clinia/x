@@ -127,3 +127,8 @@ func (m *memorySubscriber) Subscribe(ctx context.Context, topicHandlers pubsubx.
 func (m *memoryPubSub) AdminClient() (pubsubx.PubSubAdminClient, error) {
 	return NewNoopAdminClient(), nil
 }
+
+// Health implements pubsubx.Subscriber.
+func (m *memorySubscriber) Health() error {
+	return nil
+}
