@@ -2,7 +2,7 @@
 test:
 	go test `go list ./... | grep -v pubsubx/kgox`
 
-.PHONE: test_kafka
+.PHONY: test_kafka
 test_kafka:
 	go test -v ./pubsubx/kgox/...
 
