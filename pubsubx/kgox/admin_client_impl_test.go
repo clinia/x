@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/clinia/x/pointerx"
 	"github.com/samber/lo"
 	"github.com/segmentio/ksuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kgo"
@@ -67,12 +69,15 @@ func TestKadminClient_CreateTopic(t *testing.T) {
 		})
 
 		// Check if the topic exists
-		rConfigs, err := kadmCl.DescribeTopicConfigs(ctx, topic)
-		require.NoError(t, err)
-		require.Len(t, rConfigs, 1)
-		require.True(t, lo.ContainsBy(rConfigs[0].Configs, func(c kadm.Config) bool {
-			return c.Key == "max.message.bytes" && c.Value != nil && *c.Value == maxBytes
-		}), "expected max.message.bytes to be %s, but config entries are %v", maxBytes, rConfigs[0].Configs)
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			rConfigs, err := kadmCl.DescribeTopicConfigs(ctx, topic)
+			assert.NoError(t, err)
+			assert.Len(t, rConfigs, 1)
+			assert.NoError(t, rConfigs[0].Err)
+			assert.True(t, lo.ContainsBy(rConfigs[0].Configs, func(c kadm.Config) bool {
+				return c.Key == "max.message.bytes" && c.Value != nil && *c.Value == maxBytes
+			}), "expected max.message.bytes to be %s, but config entries are %v", maxBytes, rConfigs[0].Configs)
+		}, 3*time.Second, 100*time.Millisecond)
 	})
 
 	t.Run("should create a topic with specific configs and overrides", func(t *testing.T) {
@@ -94,12 +99,15 @@ func TestKadminClient_CreateTopic(t *testing.T) {
 		})
 
 		// Check if the topic exists
-		rConfigs, err := kadmCl.DescribeTopicConfigs(ctx, topic)
-		require.NoError(t, err)
-		require.Len(t, rConfigs, 1)
-		require.True(t, lo.ContainsBy(rConfigs[0].Configs, func(c kadm.Config) bool {
-			return c.Key == "max.message.bytes" && c.Value != nil && *c.Value == maxBytesOneMB
-		}))
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			rConfigs, err := kadmCl.DescribeTopicConfigs(ctx, topic)
+			assert.NoError(t, err)
+			assert.Len(t, rConfigs, 1)
+			assert.NoError(t, rConfigs[0].Err)
+			assert.True(t, lo.ContainsBy(rConfigs[0].Configs, func(c kadm.Config) bool {
+				return c.Key == "max.message.bytes" && c.Value != nil && *c.Value == maxBytesOneMB
+			}), "expected max.message.bytes to be %s, but config entries are %v", maxBytes, rConfigs[0].Configs)
+		}, 3*time.Second, 100*time.Millisecond)
 	})
 
 	t.Run("should DescribeTopicConfigs", func(t *testing.T) {
