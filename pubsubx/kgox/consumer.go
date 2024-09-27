@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 
+	"github.com/cenkalti/backoff"
 	"github.com/clinia/x/errorx"
 	"github.com/clinia/x/logrusx"
 	"github.com/clinia/x/pubsubx"
@@ -34,6 +36,8 @@ type consumer struct {
 }
 
 var _ pubsubx.Subscriber = (*consumer)(nil)
+
+const maxRetryCount = 3
 
 func newConsumer(l *logrusx.Logger, kotelService *kotel.Kotel, config *pubsubx.Config, group string, topics []messagex.Topic, opts *pubsubx.SubscriberOptions) (*consumer, error) {
 	if l == nil {
@@ -118,6 +122,9 @@ func (c *consumer) Close() error {
 }
 
 func (c *consumer) start(ctx context.Context) {
+	bc := backoff.NewExponentialBackOff()
+	bc.MaxElapsedTime = time.Second * 5
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -176,21 +183,48 @@ func (c *consumer) start(ctx context.Context) {
 				}()
 				return topicHandler(ctx, msgs)
 			}
-			errs, err := wrappedHandler(ctx, allMsgs)
-			if err != nil {
-				l.WithError(err).Errorln("error while handling messages")
-				// TODO: if this is a critical error, we should return close the consumer
-				// TODO: Check if this is a critical error. If it is not critical, we need to resend the messages right away
-				return
-			}
 
-			if len(errs) > 0 {
-				allErrs := errors.Join(errs...)
-				if allErrs != nil {
-					l.WithError(allErrs).Errorln("errors while handling messages")
+			bc.Reset()
+			retries := 0
+			err := backoff.Retry(func() error {
+				errs, err := wrappedHandler(ctx, allMsgs)
+				if err != nil {
+					if err == pubsubx.AbortSubscribeError() {
+						return backoff.Permanent(err)
+					}
+
+					retries++
+					if retries > maxRetryCount {
+						return backoff.Permanent(err)
+					}
+
+					return err
 				}
 
-				// TODO: retry logic
+				if len(errs) > 0 {
+					allErrs := errors.Join(errs...)
+					if allErrs != nil {
+						l.WithError(allErrs).Errorln("errors while handling messages")
+					}
+
+					// TODO: retry logic (resend to the same topic with a retry count per-event)
+				}
+
+				return nil
+			}, bc)
+
+			if err == pubsubx.AbortSubscribeError() {
+				l.Infof("aborting consumer")
+				c.mu.RLock()
+				defer c.mu.RUnlock()
+				if c.cancel != nil {
+					c.cancel()
+					l.Infof("cancelled consumer")
+				} else {
+					l.Warnln("abort requested but no cancel function found")
+				}
+
+				return
 			}
 		})
 	}
@@ -233,6 +267,10 @@ func (c *consumer) Subscribe(ctx context.Context, topicHandlers pubsubx.Handlers
 	c.wg.Add(1)
 	go func() {
 		defer func() {
+			if r := recover(); r != nil {
+				c.l.Errorf("panic while consuming messages: %v", r)
+			}
+
 			// Teardown
 			c.mu.Lock()
 			c.cancel = nil
