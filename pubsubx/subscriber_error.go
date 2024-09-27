@@ -11,10 +11,8 @@ func (e *SubscriberError) Error() string {
 	return e.Message
 }
 
-var (
-	// This error should be returned when the handler wishes to abort the subscription.
-	abortSubscribeError = &SubscriberError{Message: "abort subscription", Retryable: false}
-)
+// This error should be returned when the handler wishes to abort the subscription.
+var abortSubscribeError = &SubscriberError{Message: "abort subscription", Retryable: false}
 
 func AbortSubscribeError() *SubscriberError {
 	return abortSubscribeError
