@@ -72,7 +72,7 @@ func TestKadminClient_CreateTopic(t *testing.T) {
 		require.Len(t, rConfigs, 1)
 		require.True(t, lo.ContainsBy(rConfigs[0].Configs, func(c kadm.Config) bool {
 			return c.Key == "max.message.bytes" && c.Value != nil && *c.Value == maxBytes
-		}))
+		}), "expected max.message.bytes to be %s, but config entries are %v", maxBytes, rConfigs[0].Configs)
 	})
 
 	t.Run("should create a topic with specific configs and overrides", func(t *testing.T) {
