@@ -32,6 +32,24 @@ func (_m *Subscriber) Close() error {
 	return r0
 }
 
+// Health provides a mock function with given fields:
+func (_m *Subscriber) Health() error {
+	ret := _m.Called()
+
+	if len(ret) == 0 {
+		panic("no return value specified for Health")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func() error); ok {
+		r0 = rf()
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // Subscribe provides a mock function with given fields: ctx, topicHandlers
 func (_m *Subscriber) Subscribe(ctx context.Context, topicHandlers pubsubx.Handlers) error {
 	ret := _m.Called(ctx, topicHandlers)

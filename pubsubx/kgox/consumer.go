@@ -284,3 +284,14 @@ func (c *consumer) Subscribe(ctx context.Context, topicHandlers pubsubx.Handlers
 
 	return nil
 }
+
+// Health implements pubsubx.Subscriber.
+func (c *consumer) Health() error {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.cancel == nil {
+		return errorx.InternalErrorf("not subscribed to topics")
+	}
+
+	return nil
+}

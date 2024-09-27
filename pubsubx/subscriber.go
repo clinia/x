@@ -20,6 +20,9 @@ type Subscriber interface {
 	// It takes a context and a map of topic handlers as input.
 	// - If there are topics missing handlers, it will return an error immediately.
 	Subscribe(ctx context.Context, topicHandlers Handlers) error
+	// Health returns the health status of the subscriber.
+	// It should return an error if the subscriber is unhealthy, nil otherwise (healthy).
+	Health() error
 	// Close closes the subscriber.
 	Close() error
 }
