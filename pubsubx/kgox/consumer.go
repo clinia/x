@@ -193,9 +193,12 @@ func (c *consumer) start(ctx context.Context) {
 						return backoff.Permanent(err)
 					}
 
+					l.WithError(err).Errorln("error while handling messages")
+
 					retries++
 					if retries > maxRetryCount {
-						return backoff.Permanent(err)
+						// In this case, we should abort the subscription as this is most likely a critical error
+						return backoff.Permanent(pubsubx.AbortSubscribeError())
 					}
 
 					return err
@@ -207,7 +210,7 @@ func (c *consumer) start(ctx context.Context) {
 						l.WithError(allErrs).Errorln("errors while handling messages")
 					}
 
-					// TODO: retry logic (resend to the same topic with a retry count per-event)
+					// TODO: [ENG-1361] retry logic (resend to the same topic with a retry count per-event)
 				}
 
 				return nil
@@ -224,6 +227,7 @@ func (c *consumer) start(ctx context.Context) {
 					l.Warnln("abort requested but no cancel function found")
 				}
 
+				// TODO: [ENG-1361] resend the messages to the same topic with a retry count increased for each event
 				return
 			}
 		})
