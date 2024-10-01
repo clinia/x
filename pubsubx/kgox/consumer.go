@@ -81,6 +81,9 @@ func (c *consumer) bootstrapClient() error {
 		kgo.SeedBrokers(c.conf.Providers.Kafka.Brokers...),
 		kgo.ConsumeTopics(scopedTopics...),
 	}
+	for _, drvOpt := range c.opts.DriverOptions {
+		kopts = append(kopts, drvOpt)
+	}
 
 	if c.kotelService != nil {
 		kopts = append(kopts, kgo.WithHooks(c.kotelService.Hooks()...))

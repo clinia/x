@@ -6,6 +6,7 @@ import (
 	"io"
 	"math"
 
+	"github.com/twmb/franz-go/pkg/kgo"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
@@ -73,6 +74,8 @@ type SubscriberOptions struct {
 	// MaxBatchSize max amount of elements the batch will contain.
 	// Default value is 100 if nothing is specified.
 	MaxBatchSize uint16
+	// Optional options to pass down to the Kafka consumer.
+	DriverOptions []kgo.ConsumerOpt
 }
 
 func NewDefaultSubscriberOptions() *SubscriberOptions {
@@ -92,6 +95,12 @@ func WithMaxBatchSize(maxBatchSize int) SubscriberOption {
 			//#nosec G115 -- Remove once https://github.com/securego/gosec/issues/1187 is solved
 			o.MaxBatchSize = uint16(maxBatchSize)
 		}
+	}
+}
+
+func WithDriverOptions(opts ...kgo.ConsumerOpt) SubscriberOption {
+	return func(o *SubscriberOptions) {
+		o.DriverOptions = append(o.DriverOptions, opts...)
 	}
 }
 
