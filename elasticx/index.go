@@ -37,10 +37,9 @@ type IndexDocuments interface {
 	// otherwise a unique key is created.
 	CreateDocument(ctx context.Context, document interface{}, opts ...DocumentOption) (*DocumentMeta, error)
 
-	// ReplaceDocument replaces a single document with given key in the collection with the document given in the document argument.
+	// UpsertDocument upserts a single document with given key in the collection with the document given in the document argument.
 	// The document metadata is returned.
-	// If no document exists with given key, a NotFoundError is returned.
-	ReplaceDocument(ctx context.Context, key string, document interface{}, opts ...DocumentOption) (*DocumentMeta, error)
+	UpsertDocument(ctx context.Context, key string, document interface{}, opts ...DocumentOption) (*UpsertResponse, error)
 
 	// DeleteDocument deletes a single document with given key in the collection.
 	// No error is returned when the document is successfully deleted.

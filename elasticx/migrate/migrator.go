@@ -225,7 +225,7 @@ func (m *Migrator) setVersion(ctx context.Context, version uint, description str
 		return errorx.AlreadyExistsErrorf("migration %sversion %v already exists", pkgStr, version)
 	}
 
-	_, err = index.ReplaceDocument(ctx, id, rec, elasticx.WithRefresh(refresh.Waitfor))
+	_, err = index.UpsertDocument(ctx, id, rec, elasticx.WithRefresh(refresh.Waitfor))
 	if err != nil {
 		return err
 	}

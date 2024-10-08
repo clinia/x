@@ -112,7 +112,7 @@ func (i *index) CreateDocument(ctx context.Context, document interface{}, opts .
 	}, nil
 }
 
-func (i *index) ReplaceDocument(ctx context.Context, key string, document interface{}, opts ...DocumentOption) (*DocumentMeta, error) {
+func (i *index) UpsertDocument(ctx context.Context, key string, document interface{}, opts ...DocumentOption) (*UpsertResponse, error) {
 	options := DefaultDocumentOptions
 	for _, opt := range opts {
 		opt(options)
@@ -130,10 +130,13 @@ func (i *index) ReplaceDocument(ctx context.Context, key string, document interf
 		return nil, err
 	}
 
-	return &DocumentMeta{
-		ID:      res.Id_,
-		Index:   IndexName(res.Index_).Name(),
-		Version: res.Version_,
+	return &UpsertResponse{
+		Result: UpsertResult(res.Result.Name),
+		Meta: DocumentMeta{
+			ID:      res.Id_,
+			Index:   IndexName(res.Index_).Name(),
+			Version: res.Version_,
+		},
 	}, nil
 }
 

@@ -89,7 +89,7 @@ func TestIndexCreateDocument(t *testing.T) {
 	})
 }
 
-func TestIndexReplaceDocument(t *testing.T) {
+func TestIndexUpsertDocument(t *testing.T) {
 	t.Parallel()
 
 	f := newTestFixture(t)
@@ -109,18 +109,21 @@ func TestIndexReplaceDocument(t *testing.T) {
 	assert.NoError(t, err)
 
 	t.Run("should create a non existing document with specified id", func(t *testing.T) {
-		meta, err := index.ReplaceDocument(ctx, "1", map[string]interface{}{
+		result, err := index.UpsertDocument(ctx, "1", map[string]interface{}{
 			"foo": "bar",
 		})
 		assert.NoError(t, err)
-		assertx.Equal(t, &DocumentMeta{
-			ID:      "1",
-			Index:   "index-1",
-			Version: 1,
-		}, meta)
+		assertx.Equal(t, &UpsertResponse{
+			Result: UpsertResultCreated,
+			Meta: DocumentMeta{
+				ID:      "1",
+				Index:   "index-1",
+				Version: 1,
+			},
+		}, result)
 
 		// Assert the document exists via es
-		exists, err := f.es.Exists(NewIndexName(enginesIndexName, engine.Name(), index.Info().Name).String(), meta.ID).Do(ctx)
+		exists, err := f.es.Exists(NewIndexName(enginesIndexName, engine.Name(), index.Info().Name).String(), result.Meta.ID).Do(ctx)
 		assert.NoError(t, err)
 		assert.True(t, exists)
 	})
@@ -133,17 +136,20 @@ func TestIndexReplaceDocument(t *testing.T) {
 		assert.NoError(t, err)
 
 		// Act
-		meta, err = index.ReplaceDocument(ctx, meta.ID, map[string]interface{}{
+		result, err := index.UpsertDocument(ctx, meta.ID, map[string]interface{}{
 			"foo": "baz",
 		})
 		assert.NoError(t, err)
 
 		// Assert
-		assertx.Equal(t, &DocumentMeta{
-			ID:      meta.ID,
-			Index:   "index-1",
-			Version: 2,
-		}, meta)
+		assertx.Equal(t, &UpsertResponse{
+			Result: UpsertResultUpdated,
+			Meta: DocumentMeta{
+				ID:      meta.ID,
+				Index:   "index-1",
+				Version: 2,
+			},
+		}, result)
 
 		// Assert the document exists via es
 		doc, err := f.es.Get(NewIndexName(enginesIndexName, engine.Name(), index.Info().Name).String(), meta.ID).Do(ctx)
@@ -161,11 +167,11 @@ func TestIndexReplaceDocument(t *testing.T) {
 		assert.NoError(t, err)
 
 		// Act
-		meta, err = index.ReplaceDocument(ctx, meta.ID, map[string]interface{}{
+		response, err := index.UpsertDocument(ctx, meta.ID, map[string]interface{}{
 			"foo": "baz",
 			"baz": "qux",
 		})
-		assert.Nil(t, meta)
+		assert.Nil(t, response)
 		assert.EqualError(t, err, "[FAILED_PRECONDITION] document contains fields that are not allowed by the index mapping: [1:8] mapping set to strict, dynamic introduction of [baz] within [_doc] is not allowed")
 	})
 
