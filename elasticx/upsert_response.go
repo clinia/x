@@ -1,8 +1,8 @@
 package elasticx
 
-type UpsertResponse struct {
+type UpsertResponse[T any] struct {
 	Result UpsertResult `json:"result"`
-	Meta   DocumentMeta `json:"meta"`
+	Meta   T            `json:"meta"`
 }
 
 type UpsertResult string

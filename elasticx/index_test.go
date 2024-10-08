@@ -113,7 +113,7 @@ func TestIndexUpsertDocument(t *testing.T) {
 			"foo": "bar",
 		})
 		assert.NoError(t, err)
-		assertx.Equal(t, &UpsertResponse{
+		assertx.Equal(t, &UpsertResponse[DocumentMeta]{
 			Result: UpsertResultCreated,
 			Meta: DocumentMeta{
 				ID:      "1",
@@ -142,7 +142,7 @@ func TestIndexUpsertDocument(t *testing.T) {
 		assert.NoError(t, err)
 
 		// Assert
-		assertx.Equal(t, &UpsertResponse{
+		assertx.Equal(t, &UpsertResponse[DocumentMeta]{
 			Result: UpsertResultUpdated,
 			Meta: DocumentMeta{
 				ID:      meta.ID,

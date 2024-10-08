@@ -112,7 +112,7 @@ func (i *index) CreateDocument(ctx context.Context, document interface{}, opts .
 	}, nil
 }
 
-func (i *index) UpsertDocument(ctx context.Context, key string, document interface{}, opts ...DocumentOption) (*UpsertResponse, error) {
+func (i *index) UpsertDocument(ctx context.Context, key string, document interface{}, opts ...DocumentOption) (*UpsertResponse[DocumentMeta], error) {
 	options := DefaultDocumentOptions
 	for _, opt := range opts {
 		opt(options)
@@ -130,7 +130,7 @@ func (i *index) UpsertDocument(ctx context.Context, key string, document interfa
 		return nil, err
 	}
 
-	return &UpsertResponse{
+	return &UpsertResponse[DocumentMeta]{
 		Result: UpsertResult(res.Result.Name),
 		Meta: DocumentMeta{
 			ID:      res.Id_,
