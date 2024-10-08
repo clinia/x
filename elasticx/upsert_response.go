@@ -15,3 +15,11 @@ const (
 func (ur UpsertResult) String() string {
 	return string(ur)
 }
+
+func (ur UpsertResult) IsCreated() bool {
+	return ur == UpsertResultCreated
+}
+
+func (ur UpsertResult) IsUpdated() bool {
+	return ur == UpsertResultUpdated
+}
