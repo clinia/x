@@ -16,10 +16,10 @@ func (ur UpsertResult) String() string {
 	return string(ur)
 }
 
-func (ur UpsertResult) IsCreated() bool {
+func (ur UpsertResult) Created() bool {
 	return ur == UpsertResultCreated
 }
 
-func (ur UpsertResult) IsUpdated() bool {
+func (ur UpsertResult) Updated() bool {
 	return ur == UpsertResultUpdated
 }
