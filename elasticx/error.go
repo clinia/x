@@ -4,7 +4,7 @@ import (
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types"
 )
 
-const IndexNotFoundException = "index_not_found_exception"
+const IndexNotFoundExceptionName = "index_not_found_exception"
 
 func isElasticError(err error) (*types.ElasticsearchError, bool) {
 	eserror, ok := err.(*types.ElasticsearchError)
