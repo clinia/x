@@ -1,4 +1,4 @@
-package elasticx
+package persistencex
 
 type UpsertResponse[T any] struct {
 	Result UpsertResult `json:"result"`

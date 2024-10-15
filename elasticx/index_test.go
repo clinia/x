@@ -5,6 +5,7 @@ import (
 
 	"github.com/clinia/x/assertx"
 	"github.com/clinia/x/jsonx"
+	"github.com/clinia/x/persistencex"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/dynamicmapping"
 	"github.com/stretchr/testify/assert"
@@ -113,8 +114,8 @@ func TestIndexUpsertDocument(t *testing.T) {
 			"foo": "bar",
 		})
 		assert.NoError(t, err)
-		assertx.Equal(t, &UpsertResponse[DocumentMeta]{
-			Result: UpsertResultCreated,
+		assertx.Equal(t, &persistencex.UpsertResponse[DocumentMeta]{
+			Result: persistencex.UpsertResultCreated,
 			Meta: DocumentMeta{
 				ID:      "1",
 				Index:   "index-1",
@@ -142,8 +143,8 @@ func TestIndexUpsertDocument(t *testing.T) {
 		assert.NoError(t, err)
 
 		// Assert
-		assertx.Equal(t, &UpsertResponse[DocumentMeta]{
-			Result: UpsertResultUpdated,
+		assertx.Equal(t, &persistencex.UpsertResponse[DocumentMeta]{
+			Result: persistencex.UpsertResultUpdated,
 			Meta: DocumentMeta{
 				ID:      meta.ID,
 				Index:   "index-1",

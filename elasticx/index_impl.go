@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/clinia/x/errorx"
+	"github.com/clinia/x/persistencex"
 	"github.com/elastic/go-elasticsearch/v8"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/result"
 	"github.com/segmentio/ksuid"
@@ -112,7 +113,7 @@ func (i *index) CreateDocument(ctx context.Context, document interface{}, opts .
 	}, nil
 }
 
-func (i *index) UpsertDocument(ctx context.Context, key string, document interface{}, opts ...DocumentOption) (*UpsertResponse[DocumentMeta], error) {
+func (i *index) UpsertDocument(ctx context.Context, key string, document interface{}, opts ...DocumentOption) (*persistencex.UpsertResponse[DocumentMeta], error) {
 	options := DefaultDocumentOptions
 	for _, opt := range opts {
 		opt(options)
@@ -130,8 +131,8 @@ func (i *index) UpsertDocument(ctx context.Context, key string, document interfa
 		return nil, err
 	}
 
-	return &UpsertResponse[DocumentMeta]{
-		Result: UpsertResult(res.Result.Name),
+	return &persistencex.UpsertResponse[DocumentMeta]{
+		Result: persistencex.UpsertResult(res.Result.Name),
 		Meta: DocumentMeta{
 			ID:      res.Id_,
 			Index:   IndexName(res.Index_).Name(),
