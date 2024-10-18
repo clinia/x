@@ -173,16 +173,14 @@ func (i *index) indexName() IndexName {
 	return NewIndexName(enginesIndexName, i.engine.name, escapedName)
 }
 
-func (i *index) DeleteQueryDocuments(ctx context.Context, jsonQuery string, opts ...DocumentOption) (*DeleteQueryResponse, error) {
+func (i *index) DeleteDocumentsByQuery(ctx context.Context, query *types.Query, opts ...DocumentOption) (*DeleteQueryResponse, error) {
+	if query == nil {
+		return nil, errorx.InvalidArgumentErrorf("query cannot be nil")
+	}
+
 	options := DefaultDocumentOptions
 	for _, opt := range opts {
 		opt(options)
-	}
-
-	var query types.Query
-	err := json.Unmarshal([]byte(jsonQuery), &query)
-	if err != nil {
-		return nil, err
 	}
 
 	// This block is to simulate the behaviour of the `.Refresh` function on the other elastic search lib calls,
@@ -196,7 +194,7 @@ func (i *index) DeleteQueryDocuments(ctx context.Context, jsonQuery string, opts
 	res, err := i.es.DeleteByQuery(i.indexName().String()).
 		WaitForCompletion(options.waitForCompletion).
 		Refresh(refresh).
-		Query(&query).
+		Query(query).
 		Do(ctx)
 	if err != nil {
 		return nil, err

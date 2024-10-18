@@ -317,15 +317,14 @@ func TestIndexQueryDeleteDocuments(t *testing.T) {
 			"foo": "bar",
 		}, WithRefresh(refresh.True))
 		assert.NoError(t, err)
+		query := &types.Query{
+			Term: map[string]types.TermQuery{
+				"foo": {Value: "bar"},
+			},
+		}
 
 		// Act
-		result, err := index.DeleteQueryDocuments(ctx, `{
-		    "query": {
-		      "term": {
-		        "foo": { "value": "bar" }
-		        }
-		      }
-		    }`,
+		result, err := index.DeleteDocumentsByQuery(ctx, query,
 			WithWaitForCompletion(true),
 			WithRefresh(refresh.True),
 		)
@@ -347,6 +346,11 @@ func TestIndexQueryDeleteDocuments(t *testing.T) {
 		assert.False(t, exists)
 	})
 
+	t.Run("should fail on empty query", func(t *testing.T) {
+		_, err := index.DeleteDocumentsByQuery(ctx, nil)
+		assert.Error(t, err)
+	})
+
 	t.Run("should delete all foo key documents async", func(t *testing.T) {
 		// Prepare
 		meta1, err := index.CreateDocument(ctx, map[string]interface{}{
@@ -363,15 +367,14 @@ func TestIndexQueryDeleteDocuments(t *testing.T) {
 			"foo": "bar",
 		}, WithRefresh(refresh.True))
 		assert.NoError(t, err)
+		query := &types.Query{
+			Term: map[string]types.TermQuery{
+				"foo": {Value: "bar"},
+			},
+		}
 
 		// Act
-		result, err := index.DeleteQueryDocuments(ctx, `{
-		    "query": {
-		      "term": {
-		        "foo": { "value": "bar" }
-		        }
-		      }
-		    }`,
+		result, err := index.DeleteDocumentsByQuery(ctx, query,
 			WithWaitForCompletion(false),
 		)
 		assert.NoError(t, err)

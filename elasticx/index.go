@@ -3,6 +3,7 @@ package elasticx
 import (
 	"context"
 
+	"github.com/elastic/go-elasticsearch/v8/typedapi/types"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/refresh"
 )
 
@@ -46,11 +47,11 @@ type IndexDocuments interface {
 	// If no document exists with given key, a NotFoundError is returned.
 	DeleteDocument(ctx context.Context, key string, opts ...DocumentOption) error
 
-	// DeleteQueryDocuments deletes all documents satisfying the query.
+	// DeleteDocumentsByQuery deletes all documents satisfying the query.
 	// No error is returned when the documents are deleted
 	// If the query fails, an error is returned.
 	// The number of deleted document and the async taskId is returned.
-	DeleteQueryDocuments(ctx context.Context, jsonQuery string, opts ...DocumentOption) (*DeleteQueryResponse, error)
+	DeleteDocumentsByQuery(ctx context.Context, query *types.Query, opts ...DocumentOption) (*DeleteQueryResponse, error)
 }
 
 type IndexInfo struct {
