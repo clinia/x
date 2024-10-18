@@ -168,3 +168,7 @@ func (i *index) indexName() IndexName {
 	escapedName := pathEscape(i.name)
 	return NewIndexName(enginesIndexName, i.engine.name, escapedName)
 }
+
+func (i *index) DeleteQueryDocuments(ctx context.Context, jsonQuery string, opts ...DocumentOption) (*DeleteQueryResponse, error) {
+	return nil, nil
+}
