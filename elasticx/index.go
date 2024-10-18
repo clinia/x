@@ -3,6 +3,7 @@ package elasticx
 import (
 	"context"
 
+	"github.com/elastic/go-elasticsearch/v8/typedapi/types"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/refresh"
 )
 
@@ -45,6 +46,12 @@ type IndexDocuments interface {
 	// No error is returned when the document is successfully deleted.
 	// If no document exists with given key, a NotFoundError is returned.
 	DeleteDocument(ctx context.Context, key string, opts ...DocumentOption) error
+
+	// DeleteDocumentsByQuery deletes all documents satisfying the query.
+	// No error is returned when the documents are deleted
+	// If the query fails, an error is returned.
+	// The number of deleted document and the async taskId is returned.
+	DeleteDocumentsByQuery(ctx context.Context, query *types.Query, opts ...DocumentOption) (*DeleteQueryResponse, error)
 }
 
 type IndexInfo struct {
@@ -52,18 +59,26 @@ type IndexInfo struct {
 }
 
 type documentOptions struct {
-	refresh refresh.Refresh
+	refresh           refresh.Refresh
+	waitForCompletion bool
 }
 
 type DocumentOption func(*documentOptions)
 
 var DefaultDocumentOptions = &documentOptions{
-	refresh: refresh.False,
+	refresh:           refresh.False,
+	waitForCompletion: false,
 }
 
 // WithRefresh sets the refresh option of the document operation.
 func WithRefresh(refresh refresh.Refresh) DocumentOption {
 	return func(opts *documentOptions) {
 		opts.refresh = refresh
+	}
+}
+
+func WithWaitForCompletion(waitForCompletion bool) DocumentOption {
+	return func(opts *documentOptions) {
+		opts.waitForCompletion = waitForCompletion
 	}
 }
