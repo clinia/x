@@ -58,8 +58,8 @@ type IndexInfo struct {
 }
 
 type documentOptions struct {
-	refresh           refresh.Refresh `json:"refresh"`
-	waitForCompletion bool            `json:"waitForCompletion"`
+	refresh           refresh.Refresh
+	waitForCompletion bool
 }
 
 type DocumentOption func(*documentOptions)
