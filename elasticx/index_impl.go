@@ -3,11 +3,15 @@ package elasticx
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"strconv"
 
 	"github.com/clinia/x/errorx"
 	"github.com/elastic/go-elasticsearch/v8"
+	"github.com/elastic/go-elasticsearch/v8/typedapi/types"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/result"
+	"github.com/samber/lo"
 	"github.com/segmentio/ksuid"
 )
 
@@ -170,5 +174,56 @@ func (i *index) indexName() IndexName {
 }
 
 func (i *index) DeleteQueryDocuments(ctx context.Context, jsonQuery string, opts ...DocumentOption) (*DeleteQueryResponse, error) {
-	return nil, nil
+	options := DefaultDocumentOptions
+	for _, opt := range opts {
+		opt(options)
+	}
+
+	var query types.Query
+	err := json.Unmarshal([]byte(jsonQuery), &query)
+	if err != nil {
+		return nil, err
+	}
+
+	// This block is to simulate the behaviour of the `.Refresh` function on the other elastic search lib calls,
+	// for some reason the DeleteByQuery takes a boolean that is converted to a string, as the other functions use
+	// the direct string
+	refresh, refreshErr := strconv.ParseBool(options.refresh.String())
+	if refreshErr != nil {
+		refresh = false
+	}
+
+	res, err := i.es.DeleteByQuery(i.indexName().String()).
+		WaitForCompletion(options.waitForCompletion).
+		Refresh(refresh).
+		Query(&query).
+		Do(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// As soon as one of the query match fails the whole query execution fails, this is to join all the failures
+	// into a single error
+	if len(res.Failures) > 0 {
+		return nil, errors.Join(lo.Map(
+			res.Failures,
+			func(item types.BulkIndexByScrollFailure, _ int) error {
+				return errors.New(item.Type)
+			})...)
+	}
+
+	var deleteCount int64 = 0
+	if res.Deleted != nil {
+		deleteCount = *res.Deleted
+	}
+
+	var taskId *TaskId
+	if res.Task != nil {
+		taskId = (*TaskId)(&res.Task)
+	}
+
+	return &DeleteQueryResponse{
+		DeleteCount: deleteCount,
+		TaskId:      taskId,
+	}, nil
 }
