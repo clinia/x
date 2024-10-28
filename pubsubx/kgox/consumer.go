@@ -36,7 +36,13 @@ type consumer struct {
 
 var _ pubsubx.Subscriber = (*consumer)(nil)
 
-const maxRetryCount = 3
+const (
+	// We do not want to have a max elapsed time as we are counting on `maxRetryCount` to stop retrying
+	maxElapsedTime = 0
+	// We want to wait a max of 3 seconds between retries
+	maxRetryInterval = 3 * time.Second
+	maxRetryCount    = 3
+)
 
 func newConsumer(l *logrusx.Logger, kotelService *kotel.Kotel, config *pubsubx.Config, group string, topics []messagex.Topic, opts *pubsubx.SubscriberOptions) (*consumer, error) {
 	if l == nil {
@@ -122,7 +128,8 @@ func (c *consumer) Close() error {
 
 func (c *consumer) start(ctx context.Context) {
 	bc := backoff.NewExponentialBackOff()
-	bc.MaxElapsedTime = time.Second * 5
+	bc.MaxElapsedTime = maxElapsedTime
+	bc.MaxInterval = maxRetryInterval
 
 	for {
 		select {
