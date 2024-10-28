@@ -1,7 +1,9 @@
 package kgox
 
 import (
+	"bytes"
 	"context"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -233,6 +235,10 @@ func TestConsumer_Subscribe_Concurrency(t *testing.T) {
 		wClient := getWriteClient(t)
 		createTopic(t, config, testTopic)
 
+		// Buffer to intercept logs
+		buf := new(bytes.Buffer)
+		l.Entry.Logger.SetOutput(buf)
+
 		receivedMsgs := make(chan *messagex.Message, 10)
 		consumer, err := newConsumer(l, nil, config, group, topics, opts)
 		if err != nil {
@@ -244,17 +250,24 @@ func TestConsumer_Subscribe_Concurrency(t *testing.T) {
 
 		ctx := context.Background()
 		shouldFail := make(chan bool)
+		shouldPanic := make(chan bool)
+
 		topicHandlers := pubsubx.Handlers{
 			testTopic: func(ctx context.Context, msgs []*messagex.Message) ([]error, error) {
 				for _, msg := range msgs {
 					receivedMsgs <- msg
 				}
 
-				if <-shouldFail {
-					return nil, assert.AnError
-				}
+				select {
+				case <-shouldPanic:
+					panic("failed to process message")
+				case shouldFail := <-shouldFail:
+					if shouldFail {
+						return nil, assert.AnError
+					}
 
-				return nil, nil
+					return nil, nil
+				}
 			},
 		}
 
@@ -302,8 +315,13 @@ func TestConsumer_Subscribe_Concurrency(t *testing.T) {
 		expectedMsg = messagex.NewMessage([]byte("test3"))
 		sendMessage(t, wClient, testTopic, expectedMsg)
 
-		for range maxRetryCount + 1 {
-			shouldFail <- true
+		for i := range maxRetryCount + 1 {
+			if i == 0 {
+				buf.Reset()
+				shouldPanic <- true
+			} else {
+				shouldFail <- true
+			}
 
 			// Wait for the message to be consumed
 			select {
@@ -311,6 +329,17 @@ func TestConsumer_Subscribe_Concurrency(t *testing.T) {
 				t.Fatalf("timed out waiting for message to be consumed")
 			case msg := <-receivedMsgs:
 				assert.Equal(t, expectedMsg, msg)
+			}
+
+			if i == 0 {
+				// Expect stack trace to be logged
+				assert.EventuallyWithT(t, func(t *assert.CollectT) {
+					str := buf.String()
+					containsPanic := strings.Contains(str, "panic while handling messages")
+					containsStackTrace := strings.Contains(str, "consumer_test.go:")
+					assert.True(t, containsPanic, "expected panic message to be logged")
+					assert.True(t, containsStackTrace, "expected stack trace to be logged")
+				}, 3*time.Second, 100*time.Millisecond)
 			}
 		}
 

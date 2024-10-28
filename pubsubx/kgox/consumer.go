@@ -3,6 +3,7 @@ package kgox
 import (
 	"context"
 	"errors"
+	"runtime"
 	"sync"
 	"time"
 
@@ -182,7 +183,10 @@ func (c *consumer) start(ctx context.Context) {
 			wrappedHandler := func(ctx context.Context, msgs []*messagex.Message) (outErrs []error, outErr error) {
 				defer func() {
 					if r := recover(); r != nil {
-						l.Errorf("panic while handling messages: %v", r)
+						stackBuf := make([]byte, 1024)
+						stackSize := runtime.Stack(stackBuf, false)
+						stackTrace := string(stackBuf[:stackSize])
+						l.Errorf("panic while handling messages: %v\nStack trace: %s", r, stackTrace)
 						outErr = errorx.InternalErrorf("panic while handling messages")
 					}
 				}()
