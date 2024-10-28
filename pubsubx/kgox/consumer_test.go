@@ -226,4 +226,98 @@ func TestConsumer_Subscribe_Concurrency(t *testing.T) {
 			}
 		}
 	})
+
+	t.Run("should be able to retry up to the max retry attempts", func(t *testing.T) {
+		group, topics := getRandomGroupTopics(t, 1)
+		testTopic := topics[0]
+		wClient := getWriteClient(t)
+		createTopic(t, config, testTopic)
+
+		receivedMsgs := make(chan *messagex.Message, 10)
+		consumer, err := newConsumer(l, nil, config, group, topics, opts)
+		if err != nil {
+			t.Fatalf("failed to create consumer: %v", err)
+		}
+		t.Cleanup(func() {
+			consumer.Close()
+		})
+
+		ctx := context.Background()
+		shouldFail := make(chan bool)
+		topicHandlers := pubsubx.Handlers{
+			testTopic: func(ctx context.Context, msgs []*messagex.Message) ([]error, error) {
+				for _, msg := range msgs {
+					receivedMsgs <- msg
+				}
+
+				if <-shouldFail {
+					return nil, assert.AnError
+				}
+
+				return nil, nil
+			},
+		}
+
+		err = consumer.Subscribe(ctx, topicHandlers)
+		require.NoError(t, err)
+
+		// Produce a message
+		expectedMsg := messagex.NewMessage([]byte("test"))
+		sendMessage(t, wClient, testTopic, expectedMsg)
+
+		// We should retry up to the max retry attempts
+		for i := range maxRetryCount + 1 {
+			if i == maxRetryCount {
+				// This is the last attempt, we should not fail and consume the message properly
+				shouldFail <- false
+			} else {
+				shouldFail <- true
+			}
+
+			// Wait for the message to be consumed
+			select {
+			case <-time.After(defaultExpectedReceiveTimeout):
+				t.Fatalf("timed out waiting for message to be consumed")
+			case msg := <-receivedMsgs:
+				assert.Equal(t, expectedMsg, msg)
+			}
+		}
+
+		// Consumer should still be alive
+		assert.NoError(t, consumer.Health())
+
+		expectedMsg = messagex.NewMessage([]byte("test2"))
+		sendMessage(t, wClient, testTopic, expectedMsg)
+
+		shouldFail <- false
+		// Wait for the message to be consumed
+		select {
+		case <-time.After(defaultExpectedReceiveTimeout):
+			t.Fatalf("timed out waiting for message to be consumed")
+		case msg := <-receivedMsgs:
+			assert.Equal(t, expectedMsg, msg)
+		}
+
+		// The consumer should stop if we fail up to the max retry attempts
+		expectedMsg = messagex.NewMessage([]byte("test3"))
+		sendMessage(t, wClient, testTopic, expectedMsg)
+
+		for range maxRetryCount + 1 {
+			shouldFail <- true
+
+			// Wait for the message to be consumed
+			select {
+			case <-time.After(defaultExpectedReceiveTimeout):
+				t.Fatalf("timed out waiting for message to be consumed")
+			case msg := <-receivedMsgs:
+				assert.Equal(t, expectedMsg, msg)
+			}
+		}
+
+		// The consumer should be closed
+		assert.EventuallyWithT(t, func(t *assert.CollectT) {
+			expectErr := consumer.Health()
+			assert.Error(t, expectErr)
+		}, 3*time.Second, 100*time.Millisecond)
+	})
 }
