@@ -236,7 +236,7 @@ func TestConsumer_Subscribe_Concurrency(t *testing.T) {
 		createTopic(t, config, testTopic)
 
 		// Buffer to intercept logs
-		buf := new(bytes.Buffer)
+		buf := newConcurrentBuffer(t)
 		l.Entry.Logger.SetOutput(buf)
 
 		receivedMsgs := make(chan *messagex.Message, 10)
@@ -317,7 +317,7 @@ func TestConsumer_Subscribe_Concurrency(t *testing.T) {
 
 		for i := range maxRetryCount + 1 {
 			if i == 0 {
-				buf.Reset()
+				buf.b.Reset()
 				shouldPanic <- true
 			} else {
 				shouldFail <- true
@@ -349,4 +349,29 @@ func TestConsumer_Subscribe_Concurrency(t *testing.T) {
 			assert.Error(t, expectErr)
 		}, 3*time.Second, 100*time.Millisecond)
 	})
+}
+
+type concurrentBuffer struct {
+	b *bytes.Buffer
+	m sync.RWMutex
+	t *testing.T
+}
+
+func newConcurrentBuffer(t *testing.T) *concurrentBuffer {
+	return &concurrentBuffer{
+		b: new(bytes.Buffer),
+		t: t,
+	}
+}
+
+func (c *concurrentBuffer) Write(p []byte) (n int, err error) {
+	c.m.Lock()
+	defer c.m.Unlock()
+	return c.b.Write(p)
+}
+
+func (c *concurrentBuffer) String() string {
+	c.m.RLock()
+	defer c.m.RUnlock()
+	return c.b.String()
 }
