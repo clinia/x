@@ -175,7 +175,11 @@ func (e *engine) Bulk(ctx context.Context, actions []elasticxbulk.Operation, opt
 				Id_:    pointerx.Ptr(action.DocumentID),
 			}
 			request = append(request, op)
-			request = append(request, action.Doc)
+			// Wrap the document in a map with the key "doc"
+			updateDoc := map[string]interface{}{
+				"doc": action.Doc,
+			}
+			request = append(request, updateDoc)
 		case elasticxbulk.ActionDelete:
 			op.Delete = &types.DeleteOperation{
 				Index_: pointerx.Ptr(indexName),
