@@ -444,12 +444,20 @@ func TestEngineBulk(t *testing.T) {
 						"name": "test",
 					},
 				},
+				{
+					IndexName:  index.Info().Name,
+					Action:     elasticxbulk.ActionUpdate,
+					DocumentID: "1",
+					Doc: map[string]interface{}{
+						"name": "updated test",
+					},
+				},
 			},
 			elasticxbulk.Refresh(refresh.Waitfor),
 		)
 
 		assert.NoError(t, err)
-		assert.Equal(t, 2, len(res.Items))
+		assert.Equal(t, 3, len(res.Items))
 
 		// Assert the documents exist via es
 		esIndexName := NewIndexName(enginesIndexName, engine.Name(), index.Info().Name).String()
@@ -457,7 +465,7 @@ func TestEngineBulk(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, jsonx.RawMessage(`{
 			"id": "1",
-			"name": "test"
+			"name": "updated test"
 		}`), doc1.Source_)
 
 		doc2, err := f.es.Get(esIndexName, "2").Do(ctx)
