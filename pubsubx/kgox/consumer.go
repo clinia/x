@@ -11,7 +11,7 @@ import (
 	"github.com/clinia/x/logrusx"
 	"github.com/clinia/x/pubsubx"
 	"github.com/clinia/x/pubsubx/messagex"
-	tracexx "github.com/clinia/x/tracex"
+	"github.com/clinia/x/tracex"
 	"github.com/samber/lo"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/plugin/kotel"
@@ -184,8 +184,8 @@ func (c *consumer) start(ctx context.Context) {
 				defer func() {
 					if r := recover(); r != nil {
 						outErr = errorx.InternalErrorf("panic while handling messages")
-						stackTrace := tracexx.GetStackTrace()
-						l.WithFields(logrusx.NewLogFields(semconv.ExceptionStacktrace(stackTrace))).Errorln("panic while handling messages")
+						stackTrace := tracex.GetStackTrace()
+						l.WithContext(ctx).WithFields(logrusx.NewLogFields(semconv.ExceptionStacktrace(stackTrace))).Errorln("panic while handling messages")
 					}
 				}()
 				return topicHandler(ctx, msgs)

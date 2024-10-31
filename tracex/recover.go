@@ -1,4 +1,4 @@
-package tracexx
+package tracex
 
 import (
 	internaltracex "github.com/clinia/x/internal/tracex"
