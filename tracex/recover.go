@@ -8,11 +8,13 @@ import (
 
 // RecoverWithStackTrace recovers from a panic and logs the message with a stack trace.
 // It should only be used as a defer statement at the beginning of a function.
-// i.e. defer tracexx.RecoverWithStackTrace(l, "panic while handling messages")
+// i.e. defer tracex.RecoverWithStackTrace(l, "panic while handling messages")
 func RecoverWithStackTrace(l *logrusx.Logger, msg string) {
+	// We don't want the recoverer itself to panic - that would be a shame.
+	defer recover()
+
 	if r := recover(); r != nil {
 		if l == nil {
-			// We don't want the recoverer itself to panic
 			return
 		}
 		// We want to omit the getStackTrace but preserve RecoverWithStackTrace
