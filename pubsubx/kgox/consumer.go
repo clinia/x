@@ -3,7 +3,6 @@ package kgox
 import (
 	"context"
 	"errors"
-	"runtime"
 	"sync"
 	"time"
 
@@ -12,6 +11,7 @@ import (
 	"github.com/clinia/x/logrusx"
 	"github.com/clinia/x/pubsubx"
 	"github.com/clinia/x/pubsubx/messagex"
+	tracexx "github.com/clinia/x/tracex"
 	"github.com/samber/lo"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/plugin/kotel"
@@ -183,11 +183,9 @@ func (c *consumer) start(ctx context.Context) {
 			wrappedHandler := func(ctx context.Context, msgs []*messagex.Message) (outErrs []error, outErr error) {
 				defer func() {
 					if r := recover(); r != nil {
-						stackBuf := make([]byte, 1024)
-						stackSize := runtime.Stack(stackBuf, false)
-						stackTrace := string(stackBuf[:stackSize])
-						l.Errorf("panic while handling messages: %v\nStack trace: %s", r, stackTrace)
 						outErr = errorx.InternalErrorf("panic while handling messages")
+						stackTrace := tracexx.GetStackTrace()
+						l.WithFields(logrusx.NewLogFields(semconv.ExceptionStacktrace(stackTrace))).Errorln("panic while handling messages")
 					}
 				}()
 				return topicHandler(ctx, msgs)
