@@ -2,6 +2,7 @@ package tracexx
 
 import (
 	"errors"
+	"io"
 	"testing"
 
 	"github.com/clinia/x/logrusx"
@@ -76,6 +77,25 @@ func TestRecoverWithStackTrace(t *testing.T) {
 		testPanic(struct{}{}, "unknown panic")
 	})
 
+	t.Run("should not allow panics in the recoverer", func(t *testing.T) {
+		l := logrusx.New("test", "")
+		w := &writerThatpanics{}
+		l.Entry.Logger.SetOutput(w)
+		assertCount := 0
+		t.Cleanup(func() {
+			require.GreaterOrEqual(t, assertCount, 1)
+		})
+
+		defer func() {
+			assertCount++
+			assert.Equal(t, w.panics, 1)
+		}()
+
+		defer RecoverWithStackTrace(l, "panic while handling messages")
+
+		panic("test panic")
+	})
+
 	t.Run("should not log if logger is nil", func(t *testing.T) {
 		defer RecoverWithStackTrace(nil, "panic while handling messages")
 
@@ -96,3 +116,15 @@ func TestGetStackTrace(t *testing.T) {
 		assert.NotEmpty(t, stackTrace)
 	})
 }
+
+type writerThatpanics struct {
+	panics int
+}
+
+// Write implements io.Writer.
+func (w *writerThatpanics) Write(p []byte) (n int, err error) {
+	w.panics++
+	panic("expected")
+}
+
+var _ io.Writer = (*writerThatpanics)(nil)

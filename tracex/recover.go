@@ -11,7 +11,10 @@ import (
 // i.e. defer tracex.RecoverWithStackTrace(l, "panic while handling messages")
 func RecoverWithStackTrace(l *logrusx.Logger, msg string) {
 	// We don't want the recoverer itself to panic - that would be a shame.
-	defer recover()
+	defer func() {
+		// We ignore it here, as we only want to recover from panics that happen in the recover without doing anything with them.
+		recover()
+	}()
 
 	if r := recover(); r != nil {
 		if l == nil {
