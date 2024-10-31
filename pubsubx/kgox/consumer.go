@@ -11,6 +11,7 @@ import (
 	"github.com/clinia/x/logrusx"
 	"github.com/clinia/x/pubsubx"
 	"github.com/clinia/x/pubsubx/messagex"
+	"github.com/clinia/x/tracex"
 	"github.com/samber/lo"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/plugin/kotel"
@@ -36,7 +37,13 @@ type consumer struct {
 
 var _ pubsubx.Subscriber = (*consumer)(nil)
 
-const maxRetryCount = 3
+const (
+	// We do not want to have a max elapsed time as we are counting on `maxRetryCount` to stop retrying
+	maxElapsedTime = 0
+	// We want to wait a max of 3 seconds between retries
+	maxRetryInterval = 3 * time.Second
+	maxRetryCount    = 3
+)
 
 func newConsumer(l *logrusx.Logger, kotelService *kotel.Kotel, config *pubsubx.Config, group string, topics []messagex.Topic, opts *pubsubx.SubscriberOptions) (*consumer, error) {
 	if l == nil {
@@ -122,7 +129,8 @@ func (c *consumer) Close() error {
 
 func (c *consumer) start(ctx context.Context) {
 	bc := backoff.NewExponentialBackOff()
-	bc.MaxElapsedTime = time.Second * 5
+	bc.MaxElapsedTime = maxElapsedTime
+	bc.MaxInterval = maxRetryInterval
 
 	for {
 		select {
@@ -175,8 +183,9 @@ func (c *consumer) start(ctx context.Context) {
 			wrappedHandler := func(ctx context.Context, msgs []*messagex.Message) (outErrs []error, outErr error) {
 				defer func() {
 					if r := recover(); r != nil {
-						l.Errorf("panic while handling messages: %v", r)
 						outErr = errorx.InternalErrorf("panic while handling messages")
+						stackTrace := tracex.GetStackTrace()
+						l.WithContext(ctx).WithFields(logrusx.NewLogFields(semconv.ExceptionStacktrace(stackTrace))).Errorln("panic while handling messages")
 					}
 				}()
 				return topicHandler(ctx, msgs)

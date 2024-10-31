@@ -11,9 +11,11 @@ import (
 	"net/url"
 	"strings"
 
+	internaltracex "github.com/clinia/x/internal/tracex"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace"
 	"go.opentelemetry.io/otel/propagation"
+	semconv "go.opentelemetry.io/otel/semconv/v1.20.0"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -191,6 +193,11 @@ func (l *Logger) WithField(key string, value interface{}) *Logger {
 	ll := *l
 	ll.Entry = l.Entry.WithField(key, value)
 	return &ll
+}
+
+func (l *Logger) WithStackTrace() *Logger {
+	stackTrace := internaltracex.GetStackTrace(2)
+	return l.WithFields(NewLogFields(semconv.ExceptionStacktrace(stackTrace)))
 }
 
 func (l *Logger) maybeRedact(value interface{}) interface{} {
