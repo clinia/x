@@ -20,7 +20,7 @@ import (
 )
 
 type Logger struct {
-	*logrus.Entry
+	Entry                   *logrus.Entry
 	leakSensitive           bool
 	sensitiveHeadersLowered map[string]bool
 	redactionText           string
@@ -41,7 +41,7 @@ func (l *Logger) Logrus() *logrus.Logger {
 
 func (l *Logger) NewEntry() *Logger {
 	ll := *l
-	ll.Entry = logrus.NewEntry(l.Logger)
+	ll.Entry = logrus.NewEntry(l.Entry.Logger)
 	return &ll
 }
 
@@ -118,8 +118,8 @@ func (l *Logger) WithRequest(r *http.Request) *Logger {
 
 func (l *Logger) Logf(level logrus.Level, format string, args ...interface{}) {
 	// Add traces information if available in context
-	if l.Context != nil {
-		spanCtx := trace.SpanContextFromContext(l.Context)
+	if l.Entry.Context != nil {
+		spanCtx := trace.SpanContextFromContext(l.Entry.Context)
 		if spanCtx.IsValid() {
 			if spanCtx.HasTraceID() {
 				l = l.WithField("TraceID", spanCtx.TraceID().String())
@@ -167,7 +167,7 @@ func (l *Logger) Warnf(format string, args ...interface{}) {
 }
 
 func (l *Logger) Warningf(format string, args ...interface{}) {
-	l.Warnf(format, args...)
+	l.Logf(logrus.WarnLevel, format, args...)
 }
 
 func (l *Logger) Errorf(format string, args ...interface{}) {
