@@ -33,6 +33,7 @@ type (
 	}
 	migrationVersionInfo struct {
 		Version     uint   `json:"version"`
+		Latest      uint   `json:"latest"`
 		Description string `json:"description"`
 	}
 )
@@ -146,9 +147,15 @@ func (m *Migrator) getIndexes(ctx context.Context) (indices []indexSpecification
 
 // Version returns current engine version and comment.
 func (m *Migrator) Version(ctx context.Context) (migrationVersionInfo, error) {
+	var latest uint
+	if len(m.migrations) > 0 {
+		m.migrations.Sort()
+		latest = m.migrations[len(m.migrations)-1].Version
+	}
 	if err := m.createIndexIfNotExist(ctx, m.migrationsIndex); err != nil {
 		return migrationVersionInfo{
 			Version:     0,
+			Latest:      latest,
 			Description: "",
 		}, err
 	}
@@ -174,6 +181,7 @@ func (m *Migrator) Version(ctx context.Context) (migrationVersionInfo, error) {
 	if err != nil {
 		return migrationVersionInfo{
 			Version:     0,
+			Latest:      latest,
 			Description: "",
 		}, err
 	}
@@ -181,6 +189,7 @@ func (m *Migrator) Version(ctx context.Context) (migrationVersionInfo, error) {
 	if searchResponse.Hits.Total.Value == 0 {
 		return migrationVersionInfo{
 			Version:     0,
+			Latest:      latest,
 			Description: "",
 		}, err
 	}
@@ -189,12 +198,14 @@ func (m *Migrator) Version(ctx context.Context) (migrationVersionInfo, error) {
 	if err := json.Unmarshal(searchResponse.Hits.Hits[0].Source_, &rec); err != nil {
 		return migrationVersionInfo{
 			Version:     0,
+			Latest:      latest,
 			Description: "",
 		}, err
 	}
 
 	return migrationVersionInfo{
 		Version:     rec.Version,
+		Latest:      latest,
 		Description: rec.Description,
 	}, nil
 }
