@@ -1,4 +1,4 @@
-// Package migration allows to perform versioned migrations in your ArangoDB.
+// Package migration allows to perform versioned migrations in your ElasticEngine.
 package migrate
 
 import (
@@ -33,7 +33,6 @@ type (
 	}
 	migrationVersionInfo struct {
 		Version     uint   `json:"version"`
-		Latest      uint   `json:"latest"`
 		Description string `json:"description"`
 	}
 )
@@ -49,10 +48,11 @@ const AllAvailable = -1
 // This document consists migration version, migration description and timestamp.
 // Current database version determined as version in latest added document (biggest "_key") from collection mentioned above.
 type Migrator struct {
-	engine          elasticx.Engine
-	pkg             string
-	migrations      Migrations
-	migrationsIndex string
+	engine                 elasticx.Engine
+	pkg                    string
+	migrations             Migrations
+	migrationsIndex        string
+	latestMigrationVersion uint
 }
 
 type NewMigratorOptions struct {
@@ -62,7 +62,7 @@ type NewMigratorOptions struct {
 }
 
 func NewMigrator(opts NewMigratorOptions) *Migrator {
-	internalMigrations := make([]Migration, len(opts.Migrations))
+	internalMigrations := make(Migrations, len(opts.Migrations))
 	copy(internalMigrations, opts.Migrations)
 	vers := map[uint]bool{}
 	for _, m := range opts.Migrations {
@@ -75,11 +75,19 @@ func NewMigrator(opts NewMigratorOptions) *Migrator {
 	// To be valid index name, package name should be replaced with ":".
 	pkg := strings.ReplaceAll(opts.Package, "/", ":")
 
+	// latest migration version
+	var latest uint
+	if len(internalMigrations) > 0 {
+		internalMigrations.Sort()
+		latest = internalMigrations[len(internalMigrations)-1].Version
+	}
+
 	return &Migrator{
-		engine:          opts.Engine,
-		pkg:             pkg,
-		migrations:      internalMigrations,
-		migrationsIndex: defaultMigrationsIndex,
+		engine:                 opts.Engine,
+		pkg:                    pkg,
+		migrations:             internalMigrations,
+		migrationsIndex:        defaultMigrationsIndex,
+		latestMigrationVersion: latest,
 	}
 }
 
@@ -87,6 +95,10 @@ func NewMigrator(opts NewMigratorOptions) *Migrator {
 // By default it is "migrations".
 func (m *Migrator) SetMigrationsIndex(name string) {
 	m.migrationsIndex = name
+}
+
+func (m *Migrator) LatestMigrationVersion() uint {
+	return m.latestMigrationVersion
 }
 
 func (m *Migrator) indexExist(ctx context.Context, name string) (isExist bool, err error) {
@@ -147,15 +159,9 @@ func (m *Migrator) getIndexes(ctx context.Context) (indices []indexSpecification
 
 // Version returns current engine version and comment.
 func (m *Migrator) Version(ctx context.Context) (migrationVersionInfo, error) {
-	var latest uint
-	if len(m.migrations) > 0 {
-		m.migrations.Sort()
-		latest = m.migrations[len(m.migrations)-1].Version
-	}
 	if err := m.createIndexIfNotExist(ctx, m.migrationsIndex); err != nil {
 		return migrationVersionInfo{
 			Version:     0,
-			Latest:      latest,
 			Description: "",
 		}, err
 	}
@@ -181,7 +187,6 @@ func (m *Migrator) Version(ctx context.Context) (migrationVersionInfo, error) {
 	if err != nil {
 		return migrationVersionInfo{
 			Version:     0,
-			Latest:      latest,
 			Description: "",
 		}, err
 	}
@@ -189,7 +194,6 @@ func (m *Migrator) Version(ctx context.Context) (migrationVersionInfo, error) {
 	if searchResponse.Hits.Total.Value == 0 {
 		return migrationVersionInfo{
 			Version:     0,
-			Latest:      latest,
 			Description: "",
 		}, err
 	}
@@ -198,14 +202,12 @@ func (m *Migrator) Version(ctx context.Context) (migrationVersionInfo, error) {
 	if err := json.Unmarshal(searchResponse.Hits.Hits[0].Source_, &rec); err != nil {
 		return migrationVersionInfo{
 			Version:     0,
-			Latest:      latest,
 			Description: "",
 		}, err
 	}
 
 	return migrationVersionInfo{
 		Version:     rec.Version,
-		Latest:      latest,
 		Description: rec.Description,
 	}, nil
 }
