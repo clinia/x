@@ -29,7 +29,7 @@ func TestRecoverWithStackTrace(t *testing.T) {
 			assertCount++
 		}()
 
-		defer RecoverWithStackTrace(l, "panic at the disco")
+		defer RecoverWithStackTracef(l, "panic at the disco")
 
 		panic("test panic")
 	})
@@ -47,7 +47,7 @@ func TestRecoverWithStackTrace(t *testing.T) {
 			assertCount++
 		}()
 
-		defer RecoverWithStackTrace(l, "")
+		defer RecoverWithStackTracef(l, "")
 
 		panic(errors.New("test panic"))
 	})
@@ -67,7 +67,7 @@ func TestRecoverWithStackTrace(t *testing.T) {
 				assertCount++
 			}()
 
-			defer RecoverWithStackTrace(l, "")
+			defer RecoverWithStackTracef(l, "")
 
 			panic(v)
 		}
@@ -91,13 +91,13 @@ func TestRecoverWithStackTrace(t *testing.T) {
 			assert.Equal(t, w.panics, 1)
 		}()
 
-		defer RecoverWithStackTrace(l, "panic while handling messages")
+		defer RecoverWithStackTracef(l, "panic while handling messages")
 
 		panic("test panic")
 	})
 
 	t.Run("should not log if logger is nil", func(t *testing.T) {
-		defer RecoverWithStackTrace(nil, "panic while handling messages")
+		defer RecoverWithStackTracef(nil, "panic while handling messages")
 
 		panic("test panic")
 

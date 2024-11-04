@@ -116,7 +116,7 @@ func LogrusWatcher(l *logrusx.Logger) func(e watcherx.Event, err error) {
 	return func(e watcherx.Event, err error) {
 		l.WithField("file", e.Source()).
 			WithField("event_type", fmt.Sprintf("%T", e)).
-			Info("A change to a configuration file was detected.")
+			Infof("A change to a configuration file was detected.")
 
 		if et := new(jsonschema.ValidationError); errors.As(err, &et) {
 			l.WithField("event", fmt.Sprintf("%#v", et)).
@@ -132,7 +132,7 @@ func LogrusWatcher(l *logrusx.Logger) func(e watcherx.Event, err error) {
 		} else {
 			l.WithField("file", e.Source()).
 				WithField("event_type", fmt.Sprintf("%T", e)).
-				Info("Configuration change processed successfully.")
+				Infof("Configuration change processed successfully.")
 		}
 	}
 }

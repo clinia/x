@@ -47,8 +47,8 @@ func TestConfigSchema(t *testing.T) {
 		l := New("foo", "bar", WithConfigurator(k))
 
 		assert.True(t, l.leakSensitive)
-		assert.Equal(t, logrus.TraceLevel, l.Logger.Level)
-		assert.IsType(t, &logrus.JSONFormatter{}, l.Logger.Formatter)
+		assert.Equal(t, logrus.TraceLevel, l.Entry.Logger.Level)
+		assert.IsType(t, &logrus.JSONFormatter{}, l.Entry.Logger.Formatter)
 	})
 
 	t.Run("case=warns on unknown format", func(t *testing.T) {

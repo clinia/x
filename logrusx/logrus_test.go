@@ -27,7 +27,7 @@ func TestSensitiveValues(t *testing.T) {
 		req.Header.Set("cookie", sensitiveValue)
 		req.Header.Set("set-cookie", sensitiveValue)
 
-		l.WithRequest(req).Info("test")
+		l.WithRequest(req).Infof("test")
 		output := buf.String()
 		assert.Equal(t, strings.Count(output, sensitiveValue), 4, "all sensitive headers should be shown since we are leaking sensitive values")
 		assert.NotContains(t, output, redacted, "should not redact sensitive values when explicitly set to leak")
@@ -50,7 +50,7 @@ func TestSensitiveValues(t *testing.T) {
 		req.Header.Set("cookie", sensitiveValue)
 		req.Header.Set("set-cookie", sensitiveValue)
 
-		l.WithRequest(req).Info("test")
+		l.WithRequest(req).Infof("test")
 		output := buf.String()
 		assert.Equal(t, strings.Count(output, redacted), 4, "all sensitive headers should be redacted")
 		assert.NotContains(t, output, sensitiveValue, "should not show sensitive values")
@@ -58,14 +58,14 @@ func TestSensitiveValues(t *testing.T) {
 		req.Header.Set("not-yet-sensitive", sensitiveValue)
 		buf.Reset()
 
-		l.WithRequest(req).Info("test")
+		l.WithRequest(req).Infof("test")
 		output = buf.String()
 		assert.Equal(t, strings.Count(output, redacted), 4, "all so far sensitive headers should be redacted")
 		assert.Equal(t, strings.Count(output, sensitiveValue), 1, "not-yet-sensitive should not be sensitive yet")
 
 		buf.Reset()
 		l = l.WithSensitiveHeaders("not-yet-sensitive")
-		l.WithRequest(req).Info("test")
+		l.WithRequest(req).Infof("test")
 		output = buf.String()
 		assert.Equal(t, strings.Count(output, redacted), 5, "all so far sensitive headers should be redacted")
 		assert.NotContains(t, output, sensitiveValue, "should not show sensitive values")
