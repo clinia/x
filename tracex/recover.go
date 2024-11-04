@@ -6,10 +6,10 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 )
 
-// RecoverWithStackTrace recovers from a panic and logs the message with a stack trace.
+// RecoverWithStackTracef recovers from a panic and logs the message with a stack trace.
 // It should only be used as a defer statement at the beginning of a function.
-// i.e. defer tracex.RecoverWithStackTrace(l, "panic while handling messages")
-func RecoverWithStackTrace(l *logrusx.Logger, msg string) {
+// i.e. defer tracex.RecoverWithStackTracef(l, "panic while handling messages")
+func RecoverWithStackTracef(l *logrusx.Logger, msg string, args ...interface{}) {
 	// We don't want the recoverer itself to panic - that would be a shame.
 	defer func() {
 		// We ignore it here, as we only want to recover from panics that happen in the recover without doing anything with them.
@@ -32,7 +32,7 @@ func RecoverWithStackTrace(l *logrusx.Logger, msg string) {
 			l = l.WithField(string(semconv.ExceptionMessageKey), "unknown panic")
 		}
 
-		l.Errorln(msg)
+		l.Errorf(msg, args...)
 	}
 }
 
