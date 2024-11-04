@@ -159,7 +159,7 @@ func (l *Logger) Infof(format string, args ...interface{}) {
 }
 
 func (l *Logger) Printf(format string, args ...interface{}) {
-	l.Infof(format, args...)
+	l.Logf(logrus.InfoLevel, format, args...)
 }
 
 func (l *Logger) Warnf(format string, args ...interface{}) {
