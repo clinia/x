@@ -161,7 +161,7 @@ func (p *Provider) createProviders(ctx context.Context) (providers []koanf.Provi
 		paths = append(paths, p...)
 	}
 
-	p.logger.WithField("files", paths).Debug("Adding config files.")
+	p.logger.WithField("files", paths).Debugf("Adding config files.")
 	for _, path := range paths {
 		fp, err := NewKoanfFile(ctx, path)
 		if err != nil {

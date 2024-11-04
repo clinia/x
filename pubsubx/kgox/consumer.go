@@ -153,7 +153,7 @@ func (c *consumer) start(ctx context.Context) {
 				return
 			}
 
-			l.WithError(errors.Join(lo.Map(errs, func(err kgo.FetchError, i int) error { return err.Err })...)).Error("error while polling records, Stopping consumer")
+			l.WithError(errors.Join(lo.Map(errs, func(err kgo.FetchError, i int) error { return err.Err })...)).Errorf("error while polling records, Stopping consumer")
 			return
 		}
 
@@ -177,7 +177,7 @@ func (c *consumer) start(ctx context.Context) {
 			// We do not protect the read to handlers here since we cannot get to a point where the handlers are reset and we are still in this consuming loop
 			topicHandler, ok := c.handlers[topic]
 			if !ok || topicHandler == nil {
-				l.Errorln("no handler for topic")
+				l.Errorf("no handler for topic")
 				return
 			}
 			wrappedHandler := func(ctx context.Context, msgs []*messagex.Message) (outErrs []error, outErr error) {
@@ -185,7 +185,7 @@ func (c *consumer) start(ctx context.Context) {
 					if r := recover(); r != nil {
 						outErr = errorx.InternalErrorf("panic while handling messages")
 						stackTrace := tracex.GetStackTrace()
-						l.WithContext(ctx).WithFields(logrusx.NewLogFields(semconv.ExceptionStacktrace(stackTrace))).Errorln("panic while handling messages")
+						l.WithContext(ctx).WithFields(logrusx.NewLogFields(semconv.ExceptionStacktrace(stackTrace))).Errorf("panic while handling messages")
 					}
 				}()
 				return topicHandler(ctx, msgs)
@@ -200,7 +200,7 @@ func (c *consumer) start(ctx context.Context) {
 						return backoff.Permanent(err)
 					}
 
-					l.WithError(err).Errorln("error while handling messages")
+					l.WithError(err).Errorf("error while handling messages")
 
 					retries++
 					if retries > maxRetryCount {
@@ -214,7 +214,7 @@ func (c *consumer) start(ctx context.Context) {
 				if len(errs) > 0 {
 					allErrs := errors.Join(errs...)
 					if allErrs != nil {
-						l.WithError(allErrs).Errorln("errors while handling messages")
+						l.WithError(allErrs).Errorf("errors while handling messages")
 					}
 
 					// TODO: [ENG-1361] retry logic (resend to the same topic with a retry count per-event)
@@ -231,7 +231,7 @@ func (c *consumer) start(ctx context.Context) {
 					c.cancel()
 					l.Infof("cancelled consumer")
 				} else {
-					l.Warnln("abort requested but no cancel function found")
+					l.Warnf("abort requested but no cancel function found")
 				}
 
 				// TODO: [ENG-1361] resend the messages to the same topic with a retry count increased for each event
