@@ -105,6 +105,13 @@ func (e *engine) Remove(ctx context.Context) error {
 }
 
 func (e *engine) Search(ctx context.Context, request *search.Request, indices []string, opts ...elasticxsearch.Option) (*search.Response, error) {
+	if request == nil {
+		return nil, errorx.InvalidArgumentErrorf("request is nil")
+	}
+	if request.From != nil && request.Size != nil && *request.From+*request.Size > 10000 {
+		return nil, errorx.InvalidArgumentErrorf("invalid search request. The maximum size of the search window is 10000")
+	}
+
 	indexPaths := []string{}
 	for _, name := range indices {
 		indexPaths = append(indexPaths, NewIndexName(enginesIndexName, pathEscape(e.name), pathEscape(name)).String())

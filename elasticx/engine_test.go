@@ -263,20 +263,19 @@ func TestEngineQuery(t *testing.T) {
 	name := "test-engine-query"
 	engine, err := f.client.CreateEngine(ctx, name)
 	assert.NoError(t, err)
+	index, err := engine.CreateIndex(ctx, "index-1", nil)
+	assert.NoError(t, err)
+
+	_, err = f.es.Index(NewIndexName(enginesIndexName, name, index.Info().Name).String()).
+		Document(map[string]interface{}{
+			"id":   "1",
+			"name": "test",
+		}).
+		Refresh(refresh.Waitfor).
+		Do(ctx)
+	assert.NoError(t, err)
 
 	t.Run("should be able to execute a query", func(t *testing.T) {
-		index, err := engine.CreateIndex(ctx, "index-1", nil)
-		assert.NoError(t, err)
-
-		_, err = f.es.Index(NewIndexName(enginesIndexName, name, index.Info().Name).String()).
-			Document(map[string]interface{}{
-				"id":   "1",
-				"name": "test",
-			}).
-			Refresh(refresh.Waitfor).
-			Do(ctx)
-		assert.NoError(t, err)
-
 		res, err := engine.Search(ctx, &search.Request{
 			Query: &types.Query{
 				MatchAll: &types.MatchAllQuery{},
@@ -285,6 +284,18 @@ func TestEngineQuery(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(res.Hits.Hits))
+	})
+
+	t.Run("should fail for invalid window", func(t *testing.T) {
+		_, err := engine.Search(ctx, &search.Request{
+			From: pointerx.Ptr(9950),
+			Size: pointerx.Ptr(100),
+			Query: &types.Query{
+				MatchAll: &types.MatchAllQuery{},
+			},
+		}, []string{index.Info().Name})
+
+		assert.EqualError(t, err, "[INVALID_ARGUMENT] invalid search request. The maximum size of the search window is 10000")
 	})
 
 	t.Cleanup(func() {
