@@ -286,6 +286,29 @@ func TestEngineQuery(t *testing.T) {
 		assert.Equal(t, 1, len(res.Hits.Hits))
 	})
 
+	t.Run("should fail for invalid size", func(t *testing.T) {
+		_, err := engine.Search(ctx, &search.Request{
+			Size: pointerx.Ptr(-1),
+			Query: &types.Query{
+				MatchAll: &types.MatchAllQuery{},
+			},
+		}, []string{index.Info().Name})
+
+		assert.EqualError(t, err, "[INVALID_ARGUMENT] invalid search request: 'size' must be greater than or equal to 0")
+	})
+
+	t.Run("should fail for invalid from", func(t *testing.T) {
+		_, err := engine.Search(ctx, &search.Request{
+			From: pointerx.Ptr(-1),
+			Size: pointerx.Ptr(100),
+			Query: &types.Query{
+				MatchAll: &types.MatchAllQuery{},
+			},
+		}, []string{index.Info().Name})
+
+		assert.EqualError(t, err, "[INVALID_ARGUMENT] invalid search request: 'from' must be greater than or equal to 0")
+	})
+
 	t.Run("should fail for invalid window", func(t *testing.T) {
 		_, err := engine.Search(ctx, &search.Request{
 			From: pointerx.Ptr(9950),
