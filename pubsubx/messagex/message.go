@@ -9,7 +9,10 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-const IDHeaderKey = "_clinia_message_id"
+const (
+	IDHeaderKey         = "_clinia_message_id"
+	RetryCountHeaderKey = "_clinia_retry_count"
+)
 
 // Message intentionally has no json marshalling fields as we want to pass by our own kgox.DefaultMarshaler
 type Message struct {

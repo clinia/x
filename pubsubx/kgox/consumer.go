@@ -3,6 +3,8 @@ package kgox
 import (
 	"context"
 	"errors"
+	"slices"
+	"strconv"
 	"sync"
 	"time"
 
@@ -216,8 +218,16 @@ func (c *consumer) start(ctx context.Context) {
 					if allErrs != nil {
 						l.WithError(allErrs).Errorf("errors while handling messages")
 					}
-
-					// TODO: [ENG-1361] retry logic (resend to the same topic with a retry count per-event)
+					retryableMessages, poisonQueueMessages := parseRetryMessages(l, errs, allMsgs)
+					if len(retryableMessages) > 0 {
+						scopedTopic := topic.TopicName(c.conf.Scope)
+						if err := c.publishRetryMessages(ctx, retryableMessages, scopedTopic); err != nil {
+							l.WithError(err).Errorf("failed to publish some or all retry messages")
+						}
+					}
+					if len(poisonQueueMessages) > 0 {
+						c.publishPoisonQueueMessages(poisonQueueMessages)
+					}
 				}
 
 				return nil
@@ -233,12 +243,80 @@ func (c *consumer) start(ctx context.Context) {
 				} else {
 					l.Warnf("abort requested but no cancel function found")
 				}
-
-				// TODO: [ENG-1361] resend the messages to the same topic with a retry count increased for each event
+				retryableMessages, poisonQueueMessages := parseRetryMessages(l, []error{}, allMsgs)
+				if len(retryableMessages) > 0 {
+					scopedTopic := topic.TopicName(c.conf.Scope)
+					if err := c.publishRetryMessages(ctx, retryableMessages, scopedTopic); err != nil {
+						l.WithError(err).Errorf("failed to publish some or all retry messages")
+					}
+				}
+				if len(poisonQueueMessages) > 0 {
+					c.publishPoisonQueueMessages(poisonQueueMessages)
+					l.Errorf("failed to publish to retry queue")
+				}
 				return
 			}
 		})
 	}
+}
+
+func (c *consumer) publishRetryMessages(ctx context.Context, retryableMessages []*messagex.Message, scopedTopic string) error {
+	retryRecords := make([]*kgo.Record, len(retryableMessages))
+	marshalErrs := make(pubsubx.Errors, len(retryableMessages))
+	for i, m := range retryableMessages {
+		retryRecords[i], marshalErrs[i] = defaultMarshaler.Marshal(m, scopedTopic)
+	}
+	marshalErr := errors.Join(marshalErrs...)
+	produceResults := c.cl.ProduceSync(ctx, slices.Clip(retryRecords)...)
+	produceErrs := make(pubsubx.Errors, len(produceResults))
+	for i, record := range produceResults {
+		produceErrs[i] = record.Err
+	}
+	produceErr := errors.Join(produceErrs...)
+	return errors.Join(marshalErr, produceErr)
+}
+
+func (c *consumer) publishPoisonQueueMessages(_ []*messagex.Message) error {
+	// TODO: Add the poison queue publishing logic
+	return nil
+}
+
+func parseRetryMessages(l *logrusx.Logger, errs []error, allMsgs []*messagex.Message) ([]*messagex.Message, []*messagex.Message) {
+	retryableMessages := make([]*messagex.Message, 0)
+	poisonQueueMessages := make([]*messagex.Message, 0)
+
+	checkErrs := len(errs) == len(allMsgs)
+	if !checkErrs {
+		l.Warnf("errors handler result mismatch messages length, can't identify which message failed, sending them all back")
+	}
+	for i, msg := range allMsgs {
+		retryable := !checkErrs
+		if !retryable {
+			if errs[i] == nil {
+				continue
+			}
+			_, retryable = pubsubx.IsRetryableError(errs[i])
+		}
+		if !retryable {
+			poisonQueueMessages = append(poisonQueueMessages, msg)
+			continue
+		}
+		retryCount, ok := msg.Metadata[messagex.RetryCountHeaderKey]
+		if !ok {
+			l.Warnf("message is missing %s header, setting it to default 1", messagex.RetryCountHeaderKey)
+			msg.Metadata[messagex.RetryCountHeaderKey] = "1"
+		} else {
+			numericRetryCount, err := strconv.Atoi(retryCount)
+			if err != nil || numericRetryCount >= maxRetryCount {
+				l.Errorf("max topic retry count reach, sending message to poison queue")
+				poisonQueueMessages = append(poisonQueueMessages, msg)
+				continue
+			}
+			msg.Metadata[messagex.RetryCountHeaderKey] = strconv.Itoa(numericRetryCount + 1)
+		}
+		retryableMessages = append(retryableMessages, msg)
+	}
+	return retryableMessages, poisonQueueMessages
 }
 
 // Subscribe implements pubsubx.Subscriber.

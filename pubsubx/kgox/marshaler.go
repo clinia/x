@@ -31,6 +31,7 @@ func (m *DefaultMarshaler) Marshal(ctx context.Context, msg *messagex.Message, t
 	headers := make([]kgo.RecordHeader, len(msg.Metadata))
 
 	setIDHeader := false
+	setDefaultRetryCountHeader := true
 	i := 0
 	for k, v := range msg.Metadata {
 		if k == messagex.IDHeaderKey {
@@ -45,6 +46,9 @@ func (m *DefaultMarshaler) Marshal(ctx context.Context, msg *messagex.Message, t
 			// In the else case, we will set the ID header below.
 
 			continue
+		}
+		if k == messagex.RetryCountHeaderKey {
+			setDefaultRetryCountHeader = false
 		}
 		headers[i] = kgo.RecordHeader{
 			Key:   k,
@@ -70,6 +74,13 @@ func (m *DefaultMarshaler) Marshal(ctx context.Context, msg *messagex.Message, t
 		propagation.Baggage{},
 	)
 	ctx = prop.Extract(ctx, propagation.MapCarrier(msg.Metadata))
+
+	if setDefaultRetryCountHeader {
+		headers = append(headers, kgo.RecordHeader{
+			Key:   messagex.RetryCountHeaderKey,
+			Value: []byte("0"),
+		})
+	}
 
 	return &kgo.Record{
 		Context: ctx,
