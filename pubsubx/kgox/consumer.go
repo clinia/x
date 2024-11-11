@@ -293,7 +293,7 @@ func parseRetryMessages(l *logrusx.Logger, errs []error, allMsgs []*messagex.Mes
 	retryable := false
 	if !checkErrs {
 		if len(errs) == 1 {
-			l.Debug("using first error as reference to if we should retry the batch")
+			l.Debugf("using first error as reference to if we should retry the batch")
 			_, retryable = errorx.IsRetryableError(errs[0])
 		} else {
 			l.Warnf("errors handler result mismatch messages length, can't identify which message failed, sending them all back")
