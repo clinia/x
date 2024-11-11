@@ -422,7 +422,9 @@ func TestConsumer_Subscribe_Concurrency(t *testing.T) {
 		topicHandlers := pubsubx.Handlers{
 			testTopic: func(ctx context.Context, msgs []*messagex.Message) ([]error, error) {
 				for _, msg := range msgs {
-					receivedMsgs <- msg
+					if msg.Metadata[messagex.RetryCountHeaderKey] == "0" {
+						receivedMsgs <- msg
+					}
 				}
 
 				select {
