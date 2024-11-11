@@ -3,6 +3,7 @@ package kgox
 import (
 	"bytes"
 	"context"
+	"errors"
 	"strings"
 	"sync"
 	"testing"
@@ -15,6 +16,171 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/twmb/franz-go/pkg/kgo"
 )
+
+func TestConsumer_Subscribe_Handling(t *testing.T) {
+	l := logrusx.New("test", "")
+	config := getPubsubConfig(t)
+	opts := &pubsubx.SubscriberOptions{MaxBatchSize: 10}
+
+	getWriteClient := func(t *testing.T) *kgo.Client {
+		t.Helper()
+		wc, err := kgo.NewClient(
+			kgo.SeedBrokers(config.Providers.Kafka.Brokers...),
+		)
+		require.NoError(t, err)
+		t.Cleanup(wc.Close)
+		return wc
+	}
+
+	sendMessage := func(t *testing.T, wc *kgo.Client, topic messagex.Topic, msg *messagex.Message) {
+		t.Helper()
+
+		rec, err := defaultMarshaler.Marshal(msg, topic.TopicName(config.Scope))
+		require.NoError(t, err)
+
+		r := wc.ProduceSync(context.Background(), rec)
+		require.NoError(t, r.FirstErr())
+	}
+
+	t.Run("Should push back messages on retryable error", func(t *testing.T) {
+		group, topics := getRandomGroupTopics(t, 1)
+		createTopic(t, config, topics[0])
+		consumer, err := newConsumer(l, nil, config, group, topics, opts)
+		if err != nil {
+			t.Fatalf("failed to create consumer: %v", err)
+		}
+		wClient := getWriteClient(t)
+
+		ctx := context.Background()
+		headerResult := map[string]int{
+			"0": 0,
+			"1": 0,
+			"2": 0,
+		}
+
+		mu := sync.Mutex{}
+		topicHandlers := pubsubx.Handlers{
+			topics[0]: func(ctx context.Context, msgs []*messagex.Message) ([]error, error) {
+				mu.Lock()
+				defer mu.Unlock()
+				errs := make([]error, len(msgs))
+				for i, msg := range msgs {
+					headerResult[msg.Metadata[messagex.RetryCountHeaderKey]] += 1
+					errs[i] = pubsubx.NewRetryableError(errors.New("Retry Me"))
+				}
+				return errs, nil
+			},
+		}
+		err = consumer.Subscribe(ctx, topicHandlers)
+		require.NoError(t, err)
+
+		expectedMsg := messagex.NewMessage([]byte("test"))
+		sendMessage(t, wClient, topics[0], expectedMsg)
+
+		time.Sleep(5 * time.Second)
+
+		mu.Lock()
+		defer mu.Unlock()
+		assert.Equal(t, 1, headerResult["0"])
+		assert.Equal(t, 1, headerResult["1"])
+		assert.Equal(t, 1, headerResult["2"])
+	})
+
+	t.Run("Should not push back messages on non retryable error", func(t *testing.T) {
+		group, topics := getRandomGroupTopics(t, 1)
+		createTopic(t, config, topics[0])
+		consumer, err := newConsumer(l, nil, config, group, topics, opts)
+		if err != nil {
+			t.Fatalf("failed to create consumer: %v", err)
+		}
+		wClient := getWriteClient(t)
+
+		ctx := context.Background()
+		headerResult := map[string]int{
+			"0": 0,
+			"1": 0,
+			"2": 0,
+		}
+
+		mu := sync.Mutex{}
+		topicHandlers := pubsubx.Handlers{
+			topics[0]: func(ctx context.Context, msgs []*messagex.Message) ([]error, error) {
+				mu.Lock()
+				defer mu.Unlock()
+				errs := make([]error, len(msgs))
+				for i, msg := range msgs {
+					headerResult[msg.Metadata[messagex.RetryCountHeaderKey]] += 1
+					errs[i] = errors.New("Retry Me")
+				}
+				return errs, nil
+			},
+		}
+		err = consumer.Subscribe(ctx, topicHandlers)
+		require.NoError(t, err)
+
+		expectedMsg := messagex.NewMessage([]byte("test"))
+		sendMessage(t, wClient, topics[0], expectedMsg)
+
+		time.Sleep(5 * time.Second)
+
+		mu.Lock()
+		defer mu.Unlock()
+		assert.Equal(t, 1, headerResult["0"])
+		assert.Equal(t, 0, headerResult["1"])
+		assert.Equal(t, 0, headerResult["2"])
+	})
+
+	t.Run("Should push back messages on retryable error for complete error", func(t *testing.T) {
+		t.Skipf("Tests takes at least 45 seconds to run, skipping to reduce test suite time, please manually trigger this test")
+		group, topics := getRandomGroupTopics(t, 1)
+		createTopic(t, config, topics[0])
+		consumer, err := newConsumer(l, nil, config, group, topics, opts)
+		if err != nil {
+			t.Fatalf("failed to create consumer: %v", err)
+		}
+		wClient := getWriteClient(t)
+
+		headerResult := map[string]int{
+			"0": 0,
+			"1": 0,
+			"2": 0,
+		}
+
+		mu := sync.Mutex{}
+		topicHandlers := pubsubx.Handlers{
+			topics[0]: func(ctx context.Context, msgs []*messagex.Message) ([]error, error) {
+				mu.Lock()
+				defer mu.Unlock()
+				errs := make([]error, len(msgs))
+				for i, msg := range msgs {
+					headerResult[msg.Metadata[messagex.RetryCountHeaderKey]] += 1
+					errs[i] = pubsubx.NewRetryableError(errors.New("Retry Me"))
+				}
+				return errs, errs[0]
+			},
+		}
+		err = consumer.Subscribe(context.Background(), topicHandlers)
+		require.NoError(t, err)
+
+		expectedMsg := messagex.NewMessage([]byte("test"))
+		sendMessage(t, wClient, topics[0], expectedMsg)
+
+		time.Sleep(15 * time.Second)
+		err = consumer.Subscribe(context.Background(), topicHandlers)
+		require.NoError(t, err)
+
+		time.Sleep(15 * time.Second)
+		err = consumer.Subscribe(context.Background(), topicHandlers)
+		require.NoError(t, err)
+
+		time.Sleep(15 * time.Second)
+		mu.Lock()
+		defer mu.Unlock()
+		assert.Equal(t, 4, headerResult["0"])
+		assert.Equal(t, 4, headerResult["1"])
+		assert.Equal(t, 4, headerResult["2"])
+	})
+}
 
 func TestConsumer_Subscribe_Concurrency(t *testing.T) {
 	l := logrusx.New("test", "")

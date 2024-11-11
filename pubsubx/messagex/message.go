@@ -45,6 +45,10 @@ func NewMessage(payload []byte, opts ...newMessageOption) *Message {
 		o.m = make(MessageMetadata)
 	}
 
+	if _, ok := o.m[RetryCountHeaderKey]; !ok {
+		o.m[RetryCountHeaderKey] = "0"
+	}
+
 	return &Message{
 		ID:       o.id,
 		Metadata: o.m,

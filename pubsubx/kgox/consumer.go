@@ -221,12 +221,14 @@ func (c *consumer) start(ctx context.Context) {
 					retryableMessages, poisonQueueMessages := parseRetryMessages(l, errs, allMsgs)
 					if len(retryableMessages) > 0 {
 						scopedTopic := topic.TopicName(c.conf.Scope)
-						if err := c.publishRetryMessages(ctx, retryableMessages, scopedTopic); err != nil {
-							l.WithError(err).Errorf("failed to publish some or all retry messages")
+						if publishErr := c.publishRetryMessages(ctx, retryableMessages, scopedTopic); publishErr != nil {
+							l.WithError(publishErr).Errorf("failed to publish as some or all retry messages")
 						}
 					}
 					if len(poisonQueueMessages) > 0 {
-						c.publishPoisonQueueMessages(poisonQueueMessages)
+						if publishErr := c.publishPoisonQueueMessages(poisonQueueMessages); publishErr != nil {
+							l.WithError(publishErr).Errorf("failed to publish some or all retry messages to the poison queue")
+						}
 					}
 				}
 
@@ -237,22 +239,24 @@ func (c *consumer) start(ctx context.Context) {
 				l.Infof("aborting consumer")
 				c.mu.RLock()
 				defer c.mu.RUnlock()
+				retryableMessages, poisonQueueMessages := parseRetryMessages(l, []error{pubsubx.NewRetryableError(err)}, allMsgs)
+				// This is required since the context is cancelled by the backoff
+				if len(retryableMessages) > 0 {
+					scopedTopic := topic.TopicName(c.conf.Scope)
+					if err := c.publishRetryMessages(context.Background(), retryableMessages, scopedTopic); err != nil {
+						l.WithError(err).Errorf("failed to publish some or all retry messages")
+					}
+				}
+				if len(poisonQueueMessages) > 0 {
+					if err := c.publishPoisonQueueMessages(poisonQueueMessages); err != nil {
+						l.WithError(err).Errorf("failed to publish some or all retry messages to the poison queue")
+					}
+				}
 				if c.cancel != nil {
 					c.cancel()
 					l.Infof("cancelled consumer")
 				} else {
 					l.Warnf("abort requested but no cancel function found")
-				}
-				retryableMessages, poisonQueueMessages := parseRetryMessages(l, []error{}, allMsgs)
-				if len(retryableMessages) > 0 {
-					scopedTopic := topic.TopicName(c.conf.Scope)
-					if err := c.publishRetryMessages(ctx, retryableMessages, scopedTopic); err != nil {
-						l.WithError(err).Errorf("failed to publish some or all retry messages")
-					}
-				}
-				if len(poisonQueueMessages) > 0 {
-					c.publishPoisonQueueMessages(poisonQueueMessages)
-					l.Errorf("failed to publish to retry queue")
 				}
 				return
 			}
@@ -286,18 +290,24 @@ func parseRetryMessages(l *logrusx.Logger, errs []error, allMsgs []*messagex.Mes
 	poisonQueueMessages := make([]*messagex.Message, 0)
 
 	checkErrs := len(errs) == len(allMsgs)
+	retryable := false
 	if !checkErrs {
-		l.Warnf("errors handler result mismatch messages length, can't identify which message failed, sending them all back")
+		if len(errs) == 1 {
+			l.Debug("using first error as reference to if we should retry the batch")
+			_, retryable = pubsubx.IsRetryableError(errs[0])
+		} else {
+			l.Warnf("errors handler result mismatch messages length, can't identify which message failed, sending them all back")
+		}
 	}
 	for i, msg := range allMsgs {
-		retryable := !checkErrs
-		if !retryable {
+		localRetryable := retryable
+		if checkErrs {
 			if errs[i] == nil {
 				continue
 			}
-			_, retryable = pubsubx.IsRetryableError(errs[i])
+			_, localRetryable = pubsubx.IsRetryableError(errs[i])
 		}
-		if !retryable {
+		if !localRetryable {
 			poisonQueueMessages = append(poisonQueueMessages, msg)
 			continue
 		}
@@ -307,7 +317,7 @@ func parseRetryMessages(l *logrusx.Logger, errs []error, allMsgs []*messagex.Mes
 			msg.Metadata[messagex.RetryCountHeaderKey] = "1"
 		} else {
 			numericRetryCount, err := strconv.Atoi(retryCount)
-			if err != nil || numericRetryCount >= maxRetryCount {
+			if err != nil || numericRetryCount >= maxRetryCount-1 {
 				l.Errorf("max topic retry count reach, sending message to poison queue")
 				poisonQueueMessages = append(poisonQueueMessages, msg)
 				continue
