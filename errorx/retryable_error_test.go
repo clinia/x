@@ -1,4 +1,4 @@
-package pubsubx
+package errorx
 
 import (
 	"errors"

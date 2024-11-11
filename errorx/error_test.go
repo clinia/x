@@ -33,6 +33,20 @@ func TestError(t *testing.T) {
 		assert.True(t, IsNotFoundError(err))
 	})
 
+	t.Run("should return a RetryableError wrapped in a CliniaError without OriginalError", func(t *testing.T) {
+		cerr := CliniaError{Type: ErrorTypeNotFound, Message: "Test"}
+		assert.False(t, cerr.IsRetryable())
+		cerr = cerr.AsRetryableError()
+		assert.True(t, cerr.IsRetryable())
+	})
+
+	t.Run("should return a RetryableError wrapped in a CliniaError with OriginalError", func(t *testing.T) {
+		cerr := NewInternalError(errors.New("test"))
+		assert.False(t, cerr.IsRetryable())
+		cerr = cerr.AsRetryableError()
+		assert.True(t, cerr.IsRetryable())
+	})
+
 	t.Run("should append details to existing error", func(t *testing.T) {
 		cerr := FailedPreconditionErrorf("test")
 		cerr = cerr.WithDetails(NotFoundErrorf("testnotfound"))

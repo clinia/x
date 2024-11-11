@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/clinia/x/errorx"
 	"github.com/clinia/x/logrusx"
 	"github.com/clinia/x/pubsubx"
 	"github.com/clinia/x/pubsubx/messagex"
@@ -66,7 +67,7 @@ func TestConsumer_Subscribe_Handling(t *testing.T) {
 				errs := make([]error, len(msgs))
 				for i, msg := range msgs {
 					headerResult[msg.Metadata[messagex.RetryCountHeaderKey]] += 1
-					errs[i] = pubsubx.NewRetryableError(errors.New("Retry Me"))
+					errs[i] = errorx.NewRetryableError(errors.New("Retry Me"))
 				}
 				return errs, nil
 			},
@@ -154,7 +155,7 @@ func TestConsumer_Subscribe_Handling(t *testing.T) {
 				errs := make([]error, len(msgs))
 				for i, msg := range msgs {
 					headerResult[msg.Metadata[messagex.RetryCountHeaderKey]] += 1
-					errs[i] = pubsubx.NewRetryableError(errors.New("Retry Me"))
+					errs[i] = errorx.NewRetryableError(errors.New("Retry Me"))
 				}
 				return errs, errs[0]
 			},

@@ -35,6 +35,22 @@ func (c *CliniaError) WithDetails(details ...CliniaError) CliniaError {
 	return *c
 }
 
+func (c *CliniaError) AsRetryableError() CliniaError {
+	if c.OriginalError != nil {
+		c.OriginalError = NewRetryableError(c.OriginalError)
+	} else {
+		c.OriginalError = NewRetryableError(c)
+	}
+	return *c
+}
+
+func (c *CliniaError) IsRetryable() bool {
+	if err, ok := IsRetryableError(c.OriginalError); ok {
+		return err.Retryable
+	}
+	return false
+}
+
 func NewCliniaErrorFromMessage(msg string) (*CliniaError, error) {
 	r, _ := regexp.Compile(`\[(.*?)\] (.*)`)
 	m := r.FindStringSubmatch(msg)

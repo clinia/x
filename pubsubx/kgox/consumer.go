@@ -239,7 +239,7 @@ func (c *consumer) start(ctx context.Context) {
 				l.Infof("aborting consumer")
 				c.mu.RLock()
 				defer c.mu.RUnlock()
-				retryableMessages, poisonQueueMessages := parseRetryMessages(l, []error{pubsubx.NewRetryableError(err)}, allMsgs)
+				retryableMessages, poisonQueueMessages := parseRetryMessages(l, []error{errorx.NewRetryableError(err)}, allMsgs)
 				// This is required since the context is cancelled by the backoff
 				if len(retryableMessages) > 0 {
 					scopedTopic := topic.TopicName(c.conf.Scope)
@@ -294,7 +294,7 @@ func parseRetryMessages(l *logrusx.Logger, errs []error, allMsgs []*messagex.Mes
 	if !checkErrs {
 		if len(errs) == 1 {
 			l.Debug("using first error as reference to if we should retry the batch")
-			_, retryable = pubsubx.IsRetryableError(errs[0])
+			_, retryable = errorx.IsRetryableError(errs[0])
 		} else {
 			l.Warnf("errors handler result mismatch messages length, can't identify which message failed, sending them all back")
 		}
@@ -305,7 +305,7 @@ func parseRetryMessages(l *logrusx.Logger, errs []error, allMsgs []*messagex.Mes
 			if errs[i] == nil {
 				continue
 			}
-			_, localRetryable = pubsubx.IsRetryableError(errs[i])
+			_, localRetryable = errorx.IsRetryableError(errs[i])
 		}
 		if !localRetryable {
 			poisonQueueMessages = append(poisonQueueMessages, msg)
