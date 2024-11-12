@@ -17,7 +17,7 @@ import (
 
 func TestKadminClient_CreateTopic(t *testing.T) {
 	getKadmClient := func(t *testing.T, defaultCreateTopicConfigs ...map[string]*string) (*KgoxAdminClient, *kadm.Client) {
-		config := getPubsubConfig(t)
+		config := getPubsubConfig(t, false)
 		wc, err := kgo.NewClient(
 			kgo.SeedBrokers(config.Providers.Kafka.Brokers...),
 		)

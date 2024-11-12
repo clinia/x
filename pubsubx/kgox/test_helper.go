@@ -36,7 +36,7 @@ func getRandomGroupTopics(t *testing.T, count int) (Group string, Topics []messa
 	return
 }
 
-func getPubsubConfig(t *testing.T) *pubsubx.Config {
+func getPubsubConfig(t *testing.T, retry bool) *pubsubx.Config {
 	t.Helper()
 	kafkaURLs := []string{"localhost:9091", "localhost:9092", "localhost:9093", "localhost:9094", "localhost:9095"}
 	kafkaURLsFromEnv := os.Getenv("KAFKA")
@@ -52,7 +52,7 @@ func getPubsubConfig(t *testing.T) *pubsubx.Config {
 				Brokers: kafkaURLs,
 			},
 		},
-		TopicRetry: true,
+		TopicRetry: retry,
 	}
 }
 

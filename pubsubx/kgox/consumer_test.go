@@ -20,7 +20,7 @@ import (
 
 func TestConsumer_Subscribe_Handling(t *testing.T) {
 	l := logrusx.New("test", "")
-	config := getPubsubConfig(t)
+	config := getPubsubConfig(t, true)
 	opts := &pubsubx.SubscriberOptions{MaxBatchSize: 10}
 
 	getWriteClient := func(t *testing.T) *kgo.Client {
@@ -185,7 +185,7 @@ func TestConsumer_Subscribe_Handling(t *testing.T) {
 
 func TestConsumer_Subscribe_Concurrency(t *testing.T) {
 	l := logrusx.New("test", "")
-	config := getPubsubConfig(t)
+	config := getPubsubConfig(t, false)
 	opts := &pubsubx.SubscriberOptions{MaxBatchSize: 10}
 
 	getWriteClient := func(t *testing.T) *kgo.Client {
