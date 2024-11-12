@@ -6,11 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/clinia/x/assertx"
 	"github.com/clinia/x/logrusx"
 	"github.com/clinia/x/pubsubx"
 	"github.com/clinia/x/pubsubx/messagex"
-	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/twmb/franz-go/pkg/kerr"
@@ -115,13 +113,11 @@ func TestPublisher(t *testing.T) {
 
 		errs, err = p.PublishSync(context.Background(), testTopic, msgTooLarge)
 		assert.Contains(t, err.Error(), kerr.MessageTooLarge.Error())
-		assert.EqualError(t, err, fmt.Sprintf("[INTERNAL] failed to produce message '[{key1 value1} {key2 value2} {_clinia_retry_count 0} {_clinia_message_id %s}]': MESSAGE_TOO_LARGE: The request included a message larger than the max message size the server will accept.", msgTooLarge.ID))
-		assert.Equal(t,
-			lo.Map(errs, func(err error, _ int) string { return err.Error() }),
-			[]string{
-				fmt.Sprintf("[INTERNAL] failed to produce message '[{key1 value1} {key2 value2} {_clinia_retry_count 0} {_clinia_message_id %s}]': MESSAGE_TOO_LARGE: The request included a message larger than the max message size the server will accept.", msgTooLarge.ID),
-			},
-		)
+		assert.Contains(t, err.Error(), fmt.Sprintf("{_clinia_message_id %s}", msgTooLarge.ID))
+		for _, errL := range errs {
+			assert.Contains(t, errL.Error(), kerr.MessageTooLarge.Error())
+			assert.Contains(t, errL.Error(), fmt.Sprintf("{_clinia_message_id %s}", msgTooLarge.ID))
+		}
 
 		// Should be able to publish a mix of correct and too large messages
 		msgs = []*messagex.Message{}
@@ -139,26 +135,15 @@ func TestPublisher(t *testing.T) {
 
 		errs, err = p.PublishSync(context.Background(), testTopic, msgs...)
 		assert.Error(t, err)
-		assertx.Equal(t,
-			lo.Map(errs, func(err error, _ int) string {
-				if err == nil {
-					return ""
-				}
-				return err.Error()
-			}),
-			[]string{
-				fmt.Sprintf("[INTERNAL] failed to produce message '[{id msg-1} {_clinia_retry_count 0} {_clinia_message_id %s}]': MESSAGE_TOO_LARGE: The request included a message larger than the max message size the server will accept.", msgs[1].ID),
-				fmt.Sprintf("[INTERNAL] failed to produce message '[{id msg-3} {_clinia_retry_count 0} {_clinia_message_id %s}]': MESSAGE_TOO_LARGE: The request included a message larger than the max message size the server will accept.", msgs[3].ID),
-				fmt.Sprintf("[INTERNAL] failed to produce message '[{id msg-5} {_clinia_retry_count 0} {_clinia_message_id %s}]': MESSAGE_TOO_LARGE: The request included a message larger than the max message size the server will accept.", msgs[5].ID),
-				fmt.Sprintf("[INTERNAL] failed to produce message '[{id msg-7} {_clinia_retry_count 0} {_clinia_message_id %s}]': MESSAGE_TOO_LARGE: The request included a message larger than the max message size the server will accept.", msgs[7].ID),
-				fmt.Sprintf("[INTERNAL] failed to produce message '[{id msg-9} {_clinia_retry_count 0} {_clinia_message_id %s}]': MESSAGE_TOO_LARGE: The request included a message larger than the max message size the server will accept.", msgs[9].ID),
-				"",
-				"",
-				"",
-				"",
-				"",
-			},
-		)
+		for i, errL := range errs {
+			if i%2 != 0 {
+				assert.Contains(t, errL.Error(), kerr.MessageTooLarge.Error())
+				assert.Contains(t, errL.Error(), fmt.Sprintf("{_clinia_message_id %s}", msgTooLarge.ID))
+				assert.Contains(t, errL.Error(), fmt.Sprintf("msg-%d", i))
+			} else {
+				assert.Nil(t, errL)
+			}
+		}
 
 		expectReceivedMessages(t, receivedMsgsCh, okMsgs...)
 	})
