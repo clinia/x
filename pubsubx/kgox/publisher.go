@@ -3,6 +3,7 @@ package kgox
 import (
 	"context"
 
+	"github.com/clinia/x/errorx"
 	"github.com/clinia/x/pubsubx"
 	"github.com/clinia/x/pubsubx/messagex"
 	"github.com/twmb/franz-go/pkg/kgo"
@@ -25,8 +26,22 @@ func (p *publisher) PublishSync(ctx context.Context, topic messagex.Topic, messa
 		errs = make(pubsubx.Errors, len(produceResults))
 	}
 
-	for i, record := range produceResults {
-		errs[i] = record.Err
+	for i, result := range produceResults {
+		if result.Err == nil {
+			errs[i] = nil
+			continue
+		}
+		if result.Record == nil {
+			errs[i] = errorx.InternalErrorf("failed to produce message: %v", result.Err)
+			continue
+		}
+
+		msg, err := defaultMarshaler.Unmarshal(result.Record)
+		if err != nil {
+			errs[i] = errorx.InternalErrorf("failed to unmarshal message: %v", err)
+			continue
+		}
+		errs[i] = errorx.InternalErrorf("failed to produce message '%v': %v", msg.Metadata, result.Err)
 	}
 
 	return errs, errs.FirstNonNil()

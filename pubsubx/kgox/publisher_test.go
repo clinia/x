@@ -6,9 +6,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/clinia/x/assertx"
 	"github.com/clinia/x/logrusx"
 	"github.com/clinia/x/pubsubx"
 	"github.com/clinia/x/pubsubx/messagex"
+	"github.com/samber/lo"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -98,6 +101,64 @@ func TestPublisher(t *testing.T) {
 		require.NoError(t, errs.FirstNonNil())
 
 		expectReceivedMessages(t, receivedMsgsCh, msgs...)
+
+		tooLargePayload := make([]byte, 1000000)
+		for i := range tooLargePayload {
+			tooLargePayload[i] = 'a'
+		}
+
+		msgTooLarge := messagex.NewMessage(tooLargePayload, messagex.WithMetadata(map[string]string{
+			"key1": "value1",
+			"key2": "value2",
+		}))
+
+		errs, err = p.PublishSync(context.Background(), testTopic, msgTooLarge)
+		assert.EqualError(t, err, "[INTERNAL] failed to produce message 'map[key1:value1 key2:value2]': MESSAGE_TOO_LARGE: The request included a message larger than the max message size the server will accept.")
+		assert.Equal(t,
+			lo.Map(errs, func(err error, _ int) string { return err.Error() }),
+			[]string{
+				"[INTERNAL] failed to produce message 'map[key1:value1 key2:value2]': MESSAGE_TOO_LARGE: The request included a message larger than the max message size the server will accept.",
+			},
+		)
+
+		// Should be able to publish a mix of correct and too large messages
+		msgs = []*messagex.Message{}
+		okMsgs := []*messagex.Message{}
+		for i := 0; i < 10; i++ {
+			if i%2 == 0 {
+				msgs = append(msgs, messagex.NewMessage([]byte(fmt.Sprintf("test-%d", i))))
+				okMsgs = append(okMsgs, msgs[len(msgs)-1])
+			} else {
+				msgs = append(msgs, messagex.NewMessage(tooLargePayload, messagex.WithMetadata(map[string]string{
+					"id": fmt.Sprintf("msg-%d", i),
+				})))
+			}
+		}
+
+		errs, err = p.PublishSync(context.Background(), testTopic, msgs...)
+		assert.Error(t, err)
+		assertx.Equal(t,
+			lo.Map(errs, func(err error, _ int) string {
+				if err == nil {
+					return ""
+				}
+				return err.Error()
+			}),
+			[]string{
+				"[INTERNAL] failed to produce message 'map[id:msg-1]': MESSAGE_TOO_LARGE: The request included a message larger than the max message size the server will accept.",
+				"[INTERNAL] failed to produce message 'map[id:msg-3]': MESSAGE_TOO_LARGE: The request included a message larger than the max message size the server will accept.",
+				"[INTERNAL] failed to produce message 'map[id:msg-5]': MESSAGE_TOO_LARGE: The request included a message larger than the max message size the server will accept.",
+				"[INTERNAL] failed to produce message 'map[id:msg-7]': MESSAGE_TOO_LARGE: The request included a message larger than the max message size the server will accept.",
+				"[INTERNAL] failed to produce message 'map[id:msg-9]': MESSAGE_TOO_LARGE: The request included a message larger than the max message size the server will accept.",
+				"",
+				"",
+				"",
+				"",
+				"",
+			},
+		)
+
+		expectReceivedMessages(t, receivedMsgsCh, okMsgs...)
 	})
 
 	t.Run("PublishAsync", func(t *testing.T) {
