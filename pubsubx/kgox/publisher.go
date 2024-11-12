@@ -36,12 +36,7 @@ func (p *publisher) PublishSync(ctx context.Context, topic messagex.Topic, messa
 			continue
 		}
 
-		msg, err := defaultMarshaler.Unmarshal(result.Record)
-		if err != nil {
-			errs[i] = errorx.InternalErrorf("failed to unmarshal message: %v", err)
-			continue
-		}
-		errs[i] = errorx.InternalErrorf("failed to produce message '%v': %v", msg.Metadata, result.Err)
+		errs[i] = errorx.InternalErrorf("failed to produce message '%s': %v", result.Record.Headers, result.Err)
 	}
 
 	return errs, errs.FirstNonNil()
