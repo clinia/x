@@ -45,7 +45,7 @@ func TestConsumer_Subscribe_Handling(t *testing.T) {
 
 	t.Run("Should push back messages on retryable error", func(t *testing.T) {
 		group, topics := getRandomGroupTopics(t, 1)
-		createTopic(t, config, topics[0])
+		createTopic(t, config, topics[0], messagex.ConsumerGroup(group))
 		consumer, err := newConsumer(l, nil, config, group, topics, opts)
 		if err != nil {
 			t.Fatalf("failed to create consumer: %v", err)
@@ -89,7 +89,7 @@ func TestConsumer_Subscribe_Handling(t *testing.T) {
 
 	t.Run("Should not push back messages on non retryable error", func(t *testing.T) {
 		group, topics := getRandomGroupTopics(t, 1)
-		createTopic(t, config, topics[0])
+		createTopic(t, config, topics[0], messagex.ConsumerGroup(group))
 		consumer, err := newConsumer(l, nil, config, group, topics, opts)
 		if err != nil {
 			t.Fatalf("failed to create consumer: %v", err)
@@ -134,7 +134,7 @@ func TestConsumer_Subscribe_Handling(t *testing.T) {
 	t.Run("Should push back messages on retryable error for complete error", func(t *testing.T) {
 		t.Skipf("Tests takes at least 45 seconds to run, skipping to reduce test suite time, please manually trigger this test")
 		group, topics := getRandomGroupTopics(t, 1)
-		createTopic(t, config, topics[0])
+		createTopic(t, config, topics[0], messagex.ConsumerGroup(group))
 		consumer, err := newConsumer(l, nil, config, group, topics, opts)
 		if err != nil {
 			t.Fatalf("failed to create consumer: %v", err)
@@ -241,7 +241,7 @@ func TestConsumer_Subscribe_Concurrency(t *testing.T) {
 	t.Run("should handle concurrent Subscribe calls and close", func(t *testing.T) {
 		group, topics := getRandomGroupTopics(t, 1)
 		testTopic := topics[0]
-		createTopic(t, config, testTopic)
+		createTopic(t, config, testTopic, messagex.ConsumerGroup(group))
 
 		consumer, err := newConsumer(l, nil, config, group, topics, opts)
 		if err != nil {
@@ -296,7 +296,7 @@ func TestConsumer_Subscribe_Concurrency(t *testing.T) {
 		group, topics := getRandomGroupTopics(t, 1)
 		testTopic := topics[0]
 		wClient := getWriteClient(t)
-		createTopic(t, config, testTopic)
+		createTopic(t, config, testTopic, messagex.ConsumerGroup(group))
 
 		receivedMsgs := make(chan *messagex.Message, 10)
 		consumer, err := newConsumer(l, nil, config, group, topics, opts)
@@ -400,7 +400,7 @@ func TestConsumer_Subscribe_Concurrency(t *testing.T) {
 		group, topics := getRandomGroupTopics(t, 1)
 		testTopic := topics[0]
 		wClient := getWriteClient(t)
-		createTopic(t, config, testTopic)
+		createTopic(t, config, testTopic, messagex.ConsumerGroup(group))
 
 		// Buffer to intercept logs
 		buf := newConcurrentBuffer(t)

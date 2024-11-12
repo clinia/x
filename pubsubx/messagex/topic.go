@@ -7,7 +7,10 @@ import (
 
 type Topic string
 
-const topicSeparator = "."
+const (
+	topicSeparator = "."
+	retrySuffix    = "_retry"
+)
 
 func NewTopic(topic string) (Topic, error) {
 	if strings.Contains(string(topic), topicSeparator) {
@@ -28,6 +31,10 @@ func (t Topic) TopicName(scope string) string {
 	return string(t)
 }
 
+func (t Topic) GenerateRetryTopic(consumerGroup ConsumerGroup) Topic {
+	return Topic(string(t) + topicSeparator + string(consumerGroup) + retrySuffix)
+}
+
 func TopicFromName(topicName string) Topic {
 	splits := strings.Split(topicName, topicSeparator)
 	if len(splits) > 1 {
@@ -35,5 +42,18 @@ func TopicFromName(topicName string) Topic {
 		return Topic(strings.Join(splits[1:], topicSeparator))
 	}
 
-	return Topic(splits[1])
+	return Topic(splits[0])
+}
+
+func BaseTopicFromName(topicName string) Topic {
+	splits := strings.Split(topicName, topicSeparator)
+	if len(splits) > 1 {
+		if strings.HasSuffix(splits[len(splits)-1], retrySuffix) {
+			// Remove the retry topic suffix
+			return Topic(strings.Join(splits[1:len(splits)-1], topicSeparator))
+		}
+		return Topic(strings.Join(splits[1:], topicSeparator))
+	}
+
+	return Topic(splits[0])
 }

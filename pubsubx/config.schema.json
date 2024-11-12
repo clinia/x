@@ -44,6 +44,11 @@
           "properties": {}
         }
       }
+    },
+    "topicRetry": {
+      "type": "boolean",
+      "description": "Enable the retry mechanism with pubsub topic",
+      "default": false
     }
   }
 }

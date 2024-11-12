@@ -13,9 +13,10 @@ import (
 )
 
 type Config struct {
-	Scope     string          `json:"scope"`
-	Provider  string          `json:"provider"`
-	Providers ProvidersConfig `json:"providers"`
+	Scope      string          `json:"scope"`
+	Provider   string          `json:"provider"`
+	Providers  ProvidersConfig `json:"providers"`
+	TopicRetry bool            `json:"topicRetry"`
 }
 
 type ProvidersConfig struct {

@@ -12,6 +12,7 @@ import (
 	"github.com/clinia/x/logrusx"
 	"github.com/clinia/x/pubsubx"
 	"github.com/clinia/x/pubsubx/messagex"
+	"github.com/samber/lo"
 	"github.com/segmentio/ksuid"
 	"github.com/stretchr/testify/require"
 	"github.com/twmb/franz-go/pkg/kadm"
@@ -25,7 +26,7 @@ const (
 
 func getRandomGroupTopics(t *testing.T, count int) (Group string, Topics []messagex.Topic) {
 	t.Helper()
-	name := strings.ReplaceAll(t.Name(), "/", "-")
+	name := strings.ReplaceAll(t.Name(), "/", "-")[:8]
 	rand := ksuid.New().String()
 	Group = fmt.Sprintf("%s-%s-group", name, rand)
 	for i := 0; i < count; i++ {
@@ -54,14 +55,17 @@ func getPubsubConfig(t *testing.T) *pubsubx.Config {
 	}
 }
 
-func createTopic(t *testing.T, conf *pubsubx.Config, topic messagex.Topic) {
+func createTopic(t *testing.T, conf *pubsubx.Config, topic messagex.Topic, consumerGroup messagex.ConsumerGroup) {
+	topics := []messagex.Topic{topic, topic.GenerateRetryTopic(consumerGroup)}
 	client, err := kgo.NewClient(kgo.SeedBrokers(conf.Providers.Kafka.Brokers...))
 	require.NoError(t, err)
 
 	admCl := kadm.NewClient(client)
 	deleteTopic := func() error {
 		// Delete the topic
-		res, err := admCl.DeleteTopics(context.Background(), topic.TopicName(conf.Scope))
+		res, err := admCl.DeleteTopics(context.Background(), lo.Map(topics, func(t messagex.Topic, _ int) string {
+			return t.TopicName(conf.Scope)
+		})...)
 		return errors.Join(err, res.Error())
 	}
 
@@ -69,7 +73,9 @@ func createTopic(t *testing.T, conf *pubsubx.Config, topic messagex.Topic) {
 	deleteTopic()
 
 	// Create the topic
-	res, err := admCl.CreateTopics(context.Background(), 1, 1, map[string]*string{}, topic.TopicName(conf.Scope))
+	res, err := admCl.CreateTopics(context.Background(), 1, 1, map[string]*string{}, lo.Map(topics, func(t messagex.Topic, _ int) string {
+		return t.TopicName(conf.Scope)
+	})...)
 	require.NoError(t, err, "failed to create topic '%s'", topic.TopicName(conf.Scope))
 	require.NoError(t, res.Error(), "failed to create topic '%s'", topic.TopicName(conf.Scope))
 	t.Logf("created topic '%s'", topic.TopicName(conf.Scope))
