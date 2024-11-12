@@ -13,6 +13,7 @@ import (
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/twmb/franz-go/pkg/kerr"
 )
 
 func TestPublisher(t *testing.T) {
@@ -113,11 +114,12 @@ func TestPublisher(t *testing.T) {
 		}))
 
 		errs, err = p.PublishSync(context.Background(), testTopic, msgTooLarge)
-		assert.EqualError(t, err, fmt.Sprintf("[INTERNAL] failed to produce message '[{key1 value1} {key2 value2} {_clinia_message_id %s}]': MESSAGE_TOO_LARGE: The request included a message larger than the max message size the server will accept.", msgTooLarge.ID))
+		assert.Contains(t, err.Error(), kerr.MessageTooLarge.Error())
+		assert.EqualError(t, err, fmt.Sprintf("[INTERNAL] failed to produce message '[{key1 value1} {key2 value2} {_clinia_retry_count 0} {_clinia_message_id %s}]': MESSAGE_TOO_LARGE: The request included a message larger than the max message size the server will accept.", msgTooLarge.ID))
 		assert.Equal(t,
 			lo.Map(errs, func(err error, _ int) string { return err.Error() }),
 			[]string{
-				fmt.Sprintf("[INTERNAL] failed to produce message '[{key1 value1} {key2 value2} {_clinia_message_id %s}]': MESSAGE_TOO_LARGE: The request included a message larger than the max message size the server will accept.", msgTooLarge.ID),
+				fmt.Sprintf("[INTERNAL] failed to produce message '[{key1 value1} {key2 value2} {_clinia_retry_count 0} {_clinia_message_id %s}]': MESSAGE_TOO_LARGE: The request included a message larger than the max message size the server will accept.", msgTooLarge.ID),
 			},
 		)
 
@@ -145,11 +147,11 @@ func TestPublisher(t *testing.T) {
 				return err.Error()
 			}),
 			[]string{
-				fmt.Sprintf("[INTERNAL] failed to produce message '[{id msg-1} {_clinia_message_id %s}]': MESSAGE_TOO_LARGE: The request included a message larger than the max message size the server will accept.", msgs[1].ID),
-				fmt.Sprintf("[INTERNAL] failed to produce message '[{id msg-3} {_clinia_message_id %s}]': MESSAGE_TOO_LARGE: The request included a message larger than the max message size the server will accept.", msgs[3].ID),
-				fmt.Sprintf("[INTERNAL] failed to produce message '[{id msg-5} {_clinia_message_id %s}]': MESSAGE_TOO_LARGE: The request included a message larger than the max message size the server will accept.", msgs[5].ID),
-				fmt.Sprintf("[INTERNAL] failed to produce message '[{id msg-7} {_clinia_message_id %s}]': MESSAGE_TOO_LARGE: The request included a message larger than the max message size the server will accept.", msgs[7].ID),
-				fmt.Sprintf("[INTERNAL] failed to produce message '[{id msg-9} {_clinia_message_id %s}]': MESSAGE_TOO_LARGE: The request included a message larger than the max message size the server will accept.", msgs[9].ID),
+				fmt.Sprintf("[INTERNAL] failed to produce message '[{id msg-1} {_clinia_retry_count 0} {_clinia_message_id %s}]': MESSAGE_TOO_LARGE: The request included a message larger than the max message size the server will accept.", msgs[1].ID),
+				fmt.Sprintf("[INTERNAL] failed to produce message '[{id msg-3} {_clinia_retry_count 0} {_clinia_message_id %s}]': MESSAGE_TOO_LARGE: The request included a message larger than the max message size the server will accept.", msgs[3].ID),
+				fmt.Sprintf("[INTERNAL] failed to produce message '[{id msg-5} {_clinia_retry_count 0} {_clinia_message_id %s}]': MESSAGE_TOO_LARGE: The request included a message larger than the max message size the server will accept.", msgs[5].ID),
+				fmt.Sprintf("[INTERNAL] failed to produce message '[{id msg-7} {_clinia_retry_count 0} {_clinia_message_id %s}]': MESSAGE_TOO_LARGE: The request included a message larger than the max message size the server will accept.", msgs[7].ID),
+				fmt.Sprintf("[INTERNAL] failed to produce message '[{id msg-9} {_clinia_retry_count 0} {_clinia_message_id %s}]': MESSAGE_TOO_LARGE: The request included a message larger than the max message size the server will accept.", msgs[9].ID),
 				"",
 				"",
 				"",
