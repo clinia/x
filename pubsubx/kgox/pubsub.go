@@ -45,12 +45,11 @@ func NewPubSub(l *logrusx.Logger, config *pubsubx.Config, opts *pubsubx.PubSubOp
 
 	// Setup kotel
 	var kotelService *kotel.Kotel
-	var defaultCreateTopicConfigEntries map[string]*string
+	defaultCreateTopicConfigEntries := map[string]*string{}
 	if opts != nil {
 		kotelService = newKotel(opts.TracerProvider, opts.Propagator, opts.MeterProvider)
 		kopts = append(kopts, kgo.WithHooks(kotelService.Hooks()...))
 
-		defaultCreateTopicConfigEntries = map[string]*string{}
 		if opts.MaxMessageByte != nil {
 			defaultCreateTopicConfigEntries["max.message.bytes"] = pointerx.Ptr(fmt.Sprintf("%d", *opts.MaxMessageByte))
 			kopts = append(kopts, kgo.ProducerBatchMaxBytes(int32(*opts.MaxMessageByte)))
