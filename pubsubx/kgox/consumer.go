@@ -307,24 +307,25 @@ func parseRetryMessages(l *logrusx.Logger, errs []error, allMsgs []*messagex.Mes
 			}
 			_, localRetryable = errorx.IsRetryableError(errs[i])
 		}
+		copiedMsg := msg.Copy()
 		if !localRetryable {
-			poisonQueueMessages = append(poisonQueueMessages, msg)
+			poisonQueueMessages = append(poisonQueueMessages, copiedMsg)
 			continue
 		}
 		retryCount, ok := msg.Metadata[messagex.RetryCountHeaderKey]
 		if !ok {
 			l.Warnf("message is missing %s header, setting it to default 1", messagex.RetryCountHeaderKey)
-			msg.Metadata[messagex.RetryCountHeaderKey] = "1"
+			copiedMsg.Metadata[messagex.RetryCountHeaderKey] = "1"
 		} else {
 			numericRetryCount, err := strconv.Atoi(retryCount)
 			if err != nil || numericRetryCount >= maxRetryCount-1 {
 				l.Errorf("max topic retry count reach, sending message to poison queue")
-				poisonQueueMessages = append(poisonQueueMessages, msg)
+				poisonQueueMessages = append(poisonQueueMessages, copiedMsg)
 				continue
 			}
-			msg.Metadata[messagex.RetryCountHeaderKey] = strconv.Itoa(numericRetryCount + 1)
+			copiedMsg.Metadata[messagex.RetryCountHeaderKey] = strconv.Itoa(numericRetryCount + 1)
 		}
-		retryableMessages = append(retryableMessages, msg)
+		retryableMessages = append(retryableMessages, copiedMsg)
 	}
 	return retryableMessages, poisonQueueMessages
 }

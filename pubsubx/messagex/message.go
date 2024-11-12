@@ -91,3 +91,17 @@ func (m *Message) WithSpan(ctx context.Context, tracer trace.Tracer, spanPrefix 
 
 	return msgctx, span
 }
+
+func (m *Message) Copy() *Message {
+	newMessage := Message{
+		ID:       m.ID,
+		Metadata: MessageMetadata{},
+		Payload:  m.Payload,
+	}
+
+	for key, value := range m.Metadata {
+		newMessage.Metadata[key] = value
+	}
+
+	return &newMessage
+}
