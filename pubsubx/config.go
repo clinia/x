@@ -6,6 +6,7 @@ import (
 	"io"
 	"math"
 
+	"github.com/clinia/x/pointerx"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
@@ -29,10 +30,11 @@ type KafkaConfig struct {
 }
 
 type PubSubOptions struct {
-	TracerProvider                  trace.TracerProvider
-	Propagator                      propagation.TextMapPropagator
-	MeterProvider                   metric.MeterProvider
-	DefaultCreateTopicConfigEntries map[string]*string
+	TracerProvider trace.TracerProvider
+	Propagator     propagation.TextMapPropagator
+	MeterProvider  metric.MeterProvider
+	MaxMessageByte *int32
+	RetentionMs    *int32
 }
 
 type PubSubOption func(*PubSubOptions)
@@ -63,9 +65,18 @@ func WithMeterProvider(provider metric.MeterProvider) PubSubOption {
 	}
 }
 
-func WithDefaultCreateTopicConfigEntries(entries map[string]*string) PubSubOption {
+// WithMaxMessageByte specifies the max message size in bytes.
+// If none is specified, the default value is 1 MB.
+func WithMaxMessageByte(max int32) PubSubOption {
 	return func(opts *PubSubOptions) {
-		opts.DefaultCreateTopicConfigEntries = entries
+		opts.MaxMessageByte = pointerx.Ptr(max)
+	}
+}
+
+// WithRetentionMs specifies the retention time in milliseconds.
+func WithRetentionMs(retentionMs int32) PubSubOption {
+	return func(opts *PubSubOptions) {
+		opts.RetentionMs = pointerx.Ptr(retentionMs)
 	}
 }
 
