@@ -2,8 +2,10 @@ package kgox
 
 import (
 	"errors"
+	"strconv"
 	"sync"
 
+	"github.com/clinia/x/pointerx"
 	"github.com/clinia/x/pubsubx"
 
 	"github.com/clinia/x/errorx"
@@ -47,7 +49,15 @@ func NewPubSub(l *logrusx.Logger, config *pubsubx.Config, opts *pubsubx.PubSubOp
 	if opts != nil {
 		kotelService = newKotel(opts.TracerProvider, opts.Propagator, opts.MeterProvider)
 		kopts = append(kopts, kgo.WithHooks(kotelService.Hooks()...))
-		defaultCreateTopicConfigEntries = opts.DefaultCreateTopicConfigEntries
+
+		defaultCreateTopicConfigEntries = map[string]*string{}
+		if opts.MaxMessageByte != nil {
+			defaultCreateTopicConfigEntries["max.message.bytes"] = pointerx.Ptr(strconv.Itoa(*opts.MaxMessageByte))
+			kopts = append(kopts, kgo.ProducerBatchMaxBytes(int32(*opts.MaxMessageByte)))
+		}
+		if opts.RetentionMs != nil {
+			defaultCreateTopicConfigEntries["retention.ms"] = pointerx.Ptr(strconv.Itoa(*opts.RetentionMs))
+		}
 	}
 
 	wc, err := kgo.NewClient(kopts...)
