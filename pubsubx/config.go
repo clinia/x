@@ -33,8 +33,8 @@ type PubSubOptions struct {
 	TracerProvider trace.TracerProvider
 	Propagator     propagation.TextMapPropagator
 	MeterProvider  metric.MeterProvider
-	MaxMessageByte *int
-	RetentionMs    *int
+	MaxMessageByte *int32
+	RetentionMs    *int32
 }
 
 type PubSubOption func(*PubSubOptions)
@@ -67,14 +67,14 @@ func WithMeterProvider(provider metric.MeterProvider) PubSubOption {
 
 // WithMaxMessageByte specifies the max message size in bytes.
 // If none is specified, the default value is 1 MB.
-func WithMaxMessageByte(max int) PubSubOption {
+func WithMaxMessageByte(max int32) PubSubOption {
 	return func(opts *PubSubOptions) {
 		opts.MaxMessageByte = pointerx.Ptr(max)
 	}
 }
 
 // WithRetentionMs specifies the retention time in milliseconds.
-func WithRetentionMs(retentionMs int) PubSubOption {
+func WithRetentionMs(retentionMs int32) PubSubOption {
 	return func(opts *PubSubOptions) {
 		opts.RetentionMs = pointerx.Ptr(retentionMs)
 	}

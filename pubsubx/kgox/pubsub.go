@@ -2,7 +2,7 @@ package kgox
 
 import (
 	"errors"
-	"strconv"
+	"fmt"
 	"sync"
 
 	"github.com/clinia/x/pointerx"
@@ -52,11 +52,11 @@ func NewPubSub(l *logrusx.Logger, config *pubsubx.Config, opts *pubsubx.PubSubOp
 
 		defaultCreateTopicConfigEntries = map[string]*string{}
 		if opts.MaxMessageByte != nil {
-			defaultCreateTopicConfigEntries["max.message.bytes"] = pointerx.Ptr(strconv.Itoa(*opts.MaxMessageByte))
+			defaultCreateTopicConfigEntries["max.message.bytes"] = pointerx.Ptr(fmt.Sprintf("%d", *opts.MaxMessageByte))
 			kopts = append(kopts, kgo.ProducerBatchMaxBytes(int32(*opts.MaxMessageByte)))
 		}
 		if opts.RetentionMs != nil {
-			defaultCreateTopicConfigEntries["retention.ms"] = pointerx.Ptr(strconv.Itoa(*opts.RetentionMs))
+			defaultCreateTopicConfigEntries["retention.ms"] = pointerx.Ptr(fmt.Sprintf("%d", *opts.RetentionMs))
 		}
 	}
 
