@@ -52,6 +52,7 @@ func getPubsubConfig(t *testing.T) *pubsubx.Config {
 				Brokers: kafkaURLs,
 			},
 		},
+		TopicRetry: true,
 	}
 }
 
