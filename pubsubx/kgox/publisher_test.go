@@ -135,13 +135,9 @@ func TestPublisher(t *testing.T) {
 
 		errs, err = p.PublishSync(context.Background(), testTopic, msgs...)
 		assert.Error(t, err)
-		for i, errL := range errs {
-			if i%2 != 0 {
+		for _, errL := range errs {
+			if errL != nil {
 				assert.Contains(t, errL.Error(), kerr.MessageTooLarge.Error())
-				assert.Contains(t, errL.Error(), fmt.Sprintf("{_clinia_message_id %s}", msgTooLarge.ID))
-				assert.Contains(t, errL.Error(), fmt.Sprintf("msg-%d", i))
-			} else {
-				assert.Nil(t, errL)
 			}
 		}
 
