@@ -79,7 +79,7 @@ func TestPublisher(t *testing.T) {
 
 		group, topics := getRandomGroupTopics(t, 1)
 		testTopic := topics[0]
-		createTopic(t, config, testTopic, messagex.ConsumerGroup(group))
+		createTopic(t, config, testTopic)
 
 		receivedMsgsCh := receivedMessages(t, group, testTopic)
 
@@ -167,7 +167,7 @@ func TestPublisher(t *testing.T) {
 
 		group, topics := getRandomGroupTopics(t, 1)
 		testTopic := topics[0]
-		createTopic(t, config, testTopic, messagex.ConsumerGroup(group))
+		createTopic(t, config, testTopic)
 
 		receivedMsgsCh := receivedMessages(t, group, testTopic)
 
@@ -195,7 +195,7 @@ func TestPublisher(t *testing.T) {
 
 		group, topics := getRandomGroupTopics(t, 1)
 		testTopic := topics[0]
-		createTopic(t, config, testTopic, messagex.ConsumerGroup(group))
+		createTopic(t, config, testTopic)
 
 		receivedMsgsCh := receivedMessages(t, group, testTopic)
 
@@ -226,7 +226,7 @@ func TestPublisher(t *testing.T) {
 
 		group, topics := getRandomGroupTopics(t, 1)
 		testTopic := topics[0]
-		createTopic(t, config, testTopic, messagex.ConsumerGroup(group))
+		createTopic(t, config, testTopic)
 
 		receivedMsgsCh := receivedMessages(t, group, testTopic)
 

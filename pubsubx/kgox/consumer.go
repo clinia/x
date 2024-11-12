@@ -95,6 +95,7 @@ func (c *consumer) bootstrapClient() error {
 		kgo.ConsumerGroup(c.group.ConsumerGroup(c.conf.Scope)),
 		kgo.SeedBrokers(c.conf.Providers.Kafka.Brokers...),
 		kgo.ConsumeTopics(scopedTopics...),
+		kgo.AllowAutoTopicCreation(),
 	}
 
 	if c.kotelService != nil {
