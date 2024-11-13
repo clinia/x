@@ -79,12 +79,12 @@ func TestBaseTopicFromName(t *testing.T) {
 	})
 
 	t.Run("should return a topic extracted from a retry topic name without scope", func(t *testing.T) {
-		topic := BaseTopicFromName("scope.my-topic.interestingly.consumer-group_retry")
+		topic := BaseTopicFromName("scope.my-topic.interestingly.consumer-group" + retrySuffix)
 		assert.Equal(t, Topic("my-topic.interestingly"), topic)
 	})
 
 	t.Run("should return a topic extracted from a short retry topic", func(t *testing.T) {
-		topic := BaseTopicFromName("scope.my-topic.consumer-group_retry")
+		topic := BaseTopicFromName("scope.my-topic.consumer-group" + retrySuffix)
 		assert.Equal(t, Topic("my-topic"), topic)
 	})
 }
