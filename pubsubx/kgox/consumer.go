@@ -236,7 +236,7 @@ func (c *consumer) start(ctx context.Context) {
 							l.WithError(publishErr).Errorf("failed to publish as some or all retry messages")
 						}
 					}
-					if len(poisonQueueMessages) > 0 {
+					if c.canUsePoisonQueue() && len(poisonQueueMessages) > 0 {
 						if publishErr := c.publishPoisonQueueMessages(ctx, topic.TopicName(c.conf.Scope), poisonQueueMessages, poisonQueueErrs); publishErr != nil {
 							l.WithError(publishErr).Errorf("failed to publish some or all retry messages to the poison queue")
 						}
@@ -257,7 +257,7 @@ func (c *consumer) start(ctx context.Context) {
 						l.WithError(err).Errorf("failed to publish some or all retry messages")
 					}
 				}
-				if len(poisonQueueMessages) > 0 {
+				if c.canUsePoisonQueue() && len(poisonQueueMessages) > 0 {
 					if publishErr := c.publishPoisonQueueMessages(ctx, topic.TopicName(c.conf.Scope), poisonQueueMessages, []error{err}); publishErr != nil {
 						l.WithError(err).Errorf("failed to publish some or all retry messages to the poison queue")
 					}
@@ -276,6 +276,10 @@ func (c *consumer) start(ctx context.Context) {
 
 func (c *consumer) canTopicRetry() bool {
 	return c.conf != nil && c.conf.TopicRetry && c.opts != nil && c.opts.MaxTopicRetryCount > 0
+}
+
+func (c *consumer) canUsePoisonQueue() bool {
+	return c.conf != nil && c.conf.PoisonQueue.Enabled && c.conf.PoisonQueue.TopicName != ""
 }
 
 func (c *consumer) publishRetryMessages(ctx context.Context, retryableMessages []*messagex.Message, topic messagex.Topic) error {
@@ -342,8 +346,10 @@ func (c *consumer) parseRetryMessages(l *logrusx.Logger, errs []error, allMsgs [
 		}
 		copiedMsg := msg.Copy()
 		if !localRetryable {
-			poisonQueueMessages = append(poisonQueueMessages, copiedMsg)
-			poisonQueueErrs = append(poisonQueueErrs, referErr)
+			if c.canUsePoisonQueue() {
+				poisonQueueMessages = append(poisonQueueMessages, copiedMsg)
+				poisonQueueErrs = append(poisonQueueErrs, referErr)
+			}
 			continue
 		}
 		retryCount, ok := msg.Metadata[messagex.RetryCountHeaderKey]
@@ -354,8 +360,10 @@ func (c *consumer) parseRetryMessages(l *logrusx.Logger, errs []error, allMsgs [
 			numericRetryCount, err := strconv.Atoi(retryCount)
 			if !c.canTopicRetry() || err != nil || numericRetryCount >= int(c.opts.MaxTopicRetryCount)-1 {
 				l.Errorf("not retrying, adding message to poison queue messages")
-				poisonQueueMessages = append(poisonQueueMessages, copiedMsg)
-				poisonQueueErrs = append(poisonQueueErrs, referErr)
+				if c.canUsePoisonQueue() {
+					poisonQueueMessages = append(poisonQueueMessages, copiedMsg)
+					poisonQueueErrs = append(poisonQueueErrs, referErr)
+				}
 				continue
 			}
 			copiedMsg.Metadata[messagex.RetryCountHeaderKey] = strconv.Itoa(numericRetryCount + 1)
