@@ -1,6 +1,7 @@
 package kgox
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sync"
@@ -12,6 +13,7 @@ import (
 	"github.com/clinia/x/logrusx"
 	"github.com/clinia/x/pubsubx/messagex"
 	"github.com/twmb/franz-go/pkg/kadm"
+	"github.com/twmb/franz-go/pkg/kerr"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/plugin/kotel"
 )
@@ -62,6 +64,15 @@ func NewPubSub(l *logrusx.Logger, config *pubsubx.Config, opts *pubsubx.PubSubOp
 	wc, err := kgo.NewClient(kopts...)
 	if err != nil {
 		return nil, errorx.InternalErrorf("failed to create kafka client: %v", err)
+	}
+
+	if config.PoisonQueue.Enabled {
+		poisonQueueTopic := messagex.TopicFromName(config.PoisonQueue.TopicName)
+		adminClient := kadm.NewClient(wc)
+		_, err := adminClient.CreateTopic(context.Background(), 1, int16(len(config.Providers.Kafka.Brokers)), defaultCreateTopicConfigEntries, poisonQueueTopic.TopicName(config.Scope))
+		if err != nil && err.Error() != kerr.TopicAlreadyExists.Error() {
+			return nil, errorx.InternalErrorf("failed to create poison queue: %v", err)
+		}
 	}
 
 	return &PubSub{

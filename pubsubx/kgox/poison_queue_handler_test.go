@@ -13,6 +13,7 @@ import (
 	"github.com/clinia/x/pubsubx/messagex"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kgo"
 )
 
@@ -32,21 +33,41 @@ func TestPublishMessagesToPoisonQueue(t *testing.T) {
 		defer testClient.Close()
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		createTopic(t, config, messagex.TopicFromName(config.PoisonQueue.TopicName))
 		records := make([]*kgo.Record, 0, 1)
 		pqh := getPoisonQueueHandler(t, l, config)
+		admCl := kadm.NewClient(testClient)
+		defer func() error {
+			// Delete the topic
+			res, err := admCl.DeleteTopics(context.Background(), pqTopic)
+			return errors.Join(err, res.Error())
+		}()
 		err = pqh.PublishMessagesToPoisonQueue(ctx, "failed-topic", "failed-group", []error{}, []*messagex.Message{})
 		assert.NoError(t, err)
+		mut := sync.Mutex{}
 		go func() {
-			fetches := testClient.PollFetches(ctx)
-			iter := fetches.RecordIter()
-			for !iter.Done() {
-				r := iter.Next()
-				records = append(records, r)
+			for {
+				fetches := testClient.PollFetches(ctx)
+				if fetches == nil {
+					return
+				}
+				fetches.EachTopic(func(tp kgo.FetchTopic) {
+					mut.Lock()
+					defer mut.Unlock()
+					rs := tp.Records()
+					records = append(records, rs...)
+				})
+				select {
+				case <-ctx.Done():
+					return
+				default:
+				}
 			}
 		}()
-		time.Sleep(3 * time.Second)
-		assert.Equal(t, 0, len(records))
+		assert.Never(t, func() bool {
+			mut.Lock()
+			defer mut.Unlock()
+			return len(records) > 0
+		}, 5*time.Second, 500*time.Millisecond)
 	})
 
 	t.Run("should publish to the queue with an empty error", func(t *testing.T) {
@@ -62,10 +83,16 @@ func TestPublishMessagesToPoisonQueue(t *testing.T) {
 		defer testClient.Close()
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		createTopic(t, config, messagex.TopicFromName(config.PoisonQueue.TopicName))
 
 		require.NoError(t, err)
 		pqh := getPoisonQueueHandler(t, l, config)
+		admCl := kadm.NewClient(testClient)
+		defer func() error {
+			// Delete the topic
+			res, err := admCl.DeleteTopics(context.Background(), pqTopic)
+			return errors.Join(err, res.Error())
+		}()
+
 		failTopicName := "failed-topic"
 		failGroupName := "failed-group"
 		err = pqh.PublishMessagesToPoisonQueue(ctx, failTopicName, messagex.ConsumerGroup(failGroupName), []error{}, []*messagex.Message{
@@ -75,33 +102,47 @@ func TestPublishMessagesToPoisonQueue(t *testing.T) {
 		mut := sync.Mutex{}
 		records := make([]*kgo.Record, 0, 1)
 		go func() {
-			fetches := testClient.PollFetches(ctx)
-			fetches.EachTopic(func(tp kgo.FetchTopic) {
-				mut.Lock()
-				defer mut.Unlock()
-				rs := tp.Records()
-				records = append(records, rs...)
-			})
-		}()
-		time.Sleep(5 * time.Second)
-		mut.Lock()
-		defer mut.Unlock()
-		assert.Equal(t, 1, len(records))
-		keyCheck := map[string]bool{}
-		for _, h := range records[0].Headers {
-			switch h.Key {
-			case originConsumerGroupHeaderKey:
-				assert.Equal(t, "failed-group", string(h.Value))
-			case originTopicHeaderKey:
-				assert.Equal(t, "failed-topic", string(h.Value))
-			case originErrorHeaderKey:
-				assert.Equal(t, defaultMissingErrorString, string(h.Value))
+			for {
+				fetches := testClient.PollFetches(ctx)
+				if fetches == nil {
+					return
+				}
+				fetches.EachTopic(func(tp kgo.FetchTopic) {
+					mut.Lock()
+					defer mut.Unlock()
+					rs := tp.Records()
+					records = append(records, rs...)
+				})
+				select {
+				case <-ctx.Done():
+					return
+				default:
+				}
 			}
-			keyCheck[h.Key] = true
-		}
-		assert.True(t, keyCheck[originConsumerGroupHeaderKey])
-		assert.True(t, keyCheck[originTopicHeaderKey])
-		assert.True(t, keyCheck[originErrorHeaderKey])
+		}()
+		assert.EventuallyWithT(t, func(c *assert.CollectT) {
+			mut.Lock()
+			defer mut.Unlock()
+			assert.Equal(c, 1, len(records))
+			if len(records) < 1 {
+				return
+			}
+			keyCheck := map[string]bool{}
+			for _, h := range records[0].Headers {
+				switch h.Key {
+				case originConsumerGroupHeaderKey:
+					assert.Equal(c, "failed-group", string(h.Value))
+				case originTopicHeaderKey:
+					assert.Equal(c, "failed-topic", string(h.Value))
+				case originErrorHeaderKey:
+					assert.Equal(c, defaultMissingErrorString, string(h.Value))
+				}
+				keyCheck[h.Key] = true
+			}
+			assert.True(c, keyCheck[originConsumerGroupHeaderKey])
+			assert.True(c, keyCheck[originTopicHeaderKey])
+			assert.True(c, keyCheck[originErrorHeaderKey])
+		}, 5*time.Second, 500*time.Millisecond)
 	})
 
 	t.Run("should publish to the queue with one error and one messages", func(t *testing.T) {
@@ -117,8 +158,13 @@ func TestPublishMessagesToPoisonQueue(t *testing.T) {
 		defer testClient.Close()
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		createTopic(t, config, messagex.TopicFromName(config.PoisonQueue.TopicName))
 		pqh := getPoisonQueueHandler(t, l, config)
+		admCl := kadm.NewClient(testClient)
+		defer func() error {
+			// Delete the topic
+			res, err := admCl.DeleteTopics(context.Background(), pqTopic)
+			return errors.Join(err, res.Error())
+		}()
 		failTopicName := "failed-topic"
 		failGroupName := "failed-group"
 		testErrorMessage := "Test-Error"
@@ -129,33 +175,48 @@ func TestPublishMessagesToPoisonQueue(t *testing.T) {
 		mut := sync.Mutex{}
 		records := make([]*kgo.Record, 0, 1)
 		go func() {
-			fetches := testClient.PollFetches(ctx)
-			fetches.EachTopic(func(tp kgo.FetchTopic) {
-				mut.Lock()
-				defer mut.Unlock()
-				rs := tp.Records()
-				records = append(records, rs...)
-			})
-		}()
-		time.Sleep(5 * time.Second)
-		mut.Lock()
-		defer mut.Unlock()
-		assert.Equal(t, 1, len(records))
-		keyCheck := map[string]bool{}
-		for _, h := range records[0].Headers {
-			switch h.Key {
-			case originConsumerGroupHeaderKey:
-				assert.Equal(t, "failed-group", string(h.Value))
-			case originTopicHeaderKey:
-				assert.Equal(t, "failed-topic", string(h.Value))
-			case originErrorHeaderKey:
-				assert.Equal(t, testErrorMessage, string(h.Value))
+			for {
+				fetches := testClient.PollFetches(ctx)
+				if fetches == nil {
+					return
+				}
+				fetches.EachTopic(func(tp kgo.FetchTopic) {
+					mut.Lock()
+					defer mut.Unlock()
+					rs := tp.Records()
+					records = append(records, rs...)
+				})
+				select {
+				case <-ctx.Done():
+					return
+				default:
+				}
 			}
-			keyCheck[h.Key] = true
-		}
-		assert.True(t, keyCheck[originConsumerGroupHeaderKey])
-		assert.True(t, keyCheck[originTopicHeaderKey])
-		assert.True(t, keyCheck[originErrorHeaderKey])
+		}()
+
+		assert.EventuallyWithT(t, func(c *assert.CollectT) {
+			mut.Lock()
+			defer mut.Unlock()
+			assert.Equal(c, 1, len(records))
+			if len(records) < 1 {
+				return
+			}
+			keyCheck := map[string]bool{}
+			for _, h := range records[0].Headers {
+				switch h.Key {
+				case originConsumerGroupHeaderKey:
+					assert.Equal(c, "failed-group", string(h.Value))
+				case originTopicHeaderKey:
+					assert.Equal(c, "failed-topic", string(h.Value))
+				case originErrorHeaderKey:
+					assert.Equal(c, testErrorMessage, string(h.Value))
+				}
+				keyCheck[h.Key] = true
+			}
+			assert.True(c, keyCheck[originConsumerGroupHeaderKey])
+			assert.True(c, keyCheck[originTopicHeaderKey])
+			assert.True(c, keyCheck[originErrorHeaderKey])
+		}, 5*time.Second, 500*time.Millisecond)
 	})
 
 	t.Run("should publish to the queue with generic error when errors and messages mismatch", func(t *testing.T) {
@@ -171,8 +232,13 @@ func TestPublishMessagesToPoisonQueue(t *testing.T) {
 		defer testClient.Close()
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		createTopic(t, config, messagex.TopicFromName(config.PoisonQueue.TopicName))
 		pqh := getPoisonQueueHandler(t, l, config)
+		admCl := kadm.NewClient(testClient)
+		defer func() error {
+			// Delete the topic
+			res, err := admCl.DeleteTopics(context.Background(), pqTopic)
+			return errors.Join(err, res.Error())
+		}()
 		failTopicName := "failed-topic"
 		failGroupName := "failed-group"
 		err = pqh.PublishMessagesToPoisonQueue(ctx, failTopicName, messagex.ConsumerGroup(failGroupName), []error{errors.New("Test-Error")}, []*messagex.Message{
@@ -183,36 +249,47 @@ func TestPublishMessagesToPoisonQueue(t *testing.T) {
 		mut := sync.Mutex{}
 		records := make([]*kgo.Record, 0, 1)
 		go func() {
-			fetches := testClient.PollFetches(ctx)
-			fetches.EachTopic(func(tp kgo.FetchTopic) {
-				mut.Lock()
-				defer mut.Unlock()
-				rs := tp.Records()
-				records = append(records, rs...)
-			})
-		}()
-		time.Sleep(5 * time.Second)
-		mut.Lock()
-		defer mut.Unlock()
-		assert.Equal(t, 2, len(records))
-		for _, r := range records {
-			keyCheck := map[string]bool{}
-			for _, h := range r.Headers {
-				switch h.Key {
-				case originConsumerGroupHeaderKey:
-					assert.Equal(t, "failed-group", string(h.Value))
-				case originTopicHeaderKey:
-					assert.Equal(t, "failed-topic", string(h.Value))
-				case originErrorHeaderKey:
-					assert.Equal(t, defaultMissingErrorString, string(h.Value))
+			for {
+				fetches := testClient.PollFetches(ctx)
+				if fetches == nil {
+					return
 				}
-				keyCheck[h.Key] = true
+				fetches.EachTopic(func(tp kgo.FetchTopic) {
+					mut.Lock()
+					defer mut.Unlock()
+					rs := tp.Records()
+					records = append(records, rs...)
+				})
+				select {
+				case <-ctx.Done():
+					return
+				default:
+				}
 			}
-			assert.True(t, keyCheck[originConsumerGroupHeaderKey])
-			assert.True(t, keyCheck[originTopicHeaderKey])
-			assert.True(t, keyCheck[originErrorHeaderKey])
+		}()
+		assert.EventuallyWithT(t, func(c *assert.CollectT) {
+			mut.Lock()
+			defer mut.Unlock()
+			assert.Equal(c, 2, len(records))
+			for _, r := range records {
+				keyCheck := map[string]bool{}
+				for _, h := range r.Headers {
+					switch h.Key {
+					case originConsumerGroupHeaderKey:
+						assert.Equal(c, "failed-group", string(h.Value))
+					case originTopicHeaderKey:
+						assert.Equal(c, "failed-topic", string(h.Value))
+					case originErrorHeaderKey:
+						assert.Equal(c, defaultMissingErrorString, string(h.Value))
+					}
+					keyCheck[h.Key] = true
+				}
+				assert.True(c, keyCheck[originConsumerGroupHeaderKey])
+				assert.True(c, keyCheck[originTopicHeaderKey])
+				assert.True(c, keyCheck[originErrorHeaderKey])
 
-		}
+			}
+		}, 5*time.Second, 500*time.Millisecond)
 	})
 
 	t.Run("should publish to the queue with all matching errors and messages", func(t *testing.T) {
@@ -228,7 +305,12 @@ func TestPublishMessagesToPoisonQueue(t *testing.T) {
 		defer testClient.Close()
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		createTopic(t, config, messagex.TopicFromName(config.PoisonQueue.TopicName))
+		admCl := kadm.NewClient(testClient)
+		defer func() error {
+			// Delete the topic
+			res, err := admCl.DeleteTopics(context.Background(), pqTopic)
+			return errors.Join(err, res.Error())
+		}()
 		pqh := getPoisonQueueHandler(t, l, config)
 		failTopicName := "failed-topic"
 		failGroupName := "failed-group"
@@ -259,51 +341,62 @@ func TestPublishMessagesToPoisonQueue(t *testing.T) {
 		mut := sync.Mutex{}
 		records := make([]*kgo.Record, 0, 1)
 		go func() {
-			fetches := testClient.PollFetches(ctx)
-			fetches.EachTopic(func(tp kgo.FetchTopic) {
-				mut.Lock()
-				defer mut.Unlock()
-				rs := tp.Records()
-				records = append(records, rs...)
-			})
+			for {
+				fetches := testClient.PollFetches(ctx)
+				if fetches == nil {
+					return
+				}
+				fetches.EachTopic(func(tp kgo.FetchTopic) {
+					mut.Lock()
+					defer mut.Unlock()
+					rs := tp.Records()
+					records = append(records, rs...)
+				})
+				select {
+				case <-ctx.Done():
+					return
+				default:
+				}
+			}
 		}()
-		time.Sleep(5 * time.Second)
-		mut.Lock()
-		defer mut.Unlock()
-		assert.Equal(t, 3, len(records))
-		for _, r := range records {
-			keyCheck := map[string]bool{}
-			var eventPayload kgo.Record
-			err = json.Unmarshal(r.Value, &eventPayload)
-			assert.NoError(t, err)
-			var id string
-			for _, h := range eventPayload.Headers {
-				if h.Key == messagex.IDHeaderKey {
-					id = string(h.Value)
-					break
+		assert.EventuallyWithT(t, func(c *assert.CollectT) {
+			mut.Lock()
+			defer mut.Unlock()
+			assert.Equal(c, 3, len(records))
+			for _, r := range records {
+				keyCheck := map[string]bool{}
+				var eventPayload kgo.Record
+				err = json.Unmarshal(r.Value, &eventPayload)
+				assert.NoError(t, err)
+				var id string
+				for _, h := range eventPayload.Headers {
+					if h.Key == messagex.IDHeaderKey {
+						id = string(h.Value)
+						break
+					}
 				}
-			}
-			assert.NotEqual(t, "", id)
-			for _, h := range r.Headers {
-				switch h.Key {
-				case originConsumerGroupHeaderKey:
-					assert.Equal(t, "failed-group", string(h.Value))
-				case originTopicHeaderKey:
-					assert.Equal(t, "failed-topic", string(h.Value))
-				case originErrorHeaderKey:
-					assert.Equal(t, msgMapper[id].err.Error(), string(h.Value))
+				assert.NotEqual(c, "", id)
+				for _, h := range r.Headers {
+					switch h.Key {
+					case originConsumerGroupHeaderKey:
+						assert.Equal(c, "failed-group", string(h.Value))
+					case originTopicHeaderKey:
+						assert.Equal(c, "failed-topic", string(h.Value))
+					case originErrorHeaderKey:
+						assert.Equal(c, msgMapper[id].err.Error(), string(h.Value))
+					}
+					keyCheck[h.Key] = true
 				}
-				keyCheck[h.Key] = true
-			}
 
-			payload, err := defaultMarshaler.Marshal(ctx, msgMapper[id].msg, failTopicName)
-			assert.NoError(t, err)
-			assert.True(t, keyCheck[originConsumerGroupHeaderKey])
-			assert.True(t, keyCheck[originTopicHeaderKey])
-			assert.True(t, keyCheck[originErrorHeaderKey])
-			assert.Equal(t, payload.Key, eventPayload.Key)
-			assert.Equal(t, payload.Value, eventPayload.Value)
-			assertx.Equal(t, payload.Headers, eventPayload.Headers)
-		}
+				payload, err := defaultMarshaler.Marshal(ctx, msgMapper[id].msg, failTopicName)
+				assert.NoError(c, err)
+				assert.True(c, keyCheck[originConsumerGroupHeaderKey])
+				assert.True(c, keyCheck[originTopicHeaderKey])
+				assert.True(c, keyCheck[originErrorHeaderKey])
+				assert.Equal(c, payload.Key, eventPayload.Key)
+				assert.Equal(c, payload.Value, eventPayload.Value)
+				assertx.Equal(c, payload.Headers, eventPayload.Headers)
+			}
+		}, 5*time.Second, 500*time.Millisecond)
 	})
 }
