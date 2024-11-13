@@ -21,7 +21,7 @@ import (
 func TestConsumer_Subscribe_Handling(t *testing.T) {
 	l := logrusx.New("test", "")
 	config := getPubsubConfig(t, true)
-	opts := &pubsubx.SubscriberOptions{MaxBatchSize: 10}
+	opts := &pubsubx.SubscriberOptions{MaxBatchSize: 10, MaxTopicRetryCount: 3}
 
 	getWriteClient := func(t *testing.T) *kgo.Client {
 		t.Helper()
@@ -78,13 +78,13 @@ func TestConsumer_Subscribe_Handling(t *testing.T) {
 		expectedMsg := messagex.NewMessage([]byte("test"))
 		sendMessage(t, wClient, topics[0], expectedMsg)
 
-		time.Sleep(5 * time.Second)
-
-		mu.Lock()
-		defer mu.Unlock()
-		assert.Equal(t, 1, headerResult["0"])
-		assert.Equal(t, 1, headerResult["1"])
-		assert.Equal(t, 1, headerResult["2"])
+		assert.EventuallyWithT(t, func(c *assert.CollectT) {
+			mu.Lock()
+			defer mu.Unlock()
+			assert.Equal(c, 1, headerResult["0"])
+			assert.Equal(c, 1, headerResult["1"])
+			assert.Equal(c, 1, headerResult["2"])
+		}, 5*time.Second, 250*time.Millisecond)
 	})
 
 	t.Run("Should not push back messages on non retryable error", func(t *testing.T) {
@@ -122,13 +122,13 @@ func TestConsumer_Subscribe_Handling(t *testing.T) {
 		expectedMsg := messagex.NewMessage([]byte("test"))
 		sendMessage(t, wClient, topics[0], expectedMsg)
 
-		time.Sleep(5 * time.Second)
-
-		mu.Lock()
-		defer mu.Unlock()
-		assert.Equal(t, 1, headerResult["0"])
-		assert.Equal(t, 0, headerResult["1"])
-		assert.Equal(t, 0, headerResult["2"])
+		assert.EventuallyWithT(t, func(c *assert.CollectT) {
+			mu.Lock()
+			defer mu.Unlock()
+			assert.Equal(c, 1, headerResult["0"])
+			assert.Equal(c, 0, headerResult["1"])
+			assert.Equal(c, 0, headerResult["2"])
+		}, 5*time.Second, 250*time.Millisecond)
 	})
 
 	t.Run("Should push back messages on retryable error for complete error", func(t *testing.T) {

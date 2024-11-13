@@ -20,8 +20,6 @@ type CliniaError struct {
 
 var _ error = (*CliniaError)(nil)
 
-type CliniaRetryableError = CliniaError
-
 func (e CliniaError) Error() string {
 	return fmt.Sprintf("[%s] %s", e.Type.String(), e.Message)
 }
@@ -35,20 +33,13 @@ func (c *CliniaError) WithDetails(details ...CliniaError) CliniaError {
 	return *c
 }
 
-func (c *CliniaError) AsRetryableError() CliniaError {
-	if c.OriginalError != nil {
-		c.OriginalError = NewRetryableError(c.OriginalError)
-	} else {
-		c.OriginalError = NewRetryableError(c)
-	}
-	return *c
+func (c *CliniaError) AsRetryableError() RetryableError {
+	return NewRetryableError(c)
 }
 
 func (c *CliniaError) IsRetryable() bool {
-	if err, ok := IsRetryableError(c.OriginalError); ok {
-		return err.Retryable
-	}
-	return false
+	_, ok := IsRetryableError(c.OriginalError)
+	return ok
 }
 
 func NewCliniaErrorFromMessage(msg string) (*CliniaError, error) {
@@ -241,8 +232,8 @@ func PermissionDeniedErrorf(format string, args ...interface{}) CliniaError {
 }
 
 // Deprecated: use InternalErrorf instead
-func NewInternalError(e error) CliniaRetryableError {
-	return CliniaRetryableError{
+func NewInternalError(e error) CliniaError {
+	return CliniaError{
 		Type:          ErrorTypeInternal,
 		Message:       "Internal Error",
 		OriginalError: e,

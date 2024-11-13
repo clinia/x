@@ -23,6 +23,14 @@ func TestIsRetryableError(t *testing.T) {
 
 	t.Run("return the proper message", func(t *testing.T) {
 		err := NewRetryableError(errors.New("test"))
-		assert.Equal(t, "Can retry: true - test", err.Error())
+		assert.Equal(t, "Retryable - test", err.Error())
+	})
+}
+
+func TestUnwrap(t *testing.T) {
+	t.Run("should unwrap underlaying error", func(t *testing.T) {
+		wrappedErr := errors.New("wrapped")
+		err := NewRetryableError(wrappedErr)
+		assert.Equal(t, wrappedErr, err.Unwrap())
 	})
 }

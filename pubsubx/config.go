@@ -85,11 +85,15 @@ type SubscriberOptions struct {
 	// MaxBatchSize max amount of elements the batch will contain.
 	// Default value is 100 if nothing is specified.
 	MaxBatchSize uint16
+	// MaxTopicRetryCount indicate how many time we allow to push to
+	// the retry topic before considering a retryable error non retryable
+	MaxTopicRetryCount uint16
 }
 
 func NewDefaultSubscriberOptions() *SubscriberOptions {
 	return &SubscriberOptions{
-		MaxBatchSize: 100,
+		MaxBatchSize:       100,
+		MaxTopicRetryCount: 3,
 	}
 }
 
@@ -103,6 +107,18 @@ func WithMaxBatchSize(maxBatchSize int) SubscriberOption {
 		} else {
 			//#nosec G115 -- Remove once https://github.com/securego/gosec/issues/1187 is solved
 			o.MaxBatchSize = uint16(maxBatchSize)
+		}
+	}
+}
+
+func WithMaxTopicRetryCount(maxTopicRetryCount int) SubscriberOption {
+	return func(o *SubscriberOptions) {
+		if maxTopicRetryCount > math.MaxUint16 {
+			o.MaxTopicRetryCount = math.MaxUint16
+			return
+		} else {
+			//#nosec G115 -- Remove once https://github.com/securego/gosec/issues/1187 is solved
+			o.MaxTopicRetryCount = uint16(maxTopicRetryCount)
 		}
 	}
 }

@@ -96,8 +96,10 @@ func (m *Message) Copy() *Message {
 	newMessage := Message{
 		ID:       m.ID,
 		Metadata: MessageMetadata{},
-		Payload:  m.Payload,
+		Payload:  make([]byte, len(m.Payload)),
 	}
+
+	copy(newMessage.Payload, m.Payload)
 
 	for key, value := range m.Metadata {
 		newMessage.Metadata[key] = value

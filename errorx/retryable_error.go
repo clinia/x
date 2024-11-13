@@ -3,19 +3,23 @@ package errorx
 import "fmt"
 
 type RetryableError struct {
-	OriginalError error
-	Retryable     bool
+	error
 }
+
+var _ error = (*RetryableError)(nil)
 
 func NewRetryableError(err error) RetryableError {
 	return RetryableError{
-		OriginalError: err,
-		Retryable:     true,
+		error: err,
 	}
 }
 
+func (re RetryableError) Unwrap() error {
+	return re.error
+}
+
 func (re RetryableError) Error() string {
-	return fmt.Sprintf("Can retry: %v - %s", re.Retryable, re.OriginalError.Error())
+	return fmt.Sprintf("Retryable - %s", re.error.Error())
 }
 
 func IsRetryableError(err error) (*RetryableError, bool) {

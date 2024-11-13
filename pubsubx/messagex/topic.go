@@ -9,7 +9,7 @@ type Topic string
 
 const (
 	topicSeparator = "."
-	retrySuffix    = "_retry"
+	retrySuffix    = "__retry"
 )
 
 func NewTopic(topic string) (Topic, error) {
@@ -38,7 +38,6 @@ func (t Topic) GenerateRetryTopic(consumerGroup ConsumerGroup) Topic {
 func TopicFromName(topicName string) Topic {
 	splits := strings.Split(topicName, topicSeparator)
 	if len(splits) > 1 {
-		// Should never happen, but just in case.
 		return Topic(strings.Join(splits[1:], topicSeparator))
 	}
 
