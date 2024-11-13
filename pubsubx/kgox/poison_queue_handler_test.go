@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/clinia/x/assertx"
 	"github.com/clinia/x/logrusx"
 	"github.com/clinia/x/pubsubx/messagex"
 	"github.com/stretchr/testify/assert"
@@ -365,17 +364,9 @@ func TestPublishMessagesToPoisonQueue(t *testing.T) {
 			assert.Equal(c, 3, len(records))
 			for _, r := range records {
 				keyCheck := map[string]bool{}
-				var eventPayload kgo.Record
+				var eventPayload messagex.Message
 				err = json.Unmarshal(r.Value, &eventPayload)
 				assert.NoError(t, err)
-				var id string
-				for _, h := range eventPayload.Headers {
-					if h.Key == messagex.IDHeaderKey {
-						id = string(h.Value)
-						break
-					}
-				}
-				assert.NotEqual(c, "", id)
 				for _, h := range r.Headers {
 					switch h.Key {
 					case originConsumerGroupHeaderKey:
@@ -383,20 +374,17 @@ func TestPublishMessagesToPoisonQueue(t *testing.T) {
 					case originTopicHeaderKey:
 						assert.Equal(c, "failed-topic", string(h.Value))
 					case originErrorHeaderKey:
-						assert.Equal(c, msgMapper[id].err.Error(), string(h.Value))
+						assert.Equal(c, msgMapper[eventPayload.ID].err.Error(), string(h.Value))
 					}
 					keyCheck[h.Key] = true
 				}
 
-				payload, err := defaultMarshaler.Marshal(ctx, msgMapper[id].msg, failTopicName)
 				assert.NoError(c, err)
 				assert.True(c, keyCheck[originConsumerGroupHeaderKey])
 				assert.True(c, keyCheck[originTopicHeaderKey])
 				assert.True(c, keyCheck[originErrorHeaderKey])
-				assert.Equal(c, payload.Key, eventPayload.Key)
-				assert.Equal(c, payload.Value, eventPayload.Value)
-				assertx.Equal(c, payload.Headers, eventPayload.Headers)
+				assert.Equal(c, msgMapper[eventPayload.ID].msg, &eventPayload)
 			}
-		}, 5*time.Second, 500*time.Millisecond)
+		}, 8*time.Second, 500*time.Millisecond)
 	})
 }

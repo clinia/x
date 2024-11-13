@@ -91,11 +91,7 @@ func (pqh *poisonQueueHandler) generatePoisonQueueRecord(ctx context.Context, to
 	if msg == nil {
 		return nil, errorx.InvalidArgumentErrorf("message can't be nil")
 	}
-	eventMsg, err := defaultMarshaler.Marshal(ctx, msg, topic)
-	if err != nil {
-		return nil, err
-	}
-	payload, err := json.Marshal(eventMsg)
+	payload, err := json.Marshal(msg)
 	if err != nil {
 		return nil, err
 	}

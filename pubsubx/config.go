@@ -44,6 +44,10 @@ type PoisonQueueConfig struct {
 	TopicName string `json:"topicName"`
 }
 
+func (pqc PoisonQueueConfig) IsEnable() bool {
+	return pqc.Enabled && pqc.TopicName != ""
+}
+
 type PubSubOption func(*PubSubOptions)
 
 // WithTracerProvider specifies a tracer provider to use for creating a tracer.

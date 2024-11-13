@@ -37,6 +37,10 @@ func NewPubSub(l *logrusx.Logger, config *pubsubx.Config, opts *pubsubx.PubSubOp
 		return nil, errorx.FailedPreconditionErrorf("logger is required")
 	}
 
+	if config == nil {
+		return nil, errorx.FailedPreconditionErrorf("config is required")
+	}
+
 	if config.Provider != "kafka" {
 		return nil, errorx.FailedPreconditionErrorf("unsupported provider %s", config.Provider)
 	}

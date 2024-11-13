@@ -47,6 +47,7 @@ const (
 	// We want to wait a max of 3 seconds between retries
 	maxRetryInterval = 3 * time.Second
 	maxRetryCount    = 3
+	ctxLoggerKey     = "consumer_logger"
 )
 
 func newConsumer(l *logrusx.Logger, kotelService *kotel.Kotel, config *pubsubx.Config, group string, topics []messagex.Topic, opts *pubsubx.SubscriberOptions, poisonQueueHandler PoisonQueueHandler) (*consumer, error) {
@@ -176,6 +177,7 @@ func (c *consumer) start(ctx context.Context) {
 			l := c.l.WithFields(
 				logrusx.NewLogFields(c.attributes(&topic)...),
 			)
+			ctx := context.WithValue(ctx, ctxLoggerKey, l)
 			records := tp.Records()
 			allMsgs := make([]*messagex.Message, 0, len(records))
 			for _, record := range records {
@@ -230,17 +232,7 @@ func (c *consumer) start(ctx context.Context) {
 					if allErrs != nil {
 						l.WithError(allErrs).Errorf("errors while handling messages")
 					}
-					retryableMessages, poisonQueueMessages, poisonQueueErrs := c.parseRetryMessages(l, errs, allMsgs)
-					if c.canTopicRetry() && len(retryableMessages) > 0 {
-						if publishErr := c.publishRetryMessages(ctx, retryableMessages, topic); publishErr != nil {
-							l.WithError(publishErr).Errorf("failed to publish as some or all retry messages")
-						}
-					}
-					if c.canUsePoisonQueue() && len(poisonQueueMessages) > 0 {
-						if publishErr := c.publishPoisonQueueMessages(ctx, topic.TopicName(c.conf.Scope), poisonQueueMessages, poisonQueueErrs); publishErr != nil {
-							l.WithError(publishErr).Errorf("failed to publish some or all retry messages to the poison queue")
-						}
-					}
+					c.handleRemoteRetryLogic(ctx, topic, errs, allMsgs)
 				}
 
 				return nil
@@ -250,18 +242,8 @@ func (c *consumer) start(ctx context.Context) {
 				l.Infof("aborting consumer")
 				c.mu.RLock()
 				defer c.mu.RUnlock()
-				retryableMessages, poisonQueueMessages, _ := c.parseRetryMessages(l, []error{errorx.NewRetryableError(err)}, allMsgs)
+				c.handleRemoteRetryLogic(ctx, topic, []error{errorx.NewRetryableError(err)}, allMsgs)
 				// This is required since the context is cancelled by the backoff
-				if c.canTopicRetry() && len(retryableMessages) > 0 {
-					if err := c.publishRetryMessages(context.Background(), retryableMessages, topic); err != nil {
-						l.WithError(err).Errorf("failed to publish some or all retry messages")
-					}
-				}
-				if c.canUsePoisonQueue() && len(poisonQueueMessages) > 0 {
-					if publishErr := c.publishPoisonQueueMessages(ctx, topic.TopicName(c.conf.Scope), poisonQueueMessages, []error{err}); publishErr != nil {
-						l.WithError(err).Errorf("failed to publish some or all retry messages to the poison queue")
-					}
-				}
 				if c.cancel != nil {
 					c.cancel()
 					l.Infof("cancelled consumer")
@@ -279,7 +261,40 @@ func (c *consumer) canTopicRetry() bool {
 }
 
 func (c *consumer) canUsePoisonQueue() bool {
-	return c.conf != nil && c.conf.PoisonQueue.Enabled && c.conf.PoisonQueue.TopicName != ""
+	return c.conf != nil && c.conf.PoisonQueue.IsEnable()
+}
+
+// getContextLogger allows to extract the logger set in the context if we have some contextual logger
+// that is used
+func (c *consumer) getContexLogger(ctx context.Context) (l *logrusx.Logger) {
+	if ctxL := ctx.Value(ctxLoggerKey); ctxL != nil {
+		if ctxL, ok := ctxL.(*logrusx.Logger); ok {
+			l = ctxL
+		}
+	}
+	if l == nil {
+		l = c.l
+	}
+	return
+}
+
+func (c *consumer) handleRemoteRetryLogic(ctx context.Context, topic messagex.Topic, errs []error, msgs []*messagex.Message) {
+	l := c.getContexLogger(ctx)
+	if !c.canTopicRetry() && !c.canUsePoisonQueue() {
+		l.Debugf("topic retry and poison queue are disable, not exeucting retry logic")
+		return
+	}
+	retryableMessages, poisonQueueMessages, poisonQueueErrs := c.parseRetryMessages(ctx, errs, msgs)
+	if c.canTopicRetry() && len(retryableMessages) > 0 {
+		if publishErr := c.publishRetryMessages(ctx, retryableMessages, topic); publishErr != nil {
+			l.WithError(publishErr).Errorf("failed to publish as some or all retry messages")
+		}
+	}
+	if c.canUsePoisonQueue() && len(poisonQueueMessages) > 0 {
+		if publishErr := c.publishPoisonQueueMessages(ctx, topic, poisonQueueMessages, poisonQueueErrs); publishErr != nil {
+			l.WithError(publishErr).Errorf("failed to publish some or all retry messages to the poison queue")
+		}
+	}
 }
 
 func (c *consumer) publishRetryMessages(ctx context.Context, retryableMessages []*messagex.Message, topic messagex.Topic) error {
@@ -302,20 +317,22 @@ func (c *consumer) publishRetryMessages(ctx context.Context, retryableMessages [
 	return errors.Join(marshalErr, produceErr)
 }
 
-func (c *consumer) publishPoisonQueueMessages(ctx context.Context, topic string, msgs []*messagex.Message, errs []error) error {
+func (c *consumer) publishPoisonQueueMessages(ctx context.Context, topic messagex.Topic, msgs []*messagex.Message, errs []error) error {
+	topicName := topic.TopicName(c.conf.Scope)
 	localErrs := errs
 	if len(errs) > 1 && len(errs) != len(msgs) {
 		c.l.Errorf("tried to publish poison queue messages but error don't match messages number, failing back to empty error")
 		localErrs = []error{}
 	}
 	if len(errs) == 1 {
-		return c.poisonQueueHandler.PublishMessagesToPoisonQueueWithGenericError(ctx, topic, c.group, errs[0], msgs...)
+		return c.poisonQueueHandler.PublishMessagesToPoisonQueueWithGenericError(ctx, topicName, c.group, errs[0], msgs...)
 	} else {
-		return c.poisonQueueHandler.PublishMessagesToPoisonQueue(ctx, topic, c.group, localErrs, msgs)
+		return c.poisonQueueHandler.PublishMessagesToPoisonQueue(ctx, topicName, c.group, localErrs, msgs)
 	}
 }
 
-func (c *consumer) parseRetryMessages(l *logrusx.Logger, errs []error, allMsgs []*messagex.Message) ([]*messagex.Message, []*messagex.Message, []error) {
+func (c *consumer) parseRetryMessages(ctx context.Context, errs []error, allMsgs []*messagex.Message) ([]*messagex.Message, []*messagex.Message, []error) {
+	l := c.getContexLogger(ctx)
 	retryableMessages := make([]*messagex.Message, 0)
 	poisonQueueMessages := make([]*messagex.Message, 0)
 	poisonQueueErrs := make([]error, 0)
