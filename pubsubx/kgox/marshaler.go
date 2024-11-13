@@ -1,14 +1,17 @@
 package kgox
 
 import (
+	"context"
+
 	"github.com/clinia/x/pubsubx/messagex"
 	"github.com/segmentio/ksuid"
 	"github.com/twmb/franz-go/pkg/kgo"
+	"go.opentelemetry.io/otel/propagation"
 )
 
 type Marshaler interface {
 	// Marshal marshals a message into a Kafka record.
-	Marshal(m *messagex.Message, topic string) (*kgo.Record, error)
+	Marshal(ctx context.Context, m *messagex.Message, topic string) (*kgo.Record, error)
 }
 
 type Unmarshaler interface {
@@ -24,7 +27,7 @@ var (
 	defaultMarshaler             = &DefaultMarshaler{}
 )
 
-func (m *DefaultMarshaler) Marshal(msg *messagex.Message, topic string) (*kgo.Record, error) {
+func (m *DefaultMarshaler) Marshal(ctx context.Context, msg *messagex.Message, topic string) (*kgo.Record, error) {
 	headers := make([]kgo.RecordHeader, len(msg.Metadata))
 
 	setIDHeader := false
@@ -61,7 +64,15 @@ func (m *DefaultMarshaler) Marshal(msg *messagex.Message, topic string) (*kgo.Re
 		})
 	}
 
+	// Extract TraceContext from the message metadata
+	prop := propagation.NewCompositeTextMapPropagator(
+		propagation.TraceContext{},
+		propagation.Baggage{},
+	)
+	ctx = prop.Extract(ctx, propagation.MapCarrier(msg.Metadata))
+
 	return &kgo.Record{
+		Context: ctx,
 		Topic:   topic,
 		Headers: headers,
 		Value:   msg.Payload,

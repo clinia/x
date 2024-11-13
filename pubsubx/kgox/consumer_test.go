@@ -31,10 +31,10 @@ func TestConsumer_Subscribe_Concurrency(t *testing.T) {
 		return wc
 	}
 
-	sendMessage := func(t *testing.T, wc *kgo.Client, topic messagex.Topic, msg *messagex.Message) {
+	sendMessage := func(t *testing.T, ctx context.Context, wc *kgo.Client, topic messagex.Topic, msg *messagex.Message) {
 		t.Helper()
 
-		rec, err := defaultMarshaler.Marshal(msg, topic.TopicName(config.Scope))
+		rec, err := defaultMarshaler.Marshal(ctx, msg, topic.TopicName(config.Scope))
 		require.NoError(t, err)
 
 		r := wc.ProduceSync(context.Background(), rec)
@@ -153,7 +153,7 @@ func TestConsumer_Subscribe_Concurrency(t *testing.T) {
 
 		// Produce a message
 		expectedMsg := messagex.NewMessage([]byte("test"))
-		sendMessage(t, wClient, testTopic, expectedMsg)
+		sendMessage(t, ctx, wClient, testTopic, expectedMsg)
 
 		// Wait for the message to be consumed
 		select {
@@ -169,7 +169,7 @@ func TestConsumer_Subscribe_Concurrency(t *testing.T) {
 
 		// Produce another message
 		expectedMsg2 := messagex.NewMessage([]byte("test2"))
-		sendMessage(t, wClient, testTopic, expectedMsg2)
+		sendMessage(t, ctx, wClient, testTopic, expectedMsg2)
 
 		// We should not receive the message since the consumer is closed
 		select {
@@ -276,7 +276,7 @@ func TestConsumer_Subscribe_Concurrency(t *testing.T) {
 
 		// Produce a message
 		expectedMsg := messagex.NewMessage([]byte("test"))
-		sendMessage(t, wClient, testTopic, expectedMsg)
+		sendMessage(t, ctx, wClient, testTopic, expectedMsg)
 
 		// We should retry up to the max retry attempts
 		for i := range maxRetryCount + 1 {
@@ -300,7 +300,7 @@ func TestConsumer_Subscribe_Concurrency(t *testing.T) {
 		assert.NoError(t, consumer.Health())
 
 		expectedMsg = messagex.NewMessage([]byte("test2"))
-		sendMessage(t, wClient, testTopic, expectedMsg)
+		sendMessage(t, ctx, wClient, testTopic, expectedMsg)
 
 		shouldFail <- false
 		// Wait for the message to be consumed
@@ -313,7 +313,7 @@ func TestConsumer_Subscribe_Concurrency(t *testing.T) {
 
 		// The consumer should stop if we fail up to the max retry attempts
 		expectedMsg = messagex.NewMessage([]byte("test3"))
-		sendMessage(t, wClient, testTopic, expectedMsg)
+		sendMessage(t, ctx, wClient, testTopic, expectedMsg)
 
 		for i := range maxRetryCount + 1 {
 			if i == 0 {

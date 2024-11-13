@@ -1,6 +1,13 @@
 package messagex
 
-import "github.com/segmentio/ksuid"
+import (
+	"context"
+	"fmt"
+
+	"github.com/segmentio/ksuid"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
+)
 
 const IDHeaderKey = "_clinia_message_id"
 
@@ -62,4 +69,18 @@ func WithMetadata(m MessageMetadata) newMessageOption {
 	return func(o *newMessageOptions) {
 		o.m = m
 	}
+}
+
+func (m *Message) WithSpan(ctx context.Context, tracer trace.Tracer, spanPrefix string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
+	// Create a new span for the message
+	msgctx, span := tracer.Start(ctx, fmt.Sprintf("%s.message", spanPrefix), opts...)
+
+	// Extract TraceContext from the message metadata
+	prop := propagation.NewCompositeTextMapPropagator(
+		propagation.TraceContext{},
+		propagation.Baggage{},
+	)
+	prop.Inject(msgctx, propagation.MapCarrier(m.Metadata))
+
+	return msgctx, span
 }
