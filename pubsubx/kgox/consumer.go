@@ -338,7 +338,7 @@ func (c *consumer) parseRetryMessages(l *logrusx.Logger, errs []error, allMsgs [
 			copiedMsg.Metadata[messagex.RetryCountHeaderKey] = "1"
 		} else {
 			numericRetryCount, err := strconv.Atoi(retryCount)
-			if err != nil || c.canTopicRetry() || numericRetryCount >= int(c.opts.MaxTopicRetryCount)-1 {
+			if !c.canTopicRetry() || err != nil || numericRetryCount >= int(c.opts.MaxTopicRetryCount)-1 {
 				l.Errorf("not retrying, adding message to poison queue messages")
 				poisonQueueMessages = append(poisonQueueMessages, copiedMsg)
 				continue
