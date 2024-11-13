@@ -15,7 +15,7 @@ var _ pubsubx.Publisher = (*publisher)(nil)
 
 // BulkPublish implements pubsubx.Publisher.
 func (p *publisher) PublishSync(ctx context.Context, topic messagex.Topic, messages ...*messagex.Message) (pubsubx.Errors, error) {
-	records, errs, err := p.marshalMessages(topic, messages...)
+	records, errs, err := p.marshalMessages(ctx, topic, messages...)
 	if err != nil {
 		return errs, err
 	}
@@ -50,7 +50,7 @@ func (p *publisher) Close() error {
 
 // Publish implements pubsubx.Publisher.
 func (p *publisher) PublishAsync(ctx context.Context, topic messagex.Topic, messages ...*messagex.Message) error {
-	records, errs, err := p.marshalMessages(topic, messages...)
+	records, errs, err := p.marshalMessages(ctx, topic, messages...)
 	if err != nil {
 		return errs.Join()
 	}
@@ -62,12 +62,12 @@ func (p *publisher) PublishAsync(ctx context.Context, topic messagex.Topic, mess
 	return nil
 }
 
-func (p *publisher) marshalMessages(topic messagex.Topic, messages ...*messagex.Message) ([]*kgo.Record, pubsubx.Errors, error) {
+func (p *publisher) marshalMessages(ctx context.Context, topic messagex.Topic, messages ...*messagex.Message) ([]*kgo.Record, pubsubx.Errors, error) {
 	scopedTopic := topic.TopicName(p.conf.Scope)
 	out := make([]*kgo.Record, len(messages))
 	errs := make(pubsubx.Errors, len(messages))
 	for i, m := range messages {
-		out[i], errs[i] = defaultMarshaler.Marshal(m, scopedTopic)
+		out[i], errs[i] = defaultMarshaler.Marshal(ctx, m, scopedTopic)
 	}
 
 	return out, errs, errs.FirstNonNil()
