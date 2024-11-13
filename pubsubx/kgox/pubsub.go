@@ -96,6 +96,12 @@ func (p *PubSub) Publisher() pubsubx.Publisher {
 	return (*publisher)(p)
 }
 
+// PoisonQueueHandler implements pubsubx.PubSub.
+func (p *PubSub) PoisonQueueHandler() PoisonQueueHandler {
+	// We can safely cast here because we know that the pubSub struct is a Publisher.
+	return (*poisonQueueHandler)(p)
+}
+
 // Subscriber implements pubsubx.PubSub.
 func (p *PubSub) Subscriber(group string, topics []messagex.Topic, opts ...pubsubx.SubscriberOption) (pubsubx.Subscriber, error) {
 	p.mu.RLock()
@@ -113,7 +119,7 @@ func (p *PubSub) Subscriber(group string, topics []messagex.Topic, opts ...pubsu
 		opt(o)
 	}
 
-	cs, err := newConsumer(p.l, p.kotelService, p.conf, group, topics, o)
+	cs, err := newConsumer(p.l, p.kotelService, p.conf, group, topics, o, p.PoisonQueueHandler())
 	if err != nil {
 		p.l.Errorf("failed to create consumer: %v", err)
 		return nil, errorx.InternalErrorf("failed to create consumer: %v", err)

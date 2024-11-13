@@ -13,13 +13,23 @@ import (
 type poisonQueueHandler PubSub
 
 type PoisonQueueHandler interface {
-	PublishMessagesToPoisonQueue(ctx context.Context, topic string, consumerGroup messagex.ConsumerGroup, msgErrs []error, msgs []*messagex.Message)
-	PublishMessagesToPoisonQueueWithGenericError(ctx context.Context, topic string, consumerGroup messagex.ConsumerGroup, msgErr error, msgs ...*messagex.Message)
+	PublishMessagesToPoisonQueue(ctx context.Context, topic string, consumerGroup messagex.ConsumerGroup, msgErrs []error, msgs []*messagex.Message) error
+	PublishMessagesToPoisonQueueWithGenericError(ctx context.Context, topic string, consumerGroup messagex.ConsumerGroup, msgErr error, msgs ...*messagex.Message) error
 }
 
 var _ PoisonQueueHandler = (*poisonQueueHandler)(nil)
 
-func (pqh *poisonQueueHandler) PublishMessagesToPoisonQueue(ctx context.Context, topic string, consumerGroup messagex.ConsumerGroup, msgErrs []error, msgs []*messagex.Message) {
+const (
+	defaultMissingErrorString    = "important - error is missing"
+	originConsumerGroupHeaderKey = "_clinia_origin_consumer_group"
+	originErrorHeaderKey         = "_clinia_origin_error"
+	originTopicHeaderKey         = "_clinia_origin_topic"
+)
+
+func (pqh *poisonQueueHandler) PublishMessagesToPoisonQueue(ctx context.Context, topic string, consumerGroup messagex.ConsumerGroup, msgErrs []error, msgs []*messagex.Message) error {
+	if !pqh.conf.PoisonQueue.Enabled && len(msgs) == 0 {
+		return nil
+	}
 	poisonQueueRecords := make([]*kgo.Record, len(msgs))
 	checkErrs := len(msgs) == len(msgErrs)
 	errs := make([]error, 0, len(msgs))
@@ -28,38 +38,60 @@ func (pqh *poisonQueueHandler) PublishMessagesToPoisonQueue(ctx context.Context,
 		if checkErrs && msgErrs[i] != nil {
 			msgErr = msgErrs[i]
 		}
-		pqr, err := pqh.generatePoisonQueueRecord(topic, consumerGroup, msg, msgErr)
+		pqr, err := pqh.generatePoisonQueueRecord(ctx, topic, consumerGroup, msg, msgErr)
 		if err != nil {
 			errs = append(errs, err)
 			continue
 		}
 		poisonQueueRecords[i] = pqr
 	}
-	if len(errs) > 0 {
-		pqh.l.WithError(errors.Join(errs...)).Errorf("failed to generate some poison queue records")
+	err := errors.Join(errs...)
+	if err != nil {
+		pqh.l.WithError(err).Errorf("failed to generate some poison queue records")
 	}
-	_ = pqh.writeClient.ProduceSync(ctx, poisonQueueRecords...)
+	prs := pqh.writeClient.ProduceSync(ctx, poisonQueueRecords...)
+	prErrs := make([]error, 0, len(prs))
+	for _, pr := range prs {
+		if pr.Err != nil {
+			prErrs = append(prErrs, pr.Err)
+		}
+	}
+	return errors.Join(err, errors.Join(prErrs...))
 }
 
-func (pqh *poisonQueueHandler) PublishMessagesToPoisonQueueWithGenericError(ctx context.Context, topic string, consumerGroup messagex.ConsumerGroup, msgErr error, msgs ...*messagex.Message) {
+func (pqh *poisonQueueHandler) PublishMessagesToPoisonQueueWithGenericError(ctx context.Context, topic string, consumerGroup messagex.ConsumerGroup, msgErr error, msgs ...*messagex.Message) error {
+	if !pqh.conf.PoisonQueue.Enabled && len(msgs) == 0 {
+		return nil
+	}
 	poisonQueueRecords := make([]*kgo.Record, len(msgs))
 	errs := make([]error, 0, len(msgs))
 	for i, msg := range msgs {
-		pqr, err := pqh.generatePoisonQueueRecord(topic, consumerGroup, msg, msgErr)
+		pqr, err := pqh.generatePoisonQueueRecord(ctx, topic, consumerGroup, msg, msgErr)
 		if err != nil {
 			errs = append(errs, err)
 			continue
 		}
 		poisonQueueRecords[i] = pqr
 	}
-	_ = pqh.writeClient.ProduceSync(ctx, poisonQueueRecords...)
+	err := errors.Join(errs...)
+	if err != nil {
+		pqh.l.WithError(err).Errorf("failed to generate some poison queue records")
+	}
+	prs := pqh.writeClient.ProduceSync(ctx, poisonQueueRecords...)
+	prErrs := make([]error, 0, len(prs))
+	for _, pr := range prs {
+		if pr.Err != nil {
+			prErrs = append(prErrs, pr.Err)
+		}
+	}
+	return errors.Join(err, errors.Join(prErrs...))
 }
 
-func (pqh *poisonQueueHandler) generatePoisonQueueRecord(topic string, consumerGroup messagex.ConsumerGroup, msg *messagex.Message, msgErr error) (*kgo.Record, error) {
+func (pqh *poisonQueueHandler) generatePoisonQueueRecord(ctx context.Context, topic string, consumerGroup messagex.ConsumerGroup, msg *messagex.Message, msgErr error) (*kgo.Record, error) {
 	if msg == nil {
 		return nil, errorx.InvalidArgumentErrorf("message can't be nil")
 	}
-	eventMsg, err := defaultMarshaler.Marshal(msg, topic)
+	eventMsg, err := defaultMarshaler.Marshal(ctx, msg, topic)
 	if err != nil {
 		return nil, err
 	}
@@ -73,11 +105,11 @@ func (pqh *poisonQueueHandler) generatePoisonQueueRecord(topic string, consumerG
 	}
 	pqmsg := messagex.NewMessage(payload,
 		messagex.WithMetadata(messagex.MessageMetadata{
-			"_clinia_origin_consumer_group": string(consumerGroup),
-			"_clinia_origin_topic":          topic,
-			"_clinia_origin_err":            errStr,
+			originConsumerGroupHeaderKey: string(consumerGroup),
+			originTopicHeaderKey:         topic,
+			originErrorHeaderKey:         errStr,
 		}))
-	pqr, err := defaultMarshaler.Marshal(pqmsg, messagex.TopicFromName(pqh.conf.PoisonQueueTopic).TopicName(pqh.conf.Scope))
+	pqr, err := defaultMarshaler.Marshal(ctx, pqmsg, messagex.TopicFromName(pqh.conf.PoisonQueue.TopicName).TopicName(pqh.conf.Scope))
 	if err != nil {
 		return nil, err
 	}

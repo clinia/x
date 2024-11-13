@@ -22,6 +22,7 @@ func TestConsumer_Subscribe_Handling(t *testing.T) {
 	l := logrusx.New("test", "")
 	config := getPubsubConfig(t, true)
 	opts := &pubsubx.SubscriberOptions{MaxBatchSize: 10, MaxTopicRetryCount: 3}
+	pqh := getPoisonQueueHandler(t, l, config)
 
 	getWriteClient := func(t *testing.T) *kgo.Client {
 		t.Helper()
@@ -46,7 +47,7 @@ func TestConsumer_Subscribe_Handling(t *testing.T) {
 	t.Run("Should push back messages on retryable error", func(t *testing.T) {
 		group, topics := getRandomGroupTopics(t, 1)
 		createTopic(t, config, topics[0])
-		consumer, err := newConsumer(l, nil, config, group, topics, opts)
+		consumer, err := newConsumer(l, nil, config, group, topics, opts, pqh)
 		if err != nil {
 			t.Fatalf("failed to create consumer: %v", err)
 		}
@@ -90,7 +91,7 @@ func TestConsumer_Subscribe_Handling(t *testing.T) {
 	t.Run("Should not push back messages on non retryable error", func(t *testing.T) {
 		group, topics := getRandomGroupTopics(t, 1)
 		createTopic(t, config, topics[0])
-		consumer, err := newConsumer(l, nil, config, group, topics, opts)
+		consumer, err := newConsumer(l, nil, config, group, topics, opts, pqh)
 		if err != nil {
 			t.Fatalf("failed to create consumer: %v", err)
 		}
@@ -135,7 +136,7 @@ func TestConsumer_Subscribe_Handling(t *testing.T) {
 		t.Skipf("Tests takes at least 45 seconds to run, skipping to reduce test suite time, please manually trigger this test")
 		group, topics := getRandomGroupTopics(t, 1)
 		createTopic(t, config, topics[0])
-		consumer, err := newConsumer(l, nil, config, group, topics, opts)
+		consumer, err := newConsumer(l, nil, config, group, topics, opts, pqh)
 		if err != nil {
 			t.Fatalf("failed to create consumer: %v", err)
 		}
@@ -187,6 +188,7 @@ func TestConsumer_Subscribe_Handling(t *testing.T) {
 func TestConsumer_Subscribe_Concurrency(t *testing.T) {
 	l := logrusx.New("test", "")
 	config := getPubsubConfig(t, false)
+	pqh := getPoisonQueueHandler(t, l, config)
 	opts := &pubsubx.SubscriberOptions{MaxBatchSize: 10}
 
 	getWriteClient := func(t *testing.T) *kgo.Client {
@@ -211,7 +213,7 @@ func TestConsumer_Subscribe_Concurrency(t *testing.T) {
 
 	t.Run("should return an error if there are missing handlers", func(t *testing.T) {
 		group, topics := getRandomGroupTopics(t, 3)
-		consumer, err := newConsumer(l, nil, config, group, topics, opts)
+		consumer, err := newConsumer(l, nil, config, group, topics, opts, pqh)
 		if err != nil {
 			t.Fatalf("failed to create consumer: %v", err)
 		}
@@ -244,7 +246,7 @@ func TestConsumer_Subscribe_Concurrency(t *testing.T) {
 		testTopic := topics[0]
 		createTopic(t, config, testTopic)
 
-		consumer, err := newConsumer(l, nil, config, group, topics, opts)
+		consumer, err := newConsumer(l, nil, config, group, topics, opts, pqh)
 		if err != nil {
 			t.Fatalf("failed to create consumer: %v", err)
 		}
@@ -300,7 +302,7 @@ func TestConsumer_Subscribe_Concurrency(t *testing.T) {
 		createTopic(t, config, testTopic)
 
 		receivedMsgs := make(chan *messagex.Message, 10)
-		consumer, err := newConsumer(l, nil, config, group, topics, opts)
+		consumer, err := newConsumer(l, nil, config, group, topics, opts, pqh)
 		if err != nil {
 			t.Fatalf("failed to create consumer: %v", err)
 		}
@@ -365,7 +367,7 @@ func TestConsumer_Subscribe_Concurrency(t *testing.T) {
 
 		// If we subscribe with another consumer group, we should receive both messages
 		anotherGroup, _ := getRandomGroupTopics(t, 1)
-		anotherConsumer, err := newConsumer(l, nil, config, anotherGroup, topics, opts)
+		anotherConsumer, err := newConsumer(l, nil, config, anotherGroup, topics, opts, pqh)
 		t.Cleanup(func() {
 			anotherConsumer.Close()
 		})
@@ -408,7 +410,7 @@ func TestConsumer_Subscribe_Concurrency(t *testing.T) {
 		l.Entry.Logger.SetOutput(buf)
 
 		receivedMsgs := make(chan *messagex.Message, 10)
-		consumer, err := newConsumer(l, nil, config, group, topics, opts)
+		consumer, err := newConsumer(l, nil, config, group, topics, opts, pqh)
 		if err != nil {
 			t.Fatalf("failed to create consumer: %v", err)
 		}
