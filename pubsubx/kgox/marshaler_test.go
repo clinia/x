@@ -1,6 +1,7 @@
 package kgox
 
 import (
+	"context"
 	"testing"
 
 	"github.com/clinia/x/pubsubx/messagex"
@@ -20,7 +21,7 @@ func TestMarshal(t *testing.T) {
 			},
 			Payload: []byte("PAYLOAD"),
 		}
-		record, err := defaultMarshaler.Marshal(msg, topic)
+		record, err := defaultMarshaler.Marshal(context.Background(), msg, topic)
 		assert.NoError(t, err)
 		require.NotNil(t, record)
 		assert.Equal(t, topic, record.Topic)
@@ -52,7 +53,7 @@ func TestMarshal(t *testing.T) {
 			},
 			Payload: []byte("PAYLOAD"),
 		}
-		record, err := defaultMarshaler.Marshal(msg, topic)
+		record, err := defaultMarshaler.Marshal(context.Background(), msg, topic)
 		assert.NoError(t, err)
 		require.NotNil(t, record)
 		assert.Equal(t, topic, record.Topic)
@@ -80,7 +81,7 @@ func TestMarshal(t *testing.T) {
 			},
 			Payload: []byte("PAYLOAD"),
 		}
-		record, err := defaultMarshaler.Marshal(msg, topic)
+		record, err := defaultMarshaler.Marshal(context.Background(), msg, topic)
 		assert.NoError(t, err)
 		require.NotNil(t, record)
 		assert.Equal(t, topic, record.Topic)
@@ -108,7 +109,7 @@ func TestMarshal(t *testing.T) {
 			},
 			Payload: []byte("PAYLOAD"),
 		}
-		record, err := defaultMarshaler.Marshal(msg, topic)
+		record, err := defaultMarshaler.Marshal(context.Background(), msg, topic)
 		assert.NoError(t, err)
 		require.NotNil(t, record)
 		assert.Equal(t, topic, record.Topic)

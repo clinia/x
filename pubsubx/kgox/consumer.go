@@ -282,7 +282,7 @@ func (c *consumer) publishRetryMessages(ctx context.Context, retryableMessages [
 	marshalErrs := make(pubsubx.Errors, len(retryableMessages))
 	scopedTopic := topic.GenerateRetryTopic(c.group).TopicName(c.conf.Scope)
 	for i, m := range retryableMessages {
-		retryRecords[i], marshalErrs[i] = defaultMarshaler.Marshal(m, scopedTopic)
+		retryRecords[i], marshalErrs[i] = defaultMarshaler.Marshal(ctx, m, scopedTopic)
 	}
 	marshalErr := errors.Join(marshalErrs...)
 	retryRecords = slices.DeleteFunc(retryRecords, func(r *kgo.Record) bool {

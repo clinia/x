@@ -33,10 +33,10 @@ func TestConsumer_Subscribe_Handling(t *testing.T) {
 		return wc
 	}
 
-	sendMessage := func(t *testing.T, wc *kgo.Client, topic messagex.Topic, msg *messagex.Message) {
+	sendMessage := func(t *testing.T, ctx context.Context, wc *kgo.Client, topic messagex.Topic, msg *messagex.Message) {
 		t.Helper()
 
-		rec, err := defaultMarshaler.Marshal(msg, topic.TopicName(config.Scope))
+		rec, err := defaultMarshaler.Marshal(ctx, msg, topic.TopicName(config.Scope))
 		require.NoError(t, err)
 
 		r := wc.ProduceSync(context.Background(), rec)
@@ -76,7 +76,7 @@ func TestConsumer_Subscribe_Handling(t *testing.T) {
 		require.NoError(t, err)
 
 		expectedMsg := messagex.NewMessage([]byte("test"))
-		sendMessage(t, wClient, topics[0], expectedMsg)
+		sendMessage(t, ctx, wClient, topics[0], expectedMsg)
 
 		assert.EventuallyWithT(t, func(c *assert.CollectT) {
 			mu.Lock()
@@ -120,7 +120,7 @@ func TestConsumer_Subscribe_Handling(t *testing.T) {
 		require.NoError(t, err)
 
 		expectedMsg := messagex.NewMessage([]byte("test"))
-		sendMessage(t, wClient, topics[0], expectedMsg)
+		sendMessage(t, ctx, wClient, topics[0], expectedMsg)
 
 		assert.EventuallyWithT(t, func(c *assert.CollectT) {
 			mu.Lock()
@@ -140,6 +140,7 @@ func TestConsumer_Subscribe_Handling(t *testing.T) {
 			t.Fatalf("failed to create consumer: %v", err)
 		}
 		wClient := getWriteClient(t)
+		ctx := context.Background()
 
 		headerResult := map[string]int{
 			"0": 0,
@@ -164,7 +165,7 @@ func TestConsumer_Subscribe_Handling(t *testing.T) {
 		require.NoError(t, err)
 
 		expectedMsg := messagex.NewMessage([]byte("test"))
-		sendMessage(t, wClient, topics[0], expectedMsg)
+		sendMessage(t, ctx, wClient, topics[0], expectedMsg)
 
 		time.Sleep(15 * time.Second)
 		err = consumer.Subscribe(context.Background(), topicHandlers)
