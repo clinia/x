@@ -3,6 +3,8 @@ package kgox
 import (
 	"context"
 	"errors"
+	"slices"
+	"strconv"
 	"sync"
 	"time"
 
@@ -25,6 +27,7 @@ type consumer struct {
 	conf         *pubsubx.Config
 	group        messagex.ConsumerGroup
 	topics       []messagex.Topic
+	retryTopics  []messagex.Topic
 	opts         *pubsubx.SubscriberOptions
 	handlers     pubsubx.Handlers
 	kotelService *kotel.Kotel
@@ -54,7 +57,15 @@ func newConsumer(l *logrusx.Logger, kotelService *kotel.Kotel, config *pubsubx.C
 		opts = pubsubx.NewDefaultSubscriberOptions()
 	}
 
-	cons := &consumer{l: l, kotelService: kotelService, group: messagex.ConsumerGroup(group), conf: config, topics: topics, opts: opts}
+	consumerGroup := messagex.ConsumerGroup(group)
+	retryTopics := make([]messagex.Topic, 0)
+	if config.TopicRetry && opts.MaxTopicRetryCount > 0 {
+		retryTopics = lo.Map(topics, func(topic messagex.Topic, _ int) messagex.Topic {
+			return topic.GenerateRetryTopic(consumerGroup)
+		})
+	}
+
+	cons := &consumer{l: l, kotelService: kotelService, group: consumerGroup, conf: config, topics: topics, retryTopics: retryTopics, opts: opts}
 
 	if err := cons.bootstrapClient(); err != nil {
 		return nil, err
@@ -80,13 +91,14 @@ func (c *consumer) attributes(topic *messagex.Topic) []attribute.KeyValue {
 }
 
 func (c *consumer) bootstrapClient() error {
-	scopedTopics := lo.Map(c.topics, func(topic messagex.Topic, _ int) string {
+	scopedTopics := lo.Map(append(c.topics, c.retryTopics...), func(topic messagex.Topic, _ int) string {
 		return topic.TopicName(c.conf.Scope)
 	})
 	kopts := []kgo.Opt{
 		kgo.ConsumerGroup(c.group.ConsumerGroup(c.conf.Scope)),
 		kgo.SeedBrokers(c.conf.Providers.Kafka.Brokers...),
 		kgo.ConsumeTopics(scopedTopics...),
+		kgo.AllowAutoTopicCreation(),
 	}
 
 	if c.kotelService != nil {
@@ -158,7 +170,8 @@ func (c *consumer) start(ctx context.Context) {
 		}
 
 		fetches.EachTopic(func(tp kgo.FetchTopic) {
-			topic := messagex.TopicFromName(tp.Topic)
+			// Use base name to handle the retry topics under the same topic handler
+			topic := messagex.BaseTopicFromName(tp.Topic)
 			l := c.l.WithFields(
 				logrusx.NewLogFields(c.attributes(&topic)...),
 			)
@@ -216,8 +229,17 @@ func (c *consumer) start(ctx context.Context) {
 					if allErrs != nil {
 						l.WithError(allErrs).Errorf("errors while handling messages")
 					}
-
-					// TODO: [ENG-1361] retry logic (resend to the same topic with a retry count per-event)
+					retryableMessages, poisonQueueMessages := c.parseRetryMessages(l, errs, allMsgs)
+					if c.canTopicRetry() && len(retryableMessages) > 0 {
+						if publishErr := c.publishRetryMessages(ctx, retryableMessages, topic); publishErr != nil {
+							l.WithError(publishErr).Errorf("failed to publish as some or all retry messages")
+						}
+					}
+					if len(poisonQueueMessages) > 0 {
+						if publishErr := c.publishPoisonQueueMessages(poisonQueueMessages); publishErr != nil {
+							l.WithError(publishErr).Errorf("failed to publish some or all retry messages to the poison queue")
+						}
+					}
 				}
 
 				return nil
@@ -227,18 +249,105 @@ func (c *consumer) start(ctx context.Context) {
 				l.Infof("aborting consumer")
 				c.mu.RLock()
 				defer c.mu.RUnlock()
+				retryableMessages, poisonQueueMessages := c.parseRetryMessages(l, []error{errorx.NewRetryableError(err)}, allMsgs)
+				// This is required since the context is cancelled by the backoff
+				if c.canTopicRetry() && len(retryableMessages) > 0 {
+					if err := c.publishRetryMessages(context.Background(), retryableMessages, topic); err != nil {
+						l.WithError(err).Errorf("failed to publish some or all retry messages")
+					}
+				}
+				if len(poisonQueueMessages) > 0 {
+					if err := c.publishPoisonQueueMessages(poisonQueueMessages); err != nil {
+						l.WithError(err).Errorf("failed to publish some or all retry messages to the poison queue")
+					}
+				}
 				if c.cancel != nil {
 					c.cancel()
 					l.Infof("cancelled consumer")
 				} else {
 					l.Warnf("abort requested but no cancel function found")
 				}
-
-				// TODO: [ENG-1361] resend the messages to the same topic with a retry count increased for each event
 				return
 			}
 		})
 	}
+}
+
+func (c *consumer) canTopicRetry() bool {
+	return c.conf != nil && c.conf.TopicRetry && c.opts != nil && c.opts.MaxTopicRetryCount > 0
+}
+
+func (c *consumer) publishRetryMessages(ctx context.Context, retryableMessages []*messagex.Message, topic messagex.Topic) error {
+	retryRecords := make([]*kgo.Record, len(retryableMessages))
+	marshalErrs := make(pubsubx.Errors, len(retryableMessages))
+	scopedTopic := topic.GenerateRetryTopic(c.group).TopicName(c.conf.Scope)
+	for i, m := range retryableMessages {
+		retryRecords[i], marshalErrs[i] = defaultMarshaler.Marshal(ctx, m, scopedTopic)
+	}
+	marshalErr := errors.Join(marshalErrs...)
+	retryRecords = slices.DeleteFunc(retryRecords, func(r *kgo.Record) bool {
+		return r == nil
+	})
+	produceResults := c.cl.ProduceSync(ctx, retryRecords...)
+	produceErrs := make(pubsubx.Errors, len(produceResults))
+	for i, record := range produceResults {
+		produceErrs[i] = record.Err
+	}
+	produceErr := errors.Join(produceErrs...)
+	return errors.Join(marshalErr, produceErr)
+}
+
+func (c *consumer) publishPoisonQueueMessages(_ []*messagex.Message) error {
+	// TODO: Add the poison queue publishing logic
+	return nil
+}
+
+func (c *consumer) parseRetryMessages(l *logrusx.Logger, errs []error, allMsgs []*messagex.Message) ([]*messagex.Message, []*messagex.Message) {
+	retryableMessages := make([]*messagex.Message, 0)
+	poisonQueueMessages := make([]*messagex.Message, 0)
+
+	checkErrs := len(errs) == len(allMsgs)
+	retryable := false
+	if !checkErrs {
+		if len(errs) == 1 {
+			l.Debugf("using first error as reference to if we should retry the batch")
+			_, retryable = errorx.IsRetryableError(errs[0])
+		} else {
+			l.Warnf("errors handler result mismatch messages length, can't identify which message failed, sending them all back")
+		}
+	}
+	for i, msg := range allMsgs {
+		if msg == nil {
+			continue
+		}
+		localRetryable := retryable
+		if checkErrs {
+			if errs[i] == nil {
+				continue
+			}
+			_, localRetryable = errorx.IsRetryableError(errs[i])
+		}
+		copiedMsg := msg.Copy()
+		if !localRetryable {
+			poisonQueueMessages = append(poisonQueueMessages, copiedMsg)
+			continue
+		}
+		retryCount, ok := msg.Metadata[messagex.RetryCountHeaderKey]
+		if !ok {
+			l.Warnf("message is missing %s header, setting it to '1'", messagex.RetryCountHeaderKey)
+			copiedMsg.Metadata[messagex.RetryCountHeaderKey] = "1"
+		} else {
+			numericRetryCount, err := strconv.Atoi(retryCount)
+			if !c.canTopicRetry() || err != nil || numericRetryCount >= int(c.opts.MaxTopicRetryCount)-1 {
+				l.Errorf("not retrying, adding message to poison queue messages")
+				poisonQueueMessages = append(poisonQueueMessages, copiedMsg)
+				continue
+			}
+			copiedMsg.Metadata[messagex.RetryCountHeaderKey] = strconv.Itoa(numericRetryCount + 1)
+		}
+		retryableMessages = append(retryableMessages, copiedMsg)
+	}
+	return retryableMessages, poisonQueueMessages
 }
 
 // Subscribe implements pubsubx.Subscriber.

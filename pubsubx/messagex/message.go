@@ -9,7 +9,10 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-const IDHeaderKey = "_clinia_message_id"
+const (
+	IDHeaderKey         = "_clinia_message_id"
+	RetryCountHeaderKey = "_clinia_retry_count"
+)
 
 // Message intentionally has no json marshalling fields as we want to pass by our own kgox.DefaultMarshaler
 type Message struct {
@@ -40,6 +43,10 @@ func NewMessage(payload []byte, opts ...newMessageOption) *Message {
 
 	if o.m == nil {
 		o.m = make(MessageMetadata)
+	}
+
+	if _, ok := o.m[RetryCountHeaderKey]; !ok {
+		o.m[RetryCountHeaderKey] = "0"
 	}
 
 	return &Message{
@@ -83,4 +90,20 @@ func (m *Message) WithSpan(ctx context.Context, tracer trace.Tracer, spanPrefix 
 	prop.Inject(msgctx, propagation.MapCarrier(m.Metadata))
 
 	return msgctx, span
+}
+
+func (m *Message) Copy() *Message {
+	newMessage := Message{
+		ID:       m.ID,
+		Metadata: MessageMetadata{},
+		Payload:  make([]byte, len(m.Payload)),
+	}
+
+	copy(newMessage.Payload, m.Payload)
+
+	for key, value := range m.Metadata {
+		newMessage.Metadata[key] = value
+	}
+
+	return &newMessage
 }

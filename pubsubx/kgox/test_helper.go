@@ -26,16 +26,19 @@ const (
 func getRandomGroupTopics(t *testing.T, count int) (Group string, Topics []messagex.Topic) {
 	t.Helper()
 	name := strings.ReplaceAll(t.Name(), "/", "-")
+	name = name[:len(name)/2]
 	rand := ksuid.New().String()
+	rand = rand[:len(rand)/2]
 	Group = fmt.Sprintf("%s-%s-group", name, rand)
+	topicName := fmt.Sprintf("%s-%s", name, rand)
 	for i := 0; i < count; i++ {
-		Topics = append(Topics, messagex.Topic(fmt.Sprintf("%s-%s-%d", name, rand, i)))
+		Topics = append(Topics, messagex.Topic(fmt.Sprintf("%s-%d", topicName, i)))
 	}
 
 	return
 }
 
-func getPubsubConfig(t *testing.T) *pubsubx.Config {
+func getPubsubConfig(t *testing.T, retry bool) *pubsubx.Config {
 	t.Helper()
 	kafkaURLs := []string{"localhost:9091", "localhost:9092", "localhost:9093", "localhost:9094", "localhost:9095"}
 	kafkaURLsFromEnv := os.Getenv("KAFKA")
@@ -51,6 +54,7 @@ func getPubsubConfig(t *testing.T) *pubsubx.Config {
 				Brokers: kafkaURLs,
 			},
 		},
+		TopicRetry: retry,
 	}
 }
 
