@@ -34,7 +34,7 @@ func (c *CliniaError) WithDetails(details ...CliniaError) CliniaError {
 }
 
 func (c *CliniaError) AsRetryableError() RetryableError {
-	return NewRetryableError(c)
+	return NewRetryableError(*c)
 }
 
 func (c *CliniaError) IsRetryable() bool {
