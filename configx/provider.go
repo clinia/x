@@ -510,6 +510,11 @@ func (p *Provider) PubSubConfig() *pubsubx.Config {
 				Brokers: p.Strings("pubsub.providers.kafka.brokers"),
 			},
 		},
+		TopicRetry: p.BoolF("pubsub.topicRetry", false),
+		PoisonQueue: pubsubx.PoisonQueueConfig{
+			Enabled:   p.BoolF("pubsub.poisonQueue.enabled", false),
+			TopicName: p.StringF("pubsub.poisonQueue.topicName", "poison-queue"),
+		},
 	}
 }
 

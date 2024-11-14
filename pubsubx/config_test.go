@@ -34,6 +34,11 @@ func TestConfigSchema(t *testing.T) {
 					Brokers: []string{"localhost:9092"},
 				},
 			},
+			PoisonQueue: PoisonQueueConfig{
+				Enabled:   true,
+				TopicName: "poison-queue",
+			},
+			TopicRetry: true,
 		}
 
 		rawConfig, err := sjson.Set("{}", "pubsubx", &conf)
