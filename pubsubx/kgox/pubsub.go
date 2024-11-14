@@ -76,6 +76,7 @@ func NewPubSub(l *logrusx.Logger, config *pubsubx.Config, opts *pubsubx.PubSubOp
 		adminClient := kadm.NewClient(wc)
 		var replicationFactor int16 = math.MaxInt16
 		if len(config.Providers.Kafka.Brokers) <= math.MaxInt16 {
+			//nolint:all
 			replicationFactor = int16(len(config.Providers.Kafka.Brokers))
 		}
 		_, err := adminClient.CreateTopic(context.Background(), 1, replicationFactor, defaultCreateTopicConfigEntries, poisonQueueTopic.TopicName(config.Scope))
