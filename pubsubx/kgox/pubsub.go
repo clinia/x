@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"sync"
 
 	"github.com/clinia/x/pointerx"
@@ -73,7 +74,11 @@ func NewPubSub(l *logrusx.Logger, config *pubsubx.Config, opts *pubsubx.PubSubOp
 	if config.PoisonQueue.Enabled {
 		poisonQueueTopic := messagex.TopicFromName(config.PoisonQueue.TopicName)
 		adminClient := kadm.NewClient(wc)
-		_, err := adminClient.CreateTopic(context.Background(), 1, int16(len(config.Providers.Kafka.Brokers)), defaultCreateTopicConfigEntries, poisonQueueTopic.TopicName(config.Scope))
+		var replicationFactor int16 = math.MaxInt16
+		if len(config.Providers.Kafka.Brokers) <= math.MaxInt16 {
+			replicationFactor = int16(len(config.Providers.Kafka.Brokers))
+		}
+		_, err := adminClient.CreateTopic(context.Background(), 1, replicationFactor, defaultCreateTopicConfigEntries, poisonQueueTopic.TopicName(config.Scope))
 		if err != nil && err.Error() != kerr.TopicAlreadyExists.Error() {
 			return nil, errorx.InternalErrorf("failed to create poison queue: %v", err)
 		}
