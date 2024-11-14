@@ -15,6 +15,10 @@ type PubSubAdminClient interface {
 	CreateTopics(ctx context.Context, partitions int32, replicationFactor int16, topics []string, configs ...map[string]*string) (kadm.CreateTopicResponses, error)
 	// DeleteTopic deletes a topic.
 	DeleteTopic(ctx context.Context, topic string) (kadm.DeleteTopicResponse, error)
+	// DeleteGroup deletes a group and related resources.
+	DeleteGroup(ctx context.Context, group string) (kadm.DeleteGroupResponse, error)
+	// DeleteGroups deletes groups and related resources.
+	DeleteGroups(ctx context.Context, groups ...string) (kadm.DeleteGroupResponses, error)
 	// HealthCheck checks the health of the underlying pubsub. It returns an error if the pubsub is unhealthy or we cannot connect to it.
 	HealthCheck(ctx context.Context) error
 

@@ -2,9 +2,11 @@ package kgox
 
 import (
 	"context"
+	"strings"
 
 	"github.com/clinia/x/errorx"
 	"github.com/clinia/x/pubsubx"
+	"github.com/clinia/x/pubsubx/messagex"
 	"github.com/samber/lo"
 	"github.com/twmb/franz-go/pkg/kadm"
 )
@@ -50,4 +52,55 @@ func (p *KgoxAdminClient) HealthCheck(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// DeleteGroup implements PubSubAdminClient.
+// Subtle: this method shadows the method (*Client).DeleteGroup of pubsubAdminClient.Client.
+func (p *KgoxAdminClient) DeleteGroup(ctx context.Context, group string) (kadm.DeleteGroupResponse, error) {
+	r, err := p.Client.DeleteGroup(ctx, group)
+	if err != nil {
+		return r, err
+	}
+	rt, err := p.ListTopics(ctx)
+	if err != nil {
+		// AdminClient doesn't allow you to create a group back, this is by design
+		return r, err
+	}
+	retryTopics := lo.Filter(rt.TopicsList().Topics(), func(topic string, _ int) bool {
+		return strings.HasSuffix(topic, messagex.TopicSeparator+group+messagex.TopicRetrySuffix)
+	})
+	_, err = p.DeleteTopics(ctx, retryTopics...)
+	if err != nil {
+		return r, err
+	}
+
+	return r, nil
+}
+
+// DeleteGroups implements PubSubAdminClient.
+// Subtle: this method shadows the method (*Client).DeleteGroups of pubsubAdminClient.Client.
+func (p *KgoxAdminClient) DeleteGroups(ctx context.Context, groups ...string) (kadm.DeleteGroupResponses, error) {
+	r, err := p.Client.DeleteGroups(ctx, groups...)
+	if err != nil {
+		return r, err
+	}
+	rt, err := p.ListTopics(ctx)
+	if err != nil {
+		// AdminClient doesn't allow you to create a group back, this is by design
+		return r, err
+	}
+	retryTopics := lo.Filter(rt.TopicsList().Topics(), func(topic string, _ int) bool {
+		for _, group := range groups {
+			if strings.HasSuffix(topic, messagex.TopicSeparator+group+messagex.TopicRetrySuffix) {
+				return true
+			}
+		}
+		return false
+	})
+	_, err = p.DeleteTopics(ctx, retryTopics...)
+	if err != nil {
+		return r, err
+	}
+
+	return r, nil
 }

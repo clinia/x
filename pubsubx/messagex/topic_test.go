@@ -15,7 +15,7 @@ func TestNewTopic(t *testing.T) {
 	})
 
 	t.Run("should return error with invalid topic name", func(t *testing.T) {
-		topic, err := NewTopic("my" + topicSeparator + "topic")
+		topic, err := NewTopic("my" + TopicSeparator + "topic")
 		assert.Error(t, err)
 		assert.Equal(t, Topic(""), topic)
 	})
@@ -32,7 +32,7 @@ func TestTopicName(t *testing.T) {
 	t.Run("should return topic name with scope", func(t *testing.T) {
 		topic, err := NewTopic("my-topic")
 		require.NoError(t, err)
-		assert.Equal(t, "scope"+topicSeparator+"my-topic", topic.TopicName("scope"))
+		assert.Equal(t, "scope"+TopicSeparator+"my-topic", topic.TopicName("scope"))
 	})
 }
 
@@ -41,7 +41,7 @@ func TestGenerateRetryTopic(t *testing.T) {
 		topic, err := NewTopic("my-topic")
 		require.NoError(t, err)
 		retryTopic := topic.GenerateRetryTopic(ConsumerGroup("group"))
-		assert.Equal(t, "my-topic"+topicSeparator+"group"+topicSeparator+retrySuffix, string(retryTopic))
+		assert.Equal(t, "my-topic"+TopicSeparator+"group"+TopicRetrySuffix, string(retryTopic))
 	})
 }
 
@@ -79,17 +79,17 @@ func TestBaseTopicFromName(t *testing.T) {
 	})
 
 	t.Run("should return a topic extracted from a retry topic name without scope", func(t *testing.T) {
-		topic := BaseTopicFromName("scope.my-topic.interestingly.consumer-group." + retrySuffix)
+		topic := BaseTopicFromName("scope.my-topic.interestingly.consumer-group" + TopicRetrySuffix)
 		assert.Equal(t, Topic("my-topic.interestingly"), topic)
 	})
 
 	t.Run("should return a topic extracted from a short retry topic", func(t *testing.T) {
-		topic := BaseTopicFromName("scope.my-topic.consumer-group." + retrySuffix)
+		topic := BaseTopicFromName("scope.my-topic.consumer-group" + TopicRetrySuffix)
 		assert.Equal(t, Topic("my-topic"), topic)
 	})
 
 	t.Run("should return an empty topic extracted from a retry suffix only topic", func(t *testing.T) {
-		topic := BaseTopicFromName("consumer-group." + retrySuffix)
+		topic := BaseTopicFromName("consumer-group" + TopicRetrySuffix)
 		assert.Equal(t, Topic(""), topic)
 	})
 }

@@ -2,8 +2,10 @@ package inmemorypubsub
 
 import (
 	"context"
+	"strings"
 
 	"github.com/clinia/x/pubsubx"
+	"github.com/clinia/x/pubsubx/messagex"
 	"github.com/twmb/franz-go/pkg/kadm"
 )
 
@@ -78,6 +80,35 @@ func (n *NoopAdminClient) DeleteTopic(ctx context.Context, topic string) (kadm.D
 	return kadm.DeleteTopicResponse{
 		Topic: topic,
 	}, nil
+}
+
+func (n *NoopAdminClient) DeleteGroup(ctx context.Context, group string) (kadm.DeleteGroupResponse, error) {
+	for t := range n.topics {
+		if strings.HasSuffix(t, group+messagex.TopicSeparator+messagex.TopicRetrySuffix) {
+			delete(n.topics, t)
+		}
+	}
+	return kadm.DeleteGroupResponse{
+		Group: group,
+		Err:   nil,
+	}, nil
+}
+
+// DeleteGroups deletes groups and related resources.
+func (n *NoopAdminClient) DeleteGroups(ctx context.Context, groups ...string) (kadm.DeleteGroupResponses, error) {
+	res := make(kadm.DeleteGroupResponses)
+	for _, g := range groups {
+		for t := range n.topics {
+			if strings.HasSuffix(t, g+messagex.TopicSeparator+messagex.TopicRetrySuffix) {
+				delete(n.topics, t)
+			}
+		}
+		res[g] = kadm.DeleteGroupResponse{
+			Group: g,
+			Err:   nil,
+		}
+	}
+	return res, nil
 }
 
 // HealthCheck implements pubsubx.PubSubAdminClient.
