@@ -46,6 +46,32 @@ func (n *NoopAdminClient) CreateTopic(ctx context.Context, partitions int32, rep
 	}, nil
 }
 
+// CreateTopic implements pubsubx.PubSubAdminClient.
+func (n *NoopAdminClient) CreateTopics(ctx context.Context, partitions int32, replicationFactor int16, topics []string, configs ...map[string]*string) (kadm.CreateTopicResponses, error) {
+	pDetails := kadm.PartitionDetails{}
+	res := make(kadm.CreateTopicResponses)
+	for _, t := range topics {
+		for i := range partitions {
+			pDetails[i] = kadm.PartitionDetail{
+				Topic:     t,
+				Partition: i,
+				Replicas:  make([]int32, replicationFactor),
+			}
+		}
+		n.topics[t] = kadm.TopicDetail{
+			Topic:      t,
+			Partitions: pDetails,
+		}
+		res[t] = kadm.CreateTopicResponse{
+			Topic:             t,
+			NumPartitions:     partitions,
+			ReplicationFactor: replicationFactor,
+		}
+	}
+
+	return res, nil
+}
+
 // DeleteTopic implements pubsubx.PubSubAdminClient.
 func (n *NoopAdminClient) DeleteTopic(ctx context.Context, topic string) (kadm.DeleteTopicResponse, error) {
 	delete(n.topics, topic)

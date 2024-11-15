@@ -41,6 +41,7 @@ func TestGenerateRetryTopics(t *testing.T) {
 		erh := getEventRetryHandler(t, l, config, cg, nil)
 		cl, err := erh.AdminClient()
 		require.NoError(t, err)
+		//nolint:all
 		_, err = cl.CreateTopic(context.Background(), 1, int16(len(config.Providers.Kafka.Brokers)), string(topics[1].GenerateRetryTopic(cg)))
 		assert.NoError(t, err)
 		retryTopics, errs, err := erh.generateRetryTopics(context.Background(), topics...)

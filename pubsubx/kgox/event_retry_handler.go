@@ -35,15 +35,15 @@ func (erh *eventRetryHandler) generateRetryTopics(ctx context.Context, topics ..
 		erh.l.WithError(err).Errorf("failed to generate admin client on retry topic creation")
 		return []messagex.Topic{}, []error{}, err
 	}
+
+	scopedRetryTopics := lo.Map(retryTopics, func(retryTopic messagex.Topic, _ int) string {
+		return retryTopic.TopicName(erh.conf.Scope)
+	})
 	var replicationFactor int16 = math.MaxInt16
 	if len(erh.conf.Providers.Kafka.Brokers) <= math.MaxInt16 {
 		//nolint:all
 		replicationFactor = int16(len(erh.conf.Providers.Kafka.Brokers))
 	}
-
-	scopedRetryTopics := lo.Map(retryTopics, func(retryTopic messagex.Topic, _ int) string {
-		return retryTopic.TopicName(erh.conf.Scope)
-	})
 	res, err := pbac.CreateTopics(ctx, 1, replicationFactor, scopedRetryTopics, erh.defaultCreateTopicConfigEntries)
 	if err != nil {
 		erh.l.WithError(err).Errorf("failed to execute retry topic creation")
