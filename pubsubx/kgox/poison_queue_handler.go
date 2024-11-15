@@ -15,6 +15,7 @@ type poisonQueueHandler PubSub
 type PoisonQueueHandler interface {
 	PublishMessagesToPoisonQueue(ctx context.Context, topic string, consumerGroup messagex.ConsumerGroup, msgErrs []error, msgs []*messagex.Message) error
 	PublishMessagesToPoisonQueueWithGenericError(ctx context.Context, topic string, consumerGroup messagex.ConsumerGroup, msgErr error, msgs ...*messagex.Message) error
+	CanUsePoisonQueue() bool
 }
 
 var _ PoisonQueueHandler = (*poisonQueueHandler)(nil)
@@ -112,4 +113,8 @@ func (pqh *poisonQueueHandler) generatePoisonQueueRecord(ctx context.Context, to
 		return nil, err
 	}
 	return pqr, nil
+}
+
+func (pqh *poisonQueueHandler) CanUsePoisonQueue() bool {
+	return pqh.conf != nil && pqh.conf.PoisonQueue.IsEnabled()
 }

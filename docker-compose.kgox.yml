@@ -1,93 +1,98 @@
-# for Watermill development purposes.
-# For Watermill based application docker please check https://watermill.io/docs/getting-started/
-
-version: "3"
-
 services:
-  zookeeper:
-    image: confluentinc/cp-zookeeper:7.3.1
-    restart: unless-stopped
-    environment:
-      ZOOKEEPER_SERVER_ID: 1
-      ZOOKEEPER_CLIENT_PORT: "2181"
-      ZOOKEEPER_TICK_TIME: "2000"
+  redpanda:
+    profiles:
+      - prevent-default-start
 
-  kafka1:
-    image: confluentinc/cp-kafka:7.3.1
-    depends_on:
-      - zookeeper
-    env_file:
-      - .docker/docker-kafka.env
-    environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_LISTENERS: EXTERNAL://0.0.0.0:9091,INTERNAL://0.0.0.0:29091
-      KAFKA_ADVERTISED_LISTENERS: EXTERNAL://localhost:9091,INTERNAL://kafka1:29091
-      KAFKA_MESSAGE_MAX_BYTES: 200000000
-      KAFKA_REPLICA_FETCH_MAX_BYTES: 200000000
+  redpanda-0:
+    image: oci.clinia.dev/rp/redpandadata/redpanda:v24.2.5
+    command:
+      - redpanda
+      - start
+      - --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr internal://redpanda-0:9092,external://localhost:19092
+      - --pandaproxy-addr internal://0.0.0.0:8082,external://0.0.0.0:18082
+      - --advertise-pandaproxy-addr internal://redpanda-0:8082,external://localhost:18082
+      - --schema-registry-addr internal://0.0.0.0:8081,external://0.0.0.0:18081
+      - --rpc-addr redpanda-0:33145
+      - --advertise-rpc-addr redpanda-0:33145
+      - --smp 1
+      - --memory 1G
+      - --mode dev-container
+      - --default-log-level=debug
+      - --set redpanda.auto_create_topics_enabled=false
     ports:
-      - 9091:9091
-    restart: unless-stopped
+      - 18081:18081
+      - 18082:18082
+      - 19092:19092
+      - 19644:9644
 
-  kafka2:
-    image: confluentinc/cp-kafka:7.3.1
-    depends_on:
-      - zookeeper
-    env_file:
-      - .docker/docker-kafka.env
-    environment:
-      KAFKA_BROKER_ID: 2
-      KAFKA_LISTENERS: EXTERNAL://0.0.0.0:9092,INTERNAL://0.0.0.0:29092
-      KAFKA_ADVERTISED_LISTENERS: EXTERNAL://localhost:9092,INTERNAL://kafka2:29092
-      KAFKA_MESSAGE_MAX_BYTES: 200000000
-      KAFKA_REPLICA_FETCH_MAX_BYTES: 200000000
+  redpanda-1:
+    command:
+      - redpanda
+      - start
+      - --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:29092
+      - --advertise-kafka-addr internal://redpanda-1:9092,external://localhost:29092
+      - --pandaproxy-addr internal://0.0.0.0:8082,external://0.0.0.0:28082
+      - --advertise-pandaproxy-addr internal://redpanda-1:8082,external://localhost:28082
+      - --schema-registry-addr internal://0.0.0.0:8081,external://0.0.0.0:28081
+      - --rpc-addr redpanda-1:33145
+      - --advertise-rpc-addr redpanda-1:33145
+      - --mode dev-container
+      - --smp 1
+      - --default-log-level=info
+      - --seeds redpanda-0:33145
+    image: oci.clinia.dev/rp/redpandadata/redpanda:v24.2.5
+    container_name: redpanda-1
     ports:
-      - 9092:9092
-    restart: unless-stopped
-
-  kafka3:
-    image: confluentinc/cp-kafka:7.3.1
+      - 28081:28081
+      - 28082:28082
+      - 29092:29092
+      - 29644:9644
     depends_on:
-      - zookeeper
-    env_file:
-      - .docker/docker-kafka.env
-    environment:
-      KAFKA_BROKER_ID: 3
-      KAFKA_LISTENERS: EXTERNAL://0.0.0.0:9093,INTERNAL://0.0.0.0:29093
-      KAFKA_ADVERTISED_LISTENERS: EXTERNAL://localhost:9093,INTERNAL://kafka3:29093
-      KAFKA_MESSAGE_MAX_BYTES: 200000000
-      KAFKA_REPLICA_FETCH_MAX_BYTES: 200000000
+      - redpanda-0
+  redpanda-2:
+    command:
+      - redpanda
+      - start
+      - --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:39092
+      - --advertise-kafka-addr internal://redpanda-2:9092,external://localhost:39092
+      - --pandaproxy-addr internal://0.0.0.0:8082,external://0.0.0.0:38082
+      - --advertise-pandaproxy-addr internal://redpanda-2:8082,external://localhost:38082
+      - --schema-registry-addr internal://0.0.0.0:8081,external://0.0.0.0:38081
+      - --rpc-addr redpanda-2:33145
+      - --advertise-rpc-addr redpanda-2:33145
+      - --mode dev-container
+      - --smp 1
+      - --default-log-level=info
+      - --seeds redpanda-0:33145
+    image: oci.clinia.dev/rp/redpandadata/redpanda:v24.2.5
+    container_name: redpanda-2
     ports:
-      - 9093:9093
-    restart: unless-stopped
-
-  kafka4:
-    image: confluentinc/cp-kafka:7.3.1
+      - 38081:38081
+      - 38082:38082
+      - 39092:39092
+      - 39644:9644
     depends_on:
-      - zookeeper
-    env_file:
-      - .docker/docker-kafka.env
+      - redpanda-0
+  redpanda-console:
+    image: oci.clinia.dev/rp/redpandadata/console:v2.7.2
+    entrypoint: /bin/sh
+    command: -c 'echo "$$CONSOLE_CONFIG_FILE" > /tmp/config.yml; /app/console'
     environment:
-      KAFKA_BROKER_ID: 4
-      KAFKA_LISTENERS: EXTERNAL://0.0.0.0:9094,INTERNAL://0.0.0.0:29094
-      KAFKA_ADVERTISED_LISTENERS: EXTERNAL://localhost:9094,INTERNAL://kafka4:29094
-      KAFKA_MESSAGE_MAX_BYTES: 200000000
-      KAFKA_REPLICA_FETCH_MAX_BYTES: 200000000
+      CONFIG_FILEPATH: /tmp/config.yml
+      CONSOLE_CONFIG_FILE: |
+        kafka:
+          brokers: ["redpanda-0:9092", "redpanda-1:9092", "redpanda-2:9092"]
+          schemaRegistry:
+            enabled: true
+            urls: ["http://redpanda-0:8081", "http://redpanda-1:8081", "http://redpanda-2:8081"]
+        redpanda:
+          adminApi:
+            enabled: true
+            urls: ["http://redpanda-0:9644", "http://redpanda-1:9644", "http://redpanda-2:9644"]
+        server:
+          listenPort: 8081
     ports:
-      - 9094:9094
-    restart: unless-stopped
-
-  kafka5:
-    image: confluentinc/cp-kafka:7.3.1
+      - 8081:8081
     depends_on:
-      - zookeeper
-    env_file:
-      - .docker/docker-kafka.env
-    environment:
-      KAFKA_BROKER_ID: 5
-      KAFKA_LISTENERS: EXTERNAL://0.0.0.0:9095,INTERNAL://0.0.0.0:29095
-      KAFKA_ADVERTISED_LISTENERS: EXTERNAL://localhost:9095,INTERNAL://kafka5:29095
-      KAFKA_MESSAGE_MAX_BYTES: 200000000
-      KAFKA_REPLICA_FETCH_MAX_BYTES: 200000000
-    ports:
-      - 9095:9095
-    restart: unless-stopped
+      - redpanda-0

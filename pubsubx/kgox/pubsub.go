@@ -33,6 +33,10 @@ type PubSub struct {
 
 var _ pubsubx.PubSub = (*PubSub)(nil)
 
+type contextLoggerKey string
+
+const ctxLoggerKey contextLoggerKey = "consumer_logger"
+
 func NewPubSub(l *logrusx.Logger, config *pubsubx.Config, opts *pubsubx.PubSubOptions) (*PubSub, error) {
 	if l == nil {
 		return nil, errorx.FailedPreconditionErrorf("logger is required")
@@ -125,7 +129,8 @@ func (p *PubSub) PoisonQueueHandler() PoisonQueueHandler {
 // Subscriber implements pubsubx.PubSub.
 func (p *PubSub) Subscriber(group string, topics []messagex.Topic, opts ...pubsubx.SubscriberOption) (pubsubx.Subscriber, error) {
 	p.mu.RLock()
-	if c, ok := p.consumers[messagex.ConsumerGroup(group)]; ok {
+	consumerGroup := messagex.ConsumerGroup(group)
+	if c, ok := p.consumers[consumerGroup]; ok {
 		p.mu.RUnlock()
 		return c, nil
 	}
@@ -139,14 +144,25 @@ func (p *PubSub) Subscriber(group string, topics []messagex.Topic, opts ...pubsu
 		opt(o)
 	}
 
-	cs, err := newConsumer(p.l, p.kotelService, p.conf, group, topics, o, p.PoisonQueueHandler())
+	cs, err := newConsumer(p.l, p.kotelService, p.conf, consumerGroup, topics, o, p.eventRetryHandler(consumerGroup, o), p.PoisonQueueHandler())
 	if err != nil {
 		p.l.Errorf("failed to create consumer: %v", err)
 		return nil, errorx.InternalErrorf("failed to create consumer: %v", err)
 	}
 
-	p.consumers[messagex.ConsumerGroup(group)] = cs
+	p.consumers[consumerGroup] = cs
 	return cs, nil
+}
+
+func (p *PubSub) eventRetryHandler(group messagex.ConsumerGroup, opts *pubsubx.SubscriberOptions) *eventRetryHandler {
+	if opts == nil {
+		opts = pubsubx.NewDefaultSubscriberOptions()
+	}
+	return &eventRetryHandler{
+		p,
+		group,
+		opts,
+	}
 }
 
 // AdminClient implements pubsubx.PubSub.
@@ -158,4 +174,18 @@ func (p *PubSub) AdminClient() (pubsubx.PubSubAdminClient, error) {
 
 	admClient := NewPubSubAdminClient(kadm.NewClient(wc), p.defaultCreateTopicConfigEntries)
 	return admClient, nil
+}
+
+// getContextLogger allows to extract the logger set in the context if we have some contextual logger
+// that is used
+func getContexLogger(ctx context.Context, fallback *logrusx.Logger) (l *logrusx.Logger) {
+	if ctxL := ctx.Value(ctxLoggerKey); ctxL != nil {
+		if ctxL, ok := ctxL.(*logrusx.Logger); ok {
+			l = ctxL
+		}
+	}
+	if l == nil {
+		l = fallback
+	}
+	return
 }

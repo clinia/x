@@ -9,7 +9,7 @@ type Topic string
 
 const (
 	topicSeparator = "."
-	retrySuffix    = "__retry"
+	retrySuffix    = "retry"
 )
 
 func NewTopic(topic string) (Topic, error) {
@@ -32,7 +32,7 @@ func (t Topic) TopicName(scope string) string {
 }
 
 func (t Topic) GenerateRetryTopic(consumerGroup ConsumerGroup) Topic {
-	return Topic(string(t) + topicSeparator + string(consumerGroup) + retrySuffix)
+	return Topic(string(t) + topicSeparator + string(consumerGroup) + topicSeparator + retrySuffix)
 }
 
 func TopicFromName(topicName string) Topic {
@@ -44,11 +44,16 @@ func TopicFromName(topicName string) Topic {
 	return Topic(splits[0])
 }
 
+// Expect topic to be format `{scope}.{topic}.{consumer-group}.retry` or `{scope}.{topic}`
+// If the scope is missing, this function will return a wrong result
 func BaseTopicFromName(topicName string) Topic {
 	splits := strings.Split(topicName, topicSeparator)
 	if len(splits) > 1 {
 		if strings.HasSuffix(splits[len(splits)-1], retrySuffix) {
-			// Remove the retry topic suffix
+			if len(splits) > 2 {
+				return Topic(strings.Join(splits[1:len(splits)-2], topicSeparator))
+			}
+			// Should not happen, this is the use case where the topic and the scope or not included
 			return Topic(strings.Join(splits[1:len(splits)-1], topicSeparator))
 		}
 		return Topic(strings.Join(splits[1:], topicSeparator))
