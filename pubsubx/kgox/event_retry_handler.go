@@ -21,10 +21,10 @@ type eventRetryHandler struct {
 	opts          *pubsubx.SubscriberOptions
 }
 
-func (erh *eventRetryHandler) generateRetryTopics(ctx context.Context, topics ...messagex.Topic) []messagex.Topic {
+func (erh *eventRetryHandler) generateRetryTopics(ctx context.Context, topics ...messagex.Topic) ([]messagex.Topic, []error, error) {
 	if !erh.conf.TopicRetry || erh.opts.MaxTopicRetryCount <= 0 || len(topics) == 0 {
 		erh.l.Debugf("not generating any retry topics, configuration is either disable, max topic count is <= 0 or no topic are passed in")
-		return []messagex.Topic{}
+		return []messagex.Topic{}, []error{}, nil
 	}
 	retryTopics := lo.Map(topics, func(topic messagex.Topic, _ int) messagex.Topic {
 		return topic.GenerateRetryTopic(erh.consumerGroup)
@@ -33,7 +33,7 @@ func (erh *eventRetryHandler) generateRetryTopics(ctx context.Context, topics ..
 	pbac, err := erh.AdminClient()
 	if err != nil {
 		erh.l.WithError(err).Errorf("failed to generate admin client on retry topic creation")
-		return []messagex.Topic{}
+		return []messagex.Topic{}, []error{}, err
 	}
 	var replicationFactor int16 = math.MaxInt16
 	if len(erh.conf.Providers.Kafka.Brokers) <= math.MaxInt16 {
@@ -47,21 +47,26 @@ func (erh *eventRetryHandler) generateRetryTopics(ctx context.Context, topics ..
 	res, err := pbac.CreateTopics(ctx, 1, replicationFactor, scopedRetryTopics, erh.defaultCreateTopicConfigEntries)
 	if err != nil {
 		erh.l.WithError(err).Errorf("failed to execute retry topic creation")
-		return []messagex.Topic{}
+		return []messagex.Topic{}, []error{}, err
 	}
-	return lo.Filter(retryTopics, func(retryTopic messagex.Topic, _ int) bool {
+	out := make([]messagex.Topic, 0, len(topics))
+	errs := make([]error, len(topics))
+	for i, retryTopic := range retryTopics {
 		scopeTopic := retryTopic.TopicName(erh.conf.Scope)
 		tr, ok := res[scopeTopic]
 		if !ok {
 			erh.l.Errorf("retry topic [%s] not included in topic creation response", scopeTopic)
-			return false
+			errs[i] = errorx.InvalidArgumentErrorf("retry topic [%s] not included in topic creation response", scopeTopic)
+			continue
 		}
 		if tr.Err != nil && tr.Err.Error() != kerr.TopicAlreadyExists.Error() {
 			erh.l.WithError(tr.Err).Errorf("failed to create retry topic [%s]", scopeTopic)
-			return false
+			errs[i] = tr.Err
+			continue
 		}
-		return true
-	})
+		out = append(out, retryTopic)
+	}
+	return out, errs, errors.Join(errs...)
 }
 
 func (c *eventRetryHandler) canTopicRetry() bool {

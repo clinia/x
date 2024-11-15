@@ -82,7 +82,11 @@ func (c *consumer) attributes(topic *messagex.Topic) []attribute.KeyValue {
 }
 
 func (c *consumer) bootstrapClient() error {
-	scopedTopics := lo.Map(append(c.topics, c.erh.generateRetryTopics(context.Background(), c.topics...)...), func(topic messagex.Topic, _ int) string {
+	retryTopics, _, err := c.erh.generateRetryTopics(context.Background(), c.topics...)
+	if err != nil {
+		c.l.WithError(err).Warnf("event retry mechanism might not work properly")
+	}
+	scopedTopics := lo.Map(append(c.topics, retryTopics...), func(topic messagex.Topic, _ int) string {
 		return topic.TopicName(c.conf.Scope)
 	})
 	kopts := []kgo.Opt{

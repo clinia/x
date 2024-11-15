@@ -41,7 +41,7 @@ func TestGenerateRetryTopic(t *testing.T) {
 		topic, err := NewTopic("my-topic")
 		require.NoError(t, err)
 		retryTopic := topic.GenerateRetryTopic(ConsumerGroup("group"))
-		assert.Equal(t, "my-topic"+topicSeparator+"group"+retrySuffix, string(retryTopic))
+		assert.Equal(t, "my-topic"+topicSeparator+"group"+topicSeparator+retrySuffix, string(retryTopic))
 	})
 }
 
