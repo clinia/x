@@ -6,7 +6,6 @@ import (
 	"github.com/clinia/x/pubsubx/messagex"
 	"github.com/segmentio/ksuid"
 	"github.com/twmb/franz-go/pkg/kgo"
-	"go.opentelemetry.io/otel/propagation"
 )
 
 type Marshaler interface {
@@ -67,11 +66,8 @@ func (m *DefaultMarshaler) Marshal(ctx context.Context, msg *messagex.Message, t
 	}
 
 	// Extract TraceContext from the message metadata
-	prop := propagation.NewCompositeTextMapPropagator(
-		propagation.TraceContext{},
-		propagation.Baggage{},
-	)
-	ctx = prop.Extract(ctx, propagation.MapCarrier(msg.Metadata))
+	prop := messagex.NewTraceContextPropagator()
+	ctx = prop.Extract(ctx, msg.Metadata)
 
 	if setDefaultRetryCountHeader {
 		headers = append(headers, kgo.RecordHeader{
