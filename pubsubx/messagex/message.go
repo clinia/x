@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/segmentio/ksuid"
-	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -82,12 +81,9 @@ func (m *Message) WithSpan(ctx context.Context, tracer trace.Tracer, spanPrefix 
 	// Create a new span for the message
 	msgctx, span := tracer.Start(ctx, fmt.Sprintf("%s.message", spanPrefix), opts...)
 
-	// Extract TraceContext from the message metadata
-	prop := propagation.NewCompositeTextMapPropagator(
-		propagation.TraceContext{},
-		propagation.Baggage{},
-	)
-	prop.Inject(msgctx, propagation.MapCarrier(m.Metadata))
+	// Inject TraceContext to the message metadata
+	prop := NewTraceContextPropagator()
+	prop.Inject(msgctx, m)
 
 	return msgctx, span
 }
