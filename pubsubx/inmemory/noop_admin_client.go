@@ -82,6 +82,30 @@ func (n *NoopAdminClient) DeleteTopic(ctx context.Context, topic string) (kadm.D
 	}, nil
 }
 
+func (n *NoopAdminClient) DeleteTopicsWithRetryTopics(ctx context.Context, topics ...string) (kadm.DeleteTopicResponses, error) {
+	res := make(kadm.DeleteTopicResponses)
+	for _, t := range topics {
+		for lt := range n.topics {
+			if strings.HasPrefix(lt, t) && strings.HasSuffix(lt, messagex.TopicRetrySuffix) {
+				delete(n.topics, lt)
+				res[lt] = kadm.DeleteTopicResponse{
+					Topic: t,
+				}
+
+			}
+		}
+		delete(n.topics, t)
+		res[t] = kadm.DeleteTopicResponse{
+			Topic: t,
+		}
+	}
+	return res, nil
+}
+
+func (n *NoopAdminClient) DeleteTopicWithRetryTopics(ctx context.Context, topic string) (kadm.DeleteTopicResponses, error) {
+	return n.DeleteTopicsWithRetryTopics(ctx, topic)
+}
+
 func (n *NoopAdminClient) DeleteGroup(ctx context.Context, group string) (kadm.DeleteGroupResponse, error) {
 	for t := range n.topics {
 		if strings.HasSuffix(t, group+messagex.TopicSeparator+messagex.TopicRetrySuffix) {

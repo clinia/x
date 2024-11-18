@@ -15,6 +15,10 @@ type PubSubAdminClient interface {
 	CreateTopics(ctx context.Context, partitions int32, replicationFactor int16, topics []string, configs ...map[string]*string) (kadm.CreateTopicResponses, error)
 	// DeleteTopic deletes a topic.
 	DeleteTopic(ctx context.Context, topic string) (kadm.DeleteTopicResponse, error)
+	// DeleteTopicsWithRetryTopics deletes the topics with their related retry topics.
+	DeleteTopicsWithRetryTopics(ctx context.Context, topics ...string) (kadm.DeleteTopicResponses, error)
+	// DeleteTopicWithRetryTopics deletes a topic with it's related retry topics.
+	DeleteTopicWithRetryTopics(ctx context.Context, topic string) (kadm.DeleteTopicResponses, error)
 	// DeleteGroup deletes a group and related resources.
 	DeleteGroup(ctx context.Context, group string) (kadm.DeleteGroupResponse, error)
 	// DeleteGroups deletes groups and related resources.

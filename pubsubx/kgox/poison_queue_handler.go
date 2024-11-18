@@ -6,6 +6,7 @@ import (
 	"errors"
 
 	"github.com/clinia/x/errorx"
+	"github.com/clinia/x/pubsubx"
 	"github.com/clinia/x/pubsubx/messagex"
 	"github.com/twmb/franz-go/pkg/kgo"
 )
@@ -117,4 +118,51 @@ func (pqh *poisonQueueHandler) generatePoisonQueueRecord(ctx context.Context, to
 
 func (pqh *poisonQueueHandler) CanUsePoisonQueue() bool {
 	return pqh.conf != nil && pqh.conf.PoisonQueue.IsEnabled()
+}
+
+func (pqh *poisonQueueHandler) Consume(ctx context.Context, handlers pubsubx.Handlers, topicFilters ...string) ([]error, error) {
+	kopts := []kgo.Opt{
+		kgo.ConsumerGroup(messagex.ConsumerGroup(pqh.conf.PoisonQueue.TopicName + ".cg").ConsumerGroup(pqh.conf.Scope)),
+		kgo.SeedBrokers(pqh.conf.Providers.Kafka.Brokers...),
+		kgo.ConsumeTopics(messagex.Topic(pqh.conf.PoisonQueue.TopicName).TopicName(pqh.conf.Scope)),
+	}
+
+	if pqh.kotelService != nil {
+		kopts = append(kopts, kgo.WithHooks(pqh.kotelService.Hooks()...))
+	}
+
+	cl, err := kgo.NewClient(kopts...)
+
+	fetches := cl.PollFetches(ctx)
+
+	fetches.EachTopic(func(ft kgo.FetchTopic) {
+		ft.EachRecord(func(r *kgo.Record) {
+			msg, err := defaultMarshaler.Unmarshal(r)
+			if err != nil {
+				return
+			}
+			originTopic, ok := msg.Metadata[originTopicHeaderKey]
+			if !ok {
+				return
+			}
+			allowed := false
+			for _, f := range topicFilters {
+				if originTopic == f {
+					allowed = true
+					break
+				}
+			}
+			if !allowed {
+				return
+			}
+			var eventMessage messagex.Message
+			err = json.Unmarshal(msg.Payload, &eventMessage)
+			_, err = handlers[messagex.BaseTopicFromName(originTopic)](ctx, []*messagex.Message{&eventMessage})
+			if err != nil {
+				return
+			}
+		})
+	})
+
+	return []error{}, err
 }

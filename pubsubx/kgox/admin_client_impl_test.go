@@ -16,6 +16,104 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 )
 
+func TestKadminClient_DeleteTopicsWithRetryTopics(t *testing.T) {
+	config := getPubsubConfig(t, true)
+	getKadmClient := func(t *testing.T, defaultCreateTopicConfigs ...map[string]*string) (*KgoxAdminClient, *kadm.Client) {
+		wc, err := kgo.NewClient(
+			kgo.SeedBrokers(config.Providers.Kafka.Brokers...),
+		)
+		require.NoError(t, err)
+		t.Cleanup(wc.Close)
+		var defaultCreateTopicConfigEntries map[string]*string
+		if len(defaultCreateTopicConfigs) > 0 {
+			defaultCreateTopicConfigEntries = lo.Assign(defaultCreateTopicConfigs...)
+		}
+
+		kadmCl := kadm.NewClient(wc)
+		return NewPubSubAdminClient(kadmCl, defaultCreateTopicConfigEntries), kadmCl
+	}
+
+	ctx := context.Background()
+
+	t.Run("should delete a topic with retry topics", func(t *testing.T) {
+		kgoxAdmCl, kadmCl := getKadmClient(t)
+		group, topic := getRandomGroupTopics(t, 1)
+		topics := []string{topic[0].TopicName(config.Scope), topic[0].GenerateRetryTopic(messagex.ConsumerGroup(group)).TopicName(config.Scope)}
+		//nolint:all
+		resCreate, err := kadmCl.CreateTopics(ctx, 1, int16(len(config.Providers.Kafka.Brokers)), make(map[string]*string), topics...)
+		createdTopics := make([]string, len(resCreate))
+		i := 0
+		for k := range resCreate {
+			createdTopics[i] = k
+			i++
+		}
+		assert.NoError(t, err)
+		t.Cleanup(func() {
+			defer kadmCl.Close()
+			kadmCl.DeleteTopics(context.Background(), topics...)
+		})
+		require.NoError(t, err)
+		assert.Contains(t, createdTopics, topics[0])
+		assert.Contains(t, createdTopics, topics[1])
+		lt, err := kadmCl.ListTopics(ctx)
+		require.NoError(t, err)
+		assert.Contains(t, lt.TopicsList().Topics(), topics[0])
+		assert.Contains(t, lt.TopicsList().Topics(), topics[1])
+		res, err := kgoxAdmCl.DeleteTopicWithRetryTopics(ctx, topic[0].TopicName(config.Scope))
+		assert.Equal(t, len(topics), len(res))
+		_, ok := res[topics[0]]
+		assert.True(t, ok)
+		_, ok = res[topics[1]]
+		assert.True(t, ok)
+		lt, err = kadmCl.ListTopics(ctx)
+		require.NoError(t, err)
+		assert.NotContains(t, lt.TopicsList().Topics(), topics[0])
+		assert.NotContains(t, lt.TopicsList().Topics(), topics[1])
+	})
+
+	t.Run("should delete a topics with retry topics", func(t *testing.T) {
+		kgoxAdmCl, kadmCl := getKadmClient(t)
+		group, topic := getRandomGroupTopics(t, 2)
+		topics := []string{topic[0].TopicName(config.Scope), topic[0].GenerateRetryTopic(messagex.ConsumerGroup(group)).TopicName(config.Scope), topic[1].TopicName(config.Scope), topic[1].GenerateRetryTopic(messagex.ConsumerGroup(group)).TopicName(config.Scope)}
+		//nolint:all
+		resCreate, err := kadmCl.CreateTopics(ctx, 1, int16(len(config.Providers.Kafka.Brokers)), make(map[string]*string), topics...)
+		createdTopics := make([]string, len(resCreate))
+		i := 0
+		for k := range resCreate {
+			createdTopics[i] = k
+			i++
+		}
+		assert.NoError(t, err)
+		t.Cleanup(func() {
+			defer kadmCl.Close()
+			kadmCl.DeleteTopics(context.Background(), topics...)
+		})
+		require.NoError(t, err)
+		assert.Contains(t, createdTopics, topics[0])
+		assert.Contains(t, createdTopics, topics[1])
+		assert.Contains(t, createdTopics, topics[2])
+		assert.Contains(t, createdTopics, topics[3])
+		lt, err := kadmCl.ListTopics(ctx)
+		require.NoError(t, err)
+		assert.Contains(t, lt.TopicsList().Topics(), topics[0])
+		assert.Contains(t, lt.TopicsList().Topics(), topics[1])
+		assert.Contains(t, lt.TopicsList().Topics(), topics[2])
+		assert.Contains(t, lt.TopicsList().Topics(), topics[3])
+		res, err := kgoxAdmCl.DeleteTopicsWithRetryTopics(ctx, topic[0].TopicName(config.Scope), topic[1].TopicName(config.Scope))
+		assert.Equal(t, len(topics), len(res))
+		_, ok := res[topics[0]]
+		assert.True(t, ok)
+		_, ok = res[topics[1]]
+		assert.True(t, ok)
+		lt, err = kadmCl.ListTopics(ctx)
+		require.NoError(t, err)
+		assert.NotContains(t, lt.TopicsList().Topics(), topics[0])
+		assert.NotContains(t, lt.TopicsList().Topics(), topics[1])
+		assert.NotContains(t, lt.TopicsList().Topics(), topics[2])
+		assert.NotContains(t, lt.TopicsList().Topics(), topics[3])
+	})
+}
+
 func TestKadminClient_CreateTopic(t *testing.T) {
 	config := getPubsubConfig(t, true)
 	getKadmClient := func(t *testing.T, defaultCreateTopicConfigs ...map[string]*string) (*KgoxAdminClient, *kadm.Client) {

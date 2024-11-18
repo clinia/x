@@ -77,6 +77,27 @@ func (p *KgoxAdminClient) DeleteGroup(ctx context.Context, group string) (kadm.D
 	return r, nil
 }
 
+func (p *KgoxAdminClient) DeleteTopicsWithRetryTopics(ctx context.Context, topics ...string) (kadm.DeleteTopicResponses, error) {
+	rt, err := p.ListTopics(ctx)
+	if err != nil {
+		return kadm.DeleteTopicResponses{}, err
+	}
+	topicsToDelete := lo.Filter(rt.TopicsList().Topics(), func(t string, _ int) bool {
+		for _, topic := range topics {
+			if strings.HasPrefix(t, topic) && strings.HasSuffix(t, messagex.TopicRetrySuffix) {
+				return true
+			}
+		}
+		return false
+	})
+	topicsToDelete = append(topicsToDelete, topics...)
+	return p.DeleteTopics(ctx, topicsToDelete...)
+}
+
+func (p *KgoxAdminClient) DeleteTopicWithRetryTopics(ctx context.Context, topic string) (kadm.DeleteTopicResponses, error) {
+	return p.DeleteTopicsWithRetryTopics(ctx, topic)
+}
+
 // DeleteGroups implements PubSubAdminClient.
 // Subtle: this method shadows the method (*Client).DeleteGroups of pubsubAdminClient.Client.
 func (p *KgoxAdminClient) DeleteGroups(ctx context.Context, groups ...string) (kadm.DeleteGroupResponses, error) {
