@@ -11,13 +11,15 @@ import (
 
 type NoopAdminClient struct {
 	topics kadm.TopicDetails
+	*pubsubx.Config
 }
 
 var _ pubsubx.PubSubAdminClient = (*NoopAdminClient)(nil)
 
-func NewNoopAdminClient() pubsubx.PubSubAdminClient {
+func NewNoopAdminClient(c *pubsubx.Config) pubsubx.PubSubAdminClient {
 	return &NoopAdminClient{
 		topics: make(kadm.TopicDetails),
+		Config: c,
 	}
 }
 
@@ -113,7 +115,7 @@ func (n *NoopAdminClient) DeleteGroup(ctx context.Context, group messagex.Consum
 		}
 	}
 	return kadm.DeleteGroupResponse{
-		Group: group.ConsumerGroup(""),
+		Group: group.ConsumerGroup(n.Scope),
 		Err:   nil,
 	}, nil
 }
@@ -122,7 +124,7 @@ func (n *NoopAdminClient) DeleteGroup(ctx context.Context, group messagex.Consum
 func (n *NoopAdminClient) DeleteGroups(ctx context.Context, groups ...messagex.ConsumerGroup) (kadm.DeleteGroupResponses, error) {
 	res := make(kadm.DeleteGroupResponses)
 	for _, g := range groups {
-		gScoped := g.ConsumerGroup("")
+		gScoped := g.ConsumerGroup(n.Scope)
 		for t := range n.topics {
 			if strings.HasSuffix(t, string(g)+messagex.TopicSeparator+messagex.TopicRetrySuffix) {
 				delete(n.topics, t)

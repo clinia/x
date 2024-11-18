@@ -16,6 +16,7 @@ type (
 		scope       string
 		mu          sync.RWMutex
 		subscribers []*memorySubscriber
+		*pubsubx.Config
 	}
 	memorySubscriber struct {
 		m             *memoryPubSub
@@ -35,6 +36,7 @@ func SetupInMemoryPubSub(l *logrusx.Logger, c *pubsubx.Config) (*memoryPubSub, e
 	return &memoryPubSub{
 		scope:       c.Scope,
 		subscribers: make([]*memorySubscriber, 0),
+		Config:      c,
 	}, nil
 }
 
@@ -125,7 +127,7 @@ func (m *memorySubscriber) Subscribe(ctx context.Context, topicHandlers pubsubx.
 
 // AdminClient implements PubSub.
 func (m *memoryPubSub) AdminClient() (pubsubx.PubSubAdminClient, error) {
-	return NewNoopAdminClient(), nil
+	return NewNoopAdminClient(m.Config), nil
 }
 
 // Health implements pubsubx.Subscriber.
