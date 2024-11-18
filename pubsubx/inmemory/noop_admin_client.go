@@ -106,29 +106,30 @@ func (n *NoopAdminClient) DeleteTopicWithRetryTopics(ctx context.Context, topic 
 	return n.DeleteTopicsWithRetryTopics(ctx, topic)
 }
 
-func (n *NoopAdminClient) DeleteGroup(ctx context.Context, group string) (kadm.DeleteGroupResponse, error) {
+func (n *NoopAdminClient) DeleteGroup(ctx context.Context, group messagex.ConsumerGroup) (kadm.DeleteGroupResponse, error) {
 	for t := range n.topics {
-		if strings.HasSuffix(t, group+messagex.TopicSeparator+messagex.TopicRetrySuffix) {
+		if strings.HasSuffix(t, string(group)+messagex.TopicSeparator+messagex.TopicRetrySuffix) {
 			delete(n.topics, t)
 		}
 	}
 	return kadm.DeleteGroupResponse{
-		Group: group,
+		Group: group.ConsumerGroup(""),
 		Err:   nil,
 	}, nil
 }
 
 // DeleteGroups deletes groups and related resources.
-func (n *NoopAdminClient) DeleteGroups(ctx context.Context, groups ...string) (kadm.DeleteGroupResponses, error) {
+func (n *NoopAdminClient) DeleteGroups(ctx context.Context, groups ...messagex.ConsumerGroup) (kadm.DeleteGroupResponses, error) {
 	res := make(kadm.DeleteGroupResponses)
 	for _, g := range groups {
+		gScoped := g.ConsumerGroup("")
 		for t := range n.topics {
-			if strings.HasSuffix(t, g+messagex.TopicSeparator+messagex.TopicRetrySuffix) {
+			if strings.HasSuffix(t, string(g)+messagex.TopicSeparator+messagex.TopicRetrySuffix) {
 				delete(n.topics, t)
 			}
 		}
-		res[g] = kadm.DeleteGroupResponse{
-			Group: g,
+		res[gScoped] = kadm.DeleteGroupResponse{
+			Group: gScoped,
 			Err:   nil,
 		}
 	}

@@ -14,6 +14,7 @@
     },
     "poisonQueue": {
       "type": "object",
+      "additionalProperties": false,
       "properties": {
         "topicName": {
           "type": "string",

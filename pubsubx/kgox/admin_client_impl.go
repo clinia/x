@@ -13,13 +13,14 @@ import (
 
 type KgoxAdminClient struct {
 	*kadm.Client
+	*pubsubx.Config
 	defaultCreateTopicConfigEntries map[string]*string
 }
 
 var _ pubsubx.PubSubAdminClient = (*KgoxAdminClient)(nil)
 
-func NewPubSubAdminClient(cl *kadm.Client, defaultCreateTopicConfigEntries map[string]*string) *KgoxAdminClient {
-	return &KgoxAdminClient{cl, defaultCreateTopicConfigEntries}
+func NewPubSubAdminClient(cl *kadm.Client, config *pubsubx.Config, defaultCreateTopicConfigEntries map[string]*string) *KgoxAdminClient {
+	return &KgoxAdminClient{cl, config, defaultCreateTopicConfigEntries}
 }
 
 // CreateTopic implements PubSubAdminClient.
@@ -56,8 +57,8 @@ func (p *KgoxAdminClient) HealthCheck(ctx context.Context) error {
 
 // DeleteGroup implements PubSubAdminClient.
 // Subtle: this method shadows the method (*Client).DeleteGroup of pubsubAdminClient.Client.
-func (p *KgoxAdminClient) DeleteGroup(ctx context.Context, group string) (kadm.DeleteGroupResponse, error) {
-	r, err := p.Client.DeleteGroup(ctx, group)
+func (p *KgoxAdminClient) DeleteGroup(ctx context.Context, group messagex.ConsumerGroup) (kadm.DeleteGroupResponse, error) {
+	r, err := p.Client.DeleteGroup(ctx, group.ConsumerGroup(p.Scope))
 	if err != nil {
 		return r, err
 	}
@@ -67,7 +68,7 @@ func (p *KgoxAdminClient) DeleteGroup(ctx context.Context, group string) (kadm.D
 		return r, err
 	}
 	retryTopics := lo.Filter(rt.TopicsList().Topics(), func(topic string, _ int) bool {
-		return strings.HasSuffix(topic, messagex.TopicSeparator+group+messagex.TopicRetrySuffix)
+		return strings.HasSuffix(topic, messagex.TopicSeparator+string(group)+messagex.TopicRetrySuffix)
 	})
 	_, err = p.DeleteTopics(ctx, retryTopics...)
 	if err != nil {
@@ -100,8 +101,8 @@ func (p *KgoxAdminClient) DeleteTopicWithRetryTopics(ctx context.Context, topic 
 
 // DeleteGroups implements PubSubAdminClient.
 // Subtle: this method shadows the method (*Client).DeleteGroups of pubsubAdminClient.Client.
-func (p *KgoxAdminClient) DeleteGroups(ctx context.Context, groups ...string) (kadm.DeleteGroupResponses, error) {
-	r, err := p.Client.DeleteGroups(ctx, groups...)
+func (p *KgoxAdminClient) DeleteGroups(ctx context.Context, groups ...messagex.ConsumerGroup) (kadm.DeleteGroupResponses, error) {
+	r, err := p.Client.DeleteGroups(ctx, lo.Map(groups, func(g messagex.ConsumerGroup, _ int) string { return g.ConsumerGroup(p.Scope) })...)
 	if err != nil {
 		return r, err
 	}
@@ -112,7 +113,7 @@ func (p *KgoxAdminClient) DeleteGroups(ctx context.Context, groups ...string) (k
 	}
 	retryTopics := lo.Filter(rt.TopicsList().Topics(), func(topic string, _ int) bool {
 		for _, group := range groups {
-			if strings.HasSuffix(topic, messagex.TopicSeparator+group+messagex.TopicRetrySuffix) {
+			if strings.HasSuffix(topic, messagex.TopicSeparator+string(group)+messagex.TopicRetrySuffix) {
 				return true
 			}
 		}
