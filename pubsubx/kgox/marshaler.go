@@ -66,8 +66,7 @@ func (m *DefaultMarshaler) Marshal(ctx context.Context, msg *messagex.Message, t
 	}
 
 	// Extract TraceContext from the message metadata
-	prop := messagex.NewTraceContextPropagator()
-	ctx = prop.Extract(ctx, msg.Metadata)
+	ctx = msg.ExtractTraceContext(ctx)
 
 	if setDefaultRetryCountHeader {
 		headers = append(headers, kgo.RecordHeader{
