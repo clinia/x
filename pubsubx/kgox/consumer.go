@@ -87,7 +87,7 @@ func (c *consumer) bootstrapClient() error {
 	}
 	retryTopics, _, err := c.erh.generateRetryTopics(context.Background(), c.topics...)
 	if err != nil {
-		c.l.WithError(err).Warnf("event retry mechanism might not work properly")
+		c.l.WithError(err).Errorf("event retry mechanism might not work properly")
 	}
 	scopedTopics := make([]string, len(c.topics)+len(retryTopics))
 	for i, t := range c.topics {

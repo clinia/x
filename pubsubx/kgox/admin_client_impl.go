@@ -2,6 +2,7 @@ package kgox
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"github.com/clinia/x/errorx"
@@ -64,13 +65,22 @@ func (p *KgoxAdminClient) DeleteGroup(ctx context.Context, group messagex.Consum
 	}
 	rt, err := p.ListTopics(ctx)
 	if err != nil {
-		// AdminClient doesn't allow you to create a group back, this is by design
 		return r, err
 	}
 	retryTopics := lo.Filter(rt.TopicsList().Topics(), func(topic string, _ int) bool {
 		return strings.HasSuffix(topic, messagex.TopicSeparator+string(group)+messagex.TopicRetrySuffix)
 	})
-	_, err = p.DeleteTopics(ctx, retryTopics...)
+	deleteResponses, err := p.DeleteTopics(ctx, retryTopics...)
+	if err != nil {
+		return r, err
+	}
+	deleteErrs := make([]error, 0, len(deleteResponses))
+	for _, v := range deleteResponses {
+		if v.Err != nil {
+			deleteErrs = append(deleteErrs, v.Err)
+		}
+	}
+	err = errors.Join(deleteErrs...)
 	if err != nil {
 		return r, err
 	}
