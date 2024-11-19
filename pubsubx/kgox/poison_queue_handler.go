@@ -41,18 +41,20 @@ func (pqh *poisonQueueHandler) PublishMessagesToPoisonQueue(ctx context.Context,
 		pqr, err := pqh.generatePoisonQueueRecord(ctx, topic, consumerGroup, msg, msgErr)
 		if err != nil {
 			errs = append(errs, err)
+			pqh.l.WithError(err).Errorf("failed to generate poison queue record for message id '%s'", msg.ID)
 			continue
 		}
 		poisonQueueRecords[i] = pqr
 	}
 	err := errors.Join(errs...)
 	if err != nil {
-		pqh.l.WithError(err).Errorf("failed to generate some poison queue records")
+		pqh.l.Warnf("failed to generate some poison queue records")
 	}
 	prs := pqh.writeClient.ProduceSync(ctx, poisonQueueRecords...)
 	prErrs := make([]error, 0, len(prs))
 	for _, pr := range prs {
 		if pr.Err != nil {
+			pqh.l.WithError(err).Errorf("failed to publish poison queue record")
 			prErrs = append(prErrs, pr.Err)
 		}
 	}
@@ -95,7 +97,7 @@ func (pqh *poisonQueueHandler) generatePoisonQueueRecord(ctx context.Context, to
 	if err != nil {
 		return nil, err
 	}
-	errStr := "important - error is missing"
+	errStr := defaultMissingErrorString
 	if msgErr != nil {
 		errStr = msgErr.Error()
 	}

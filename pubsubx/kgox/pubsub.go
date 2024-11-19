@@ -119,7 +119,6 @@ func (p *PubSub) Publisher() pubsubx.Publisher {
 
 // PoisonQueueHandler implements pubsubx.PubSub.
 func (p *PubSub) PoisonQueueHandler() PoisonQueueHandler {
-	// We can safely cast here because we know that the pubSub struct is a Publisher.
 	return (*poisonQueueHandler)(p)
 }
 

@@ -41,13 +41,16 @@ type consumer struct {
 
 var _ pubsubx.Subscriber = (*consumer)(nil)
 
+type contextLoggerKey string
+
+const ctxLoggerKey contextLoggerKey = "consumer_logger"
+
 const (
 	// We do not want to have a max elapsed time as we are counting on `maxRetryCount` to stop retrying
 	maxElapsedTime = 0
 	// We want to wait a max of 3 seconds between retries
 	maxRetryInterval = 3 * time.Second
 	maxRetryCount    = 3
-	ctxLoggerKey     = "consumer_logger"
 )
 
 func newConsumer(l *logrusx.Logger, kotelService *kotel.Kotel, config *pubsubx.Config, group string, topics []messagex.Topic, opts *pubsubx.SubscriberOptions, poisonQueueHandler PoisonQueueHandler) (*consumer, error) {
