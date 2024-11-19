@@ -103,3 +103,13 @@ func (m *Message) Copy() *Message {
 
 	return &newMessage
 }
+
+func (m *Message) ExtractTraceContext(ctx context.Context) context.Context {
+	prop := NewTraceContextPropagator()
+	return prop.Extract(ctx, m.Metadata)
+}
+
+func (m *Message) InjectTraceContext(ctx context.Context) {
+	prop := NewTraceContextPropagator()
+	prop.Inject(ctx, m)
+}
