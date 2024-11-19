@@ -261,7 +261,7 @@ func (c *consumer) canTopicRetry() bool {
 }
 
 func (c *consumer) canUsePoisonQueue() bool {
-	return c.conf != nil && c.conf.PoisonQueue.IsEnable()
+	return c.conf != nil && c.conf.PoisonQueue.IsEnabled()
 }
 
 // getContextLogger allows to extract the logger set in the context if we have some contextual logger

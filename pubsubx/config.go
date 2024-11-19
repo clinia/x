@@ -44,7 +44,7 @@ type PoisonQueueConfig struct {
 	TopicName string `json:"topicName"`
 }
 
-func (pqc PoisonQueueConfig) IsEnable() bool {
+func (pqc PoisonQueueConfig) IsEnabled() bool {
 	return pqc.Enabled && pqc.TopicName != ""
 }
 
