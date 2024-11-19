@@ -13,10 +13,11 @@ import (
 )
 
 type Config struct {
-	Scope      string          `json:"scope"`
-	Provider   string          `json:"provider"`
-	Providers  ProvidersConfig `json:"providers"`
-	TopicRetry bool            `json:"topicRetry"`
+	PoisonQueue PoisonQueueConfig `json:"poisonQueue"`
+	Scope       string            `json:"scope"`
+	Provider    string            `json:"provider"`
+	Providers   ProvidersConfig   `json:"providers"`
+	TopicRetry  bool              `json:"topicRetry"`
 }
 
 type ProvidersConfig struct {
@@ -36,6 +37,15 @@ type PubSubOptions struct {
 	MeterProvider  metric.MeterProvider
 	MaxMessageByte *int32
 	RetentionMs    *int32
+}
+
+type PoisonQueueConfig struct {
+	Enabled   bool   `json:"enabled"`
+	TopicName string `json:"topicName"`
+}
+
+func (pqc PoisonQueueConfig) IsEnabled() bool {
+	return pqc.Enabled && pqc.TopicName != ""
 }
 
 type PubSubOption func(*PubSubOptions)

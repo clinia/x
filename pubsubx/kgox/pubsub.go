@@ -1,8 +1,10 @@
 package kgox
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"math"
 	"sync"
 
 	"github.com/clinia/x/pointerx"
@@ -12,6 +14,7 @@ import (
 	"github.com/clinia/x/logrusx"
 	"github.com/clinia/x/pubsubx/messagex"
 	"github.com/twmb/franz-go/pkg/kadm"
+	"github.com/twmb/franz-go/pkg/kerr"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/plugin/kotel"
 )
@@ -33,6 +36,10 @@ var _ pubsubx.PubSub = (*PubSub)(nil)
 func NewPubSub(l *logrusx.Logger, config *pubsubx.Config, opts *pubsubx.PubSubOptions) (*PubSub, error) {
 	if l == nil {
 		return nil, errorx.FailedPreconditionErrorf("logger is required")
+	}
+
+	if config == nil {
+		return nil, errorx.FailedPreconditionErrorf("config is required")
 	}
 
 	if config.Provider != "kafka" {
@@ -62,6 +69,20 @@ func NewPubSub(l *logrusx.Logger, config *pubsubx.Config, opts *pubsubx.PubSubOp
 	wc, err := kgo.NewClient(kopts...)
 	if err != nil {
 		return nil, errorx.InternalErrorf("failed to create kafka client: %v", err)
+	}
+
+	if config.PoisonQueue.Enabled {
+		poisonQueueTopic := messagex.TopicFromName(config.PoisonQueue.TopicName)
+		adminClient := kadm.NewClient(wc)
+		var replicationFactor int16 = math.MaxInt16
+		if len(config.Providers.Kafka.Brokers) <= math.MaxInt16 {
+			//nolint:all
+			replicationFactor = int16(len(config.Providers.Kafka.Brokers))
+		}
+		_, err := adminClient.CreateTopic(context.Background(), 1, replicationFactor, defaultCreateTopicConfigEntries, poisonQueueTopic.TopicName(config.Scope))
+		if err != nil && err.Error() != kerr.TopicAlreadyExists.Error() {
+			return nil, errorx.InternalErrorf("failed to create poison queue: %v", err)
+		}
 	}
 
 	return &PubSub{
@@ -96,6 +117,11 @@ func (p *PubSub) Publisher() pubsubx.Publisher {
 	return (*publisher)(p)
 }
 
+// PoisonQueueHandler implements pubsubx.PubSub.
+func (p *PubSub) PoisonQueueHandler() PoisonQueueHandler {
+	return (*poisonQueueHandler)(p)
+}
+
 // Subscriber implements pubsubx.PubSub.
 func (p *PubSub) Subscriber(group string, topics []messagex.Topic, opts ...pubsubx.SubscriberOption) (pubsubx.Subscriber, error) {
 	p.mu.RLock()
@@ -113,7 +139,7 @@ func (p *PubSub) Subscriber(group string, topics []messagex.Topic, opts ...pubsu
 		opt(o)
 	}
 
-	cs, err := newConsumer(p.l, p.kotelService, p.conf, group, topics, o)
+	cs, err := newConsumer(p.l, p.kotelService, p.conf, group, topics, o, p.PoisonQueueHandler())
 	if err != nil {
 		p.l.Errorf("failed to create consumer: %v", err)
 		return nil, errorx.InternalErrorf("failed to create consumer: %v", err)

@@ -8,13 +8,38 @@
     "scope": {
       "type": "string",
       "description": "Set this to the scope you wish to use for pub sub. Defaults to the application id.",
-      "examples": ["my-app"]
+      "examples": [
+        "my-app"
+      ]
+    },
+    "poisonQueue": {
+      "type": "object",
+      "properties": {
+        "topicName": {
+          "type": "string",
+          "description": "Set this to the topic name you want the error event to go to for pub sub. Defaults to 'poison-queue'",
+          "examples": [
+            "poison-queue"
+          ],
+          "default": "poison-queue"
+        },
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable pushing failing events after their max retries to a poison queue topic to manually process them",
+          "default": false
+        }
+      }
     },
     "provider": {
       "type": "string",
       "description": "Set this to the pub sub backend you wish to use. Supports inmemory and kafka. Defaults to inmemory.",
-      "enum": ["kafka", "inmemory"],
-      "examples": ["kafka"],
+      "enum": [
+        "kafka",
+        "inmemory"
+      ],
+      "examples": [
+        "kafka"
+      ],
       "default": "inmemory"
     },
     "providers": {
@@ -31,11 +56,15 @@
               "description": "The list of kafka brokers to connect to.",
               "items": {
                 "type": "string",
-                "examples": ["localhost:9092"]
+                "examples": [
+                  "localhost:9092"
+                ]
               }
             }
           },
-          "required": ["brokers"]
+          "required": [
+            "brokers"
+          ]
         },
         "inmemory": {
           "type": "object",

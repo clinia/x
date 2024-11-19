@@ -55,7 +55,19 @@ func getPubsubConfig(t *testing.T, retry bool) *pubsubx.Config {
 			},
 		},
 		TopicRetry: retry,
+		PoisonQueue: pubsubx.PoisonQueueConfig{
+			TopicName: "poison-queue",
+			Enabled:   false,
+		},
 	}
+}
+
+func getPubSubConfigWithCustomPoisonQueue(t *testing.T, retry bool, customPoisonQueue string) *pubsubx.Config {
+	t.Helper()
+	config := getPubsubConfig(t, retry)
+	config.PoisonQueue.TopicName = customPoisonQueue
+	config.PoisonQueue.Enabled = true
+	return config
 }
 
 func createTopic(t *testing.T, conf *pubsubx.Config, topic messagex.Topic) {
@@ -90,4 +102,12 @@ func getPublisher(t *testing.T, l *logrusx.Logger, conf *pubsubx.Config) *publis
 	require.NoError(t, err)
 
 	return pubSub.Publisher().(*publisher)
+}
+
+func getPoisonQueueHandler(t *testing.T, l *logrusx.Logger, conf *pubsubx.Config) *poisonQueueHandler {
+	t.Helper()
+	pubSub, err := NewPubSub(l, conf, nil)
+	require.NoError(t, err)
+
+	return pubSub.PoisonQueueHandler().(*poisonQueueHandler)
 }
