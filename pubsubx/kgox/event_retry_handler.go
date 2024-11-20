@@ -22,7 +22,7 @@ type eventRetryHandler struct {
 }
 
 func (erh *eventRetryHandler) generateRetryTopics(ctx context.Context, topics ...messagex.Topic) ([]messagex.Topic, []error, error) {
-	if !erh.conf.TopicRetry || erh.opts.MaxTopicRetryCount <= 0 || len(topics) == 0 {
+	if !erh.canTopicRetry() || len(topics) == 0 {
 		erh.l.Debugf("not generating any retry topics, configuration is either disable, max topic count is <= 0 or no topic are passed in")
 		return []messagex.Topic{}, []error{}, nil
 	}

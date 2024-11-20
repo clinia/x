@@ -82,6 +82,9 @@ func (c *consumer) attributes(topic *messagex.Topic) []attribute.KeyValue {
 }
 
 func (c *consumer) bootstrapClient() error {
+	if c.erh == nil {
+		return errorx.InternalErrorf("EventRetryHandler should not be nil in the consumer")
+	}
 	retryTopics, _, err := c.erh.generateRetryTopics(context.Background(), c.topics...)
 	if err != nil {
 		c.l.WithError(err).Warnf("event retry mechanism might not work properly")
@@ -250,6 +253,10 @@ func (c *consumer) start(ctx context.Context) {
 
 func (c *consumer) handleRemoteRetryLogic(ctx context.Context, topic messagex.Topic, errs []error, msgs []*messagex.Message) {
 	l := getContexLogger(ctx, c.l)
+	if c.erh == nil {
+		l.Errorf("EventRetryHandler should not be nil in the consumer")
+		return
+	}
 	if !c.erh.canTopicRetry() && !c.pqh.CanUsePoisonQueue() {
 		l.Debugf("topic retry and poison queue are disable, not exeucting retry logic")
 		return
