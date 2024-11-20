@@ -30,7 +30,7 @@ func TestKadminClient_DeleteTopicsWithRetryTopics(t *testing.T) {
 		}
 
 		kadmCl := kadm.NewClient(wc)
-		return NewPubSubAdminClient(kadmCl, config, defaultCreateTopicConfigEntries), kadmCl
+		return NewPubSubAdminClient(wc, config, defaultCreateTopicConfigEntries), kadmCl
 	}
 
 	ctx := context.Background()
@@ -128,7 +128,7 @@ func TestKadminClient_CreateTopic(t *testing.T) {
 		}
 
 		kadmCl := kadm.NewClient(wc)
-		return NewPubSubAdminClient(kadmCl, config, defaultCreateTopicConfigEntries), kadmCl
+		return NewPubSubAdminClient(wc, config, defaultCreateTopicConfigEntries), kadmCl
 	}
 
 	ctx := context.Background()
@@ -230,7 +230,7 @@ func TestKadminClient_DeleteGroup(t *testing.T) {
 		}
 
 		kadmCl := kadm.NewClient(wc)
-		return NewPubSubAdminClient(kadmCl, config, defaultCreateTopicConfigEntries), kadmCl
+		return NewPubSubAdminClient(wc, config, defaultCreateTopicConfigEntries), kadmCl
 	}
 
 	t.Run("test delete consumer group with retry topics", func(t *testing.T) {
@@ -293,7 +293,7 @@ func TestKadminClient_DeleteGroups(t *testing.T) {
 		}
 
 		kadmCl := kadm.NewClient(wc)
-		return NewPubSubAdminClient(kadmCl, config, defaultCreateTopicConfigEntries), kadmCl
+		return NewPubSubAdminClient(wc, config, defaultCreateTopicConfigEntries), kadmCl
 	}
 
 	t.Run("test delete consumer groups with retry topics", func(t *testing.T) {
@@ -359,5 +359,28 @@ func TestKadminClient_DeleteGroups(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotContains(t, endGroups.Groups(), cGroup.ConsumerGroup(config.Scope))
 		assert.NotContains(t, endGroups.Groups(), cGroup2.ConsumerGroup(config.Scope))
+	})
+}
+
+func TestKadminClient_Healthcheck(t *testing.T) {
+	config := getPubsubConfig(t, true)
+	getKadmClient := func(t *testing.T, defaultCreateTopicConfigs ...map[string]*string) (*KgoxAdminClient, *kadm.Client) {
+		wc, err := kgo.NewClient(
+			kgo.SeedBrokers(config.Providers.Kafka.Brokers...),
+		)
+		require.NoError(t, err)
+		t.Cleanup(wc.Close)
+		var defaultCreateTopicConfigEntries map[string]*string
+		if len(defaultCreateTopicConfigs) > 0 {
+			defaultCreateTopicConfigEntries = lo.Assign(defaultCreateTopicConfigs...)
+		}
+
+		kadmCl := kadm.NewClient(wc)
+		return NewPubSubAdminClient(wc, config, defaultCreateTopicConfigEntries), kadmCl
+	}
+	t.Run("healthcheck should not return error", func(t *testing.T) {
+		c, _ := getKadmClient(t)
+		err := c.HealthCheck(context.Background())
+		assert.NoError(t, err)
 	})
 }

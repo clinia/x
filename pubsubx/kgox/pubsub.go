@@ -172,7 +172,7 @@ func (p *PubSub) AdminClient() (pubsubx.PubSubAdminClient, error) {
 		return nil, errorx.InternalErrorf("failed to create kafka client: %v", err)
 	}
 
-	admClient := NewPubSubAdminClient(kadm.NewClient(wc), p.conf, p.defaultCreateTopicConfigEntries)
+	admClient := NewPubSubAdminClient(wc, p.conf, p.defaultCreateTopicConfigEntries)
 	return admClient, nil
 }
 
