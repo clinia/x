@@ -29,7 +29,7 @@ func getRandomGroupTopics(t *testing.T, count int) (Group string, Topics []messa
 	name = name[:len(name)/2]
 	rand := ksuid.New().String()
 	rand = rand[:len(rand)/2]
-	Group = fmt.Sprintf("%s-%s-group", name, rand)
+	Group = fmt.Sprintf("%s-group", rand)
 	topicName := fmt.Sprintf("%s-%s", name, rand)
 	for i := 0; i < count; i++ {
 		Topics = append(Topics, messagex.Topic(fmt.Sprintf("%s-%d", topicName, i)))
