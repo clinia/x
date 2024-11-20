@@ -95,13 +95,12 @@ func (p *KgoxAdminClient) DeleteTopicsWithRetryTopics(ctx context.Context, topic
 	}
 	topicsToDelete := lo.Filter(rt.TopicsList().Topics(), func(t string, _ int) bool {
 		for _, topic := range topics {
-			if strings.HasPrefix(t, topic) && strings.HasSuffix(t, messagex.TopicRetrySuffix) {
+			if (strings.HasPrefix(t, topic) && strings.HasSuffix(t, messagex.TopicRetrySuffix)) || t == topic {
 				return true
 			}
 		}
 		return false
 	})
-	topicsToDelete = append(topicsToDelete, topics...)
 	return p.DeleteTopics(ctx, topicsToDelete...)
 }
 
