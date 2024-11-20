@@ -3,6 +3,7 @@ package pubsubx
 import (
 	"context"
 
+	"github.com/clinia/x/pubsubx/messagex"
 	"github.com/twmb/franz-go/pkg/kadm"
 )
 
@@ -15,6 +16,14 @@ type PubSubAdminClient interface {
 	CreateTopics(ctx context.Context, partitions int32, replicationFactor int16, topics []string, configs ...map[string]*string) (kadm.CreateTopicResponses, error)
 	// DeleteTopic deletes a topic.
 	DeleteTopic(ctx context.Context, topic string) (kadm.DeleteTopicResponse, error)
+	// DeleteTopicsWithRetryTopics deletes the topics with their related retry topics.
+	DeleteTopicsWithRetryTopics(ctx context.Context, topics ...string) (kadm.DeleteTopicResponses, error)
+	// DeleteTopicWithRetryTopics deletes a topic with it's related retry topics.
+	DeleteTopicWithRetryTopics(ctx context.Context, topic string) (kadm.DeleteTopicResponses, error)
+	// DeleteGroup deletes a group and related resources.
+	DeleteGroup(ctx context.Context, group messagex.ConsumerGroup) (kadm.DeleteGroupResponse, error)
+	// DeleteGroups deletes groups and related resources.
+	DeleteGroups(ctx context.Context, groups ...messagex.ConsumerGroup) (kadm.DeleteGroupResponses, error)
 	// HealthCheck checks the health of the underlying pubsub. It returns an error if the pubsub is unhealthy or we cannot connect to it.
 	HealthCheck(ctx context.Context) error
 

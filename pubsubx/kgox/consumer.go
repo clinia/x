@@ -87,11 +87,15 @@ func (c *consumer) bootstrapClient() error {
 	}
 	retryTopics, _, err := c.erh.generateRetryTopics(context.Background(), c.topics...)
 	if err != nil {
-		c.l.WithError(err).Warnf("event retry mechanism might not work properly")
+		c.l.WithError(err).Errorf("event retry mechanism might not work properly")
 	}
-	scopedTopics := lo.Map(append(c.topics, retryTopics...), func(topic messagex.Topic, _ int) string {
-		return topic.TopicName(c.conf.Scope)
-	})
+	scopedTopics := make([]string, len(c.topics)+len(retryTopics))
+	for i, t := range c.topics {
+		scopedTopics[i] = t.TopicName(c.conf.Scope)
+	}
+	for i, t := range retryTopics {
+		scopedTopics[len(c.topics)+i] = t.TopicName(c.conf.Scope)
+	}
 	kopts := []kgo.Opt{
 		kgo.ConsumerGroup(c.group.ConsumerGroup(c.conf.Scope)),
 		kgo.SeedBrokers(c.conf.Providers.Kafka.Brokers...),
