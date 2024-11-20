@@ -254,8 +254,9 @@ func TestKadminClient_DeleteGroup(t *testing.T) {
 			kgo.ConsumerGroup(cGroup.ConsumerGroup(config.Scope)),
 			kgo.ConsumeTopics(topics[0].TopicName(config.Scope), retryTopic.TopicName(config.Scope)),
 		)
+		assert.NoError(t, err)
 		time.Sleep(500 * time.Millisecond)
-		groupClient.PollFetches(nil)
+		groupClient.ForceMetadataRefresh()
 		time.Sleep(500 * time.Millisecond)
 		startTopics, err := kadmCl.ListTopics(ctx)
 		assert.Contains(t, startTopics.TopicsList().Topics(), retryTopic.TopicName(config.Scope))
@@ -324,14 +325,16 @@ func TestKadminClient_DeleteGroups(t *testing.T) {
 			kgo.ConsumerGroup(cGroup.ConsumerGroup(config.Scope)),
 			kgo.ConsumeTopics(topics[0].TopicName(config.Scope), retryTopic.TopicName(config.Scope)),
 		)
+		assert.NoError(t, err)
 		groupClient2, err := kgo.NewClient(
 			kgo.SeedBrokers(config.Providers.Kafka.Brokers...),
 			kgo.ConsumerGroup(cGroup2.ConsumerGroup(config.Scope)),
 			kgo.ConsumeTopics(topics[0].TopicName(config.Scope), retryTopic.TopicName(config.Scope)),
 		)
+		assert.NoError(t, err)
 		time.Sleep(500 * time.Millisecond)
-		groupClient.PollFetches(nil)
-		groupClient2.PollFetches(nil)
+		groupClient.ForceMetadataRefresh()
+		groupClient2.ForceMetadataRefresh()
 		time.Sleep(500 * time.Millisecond)
 		startTopics, err := kadmCl.ListTopics(ctx)
 		assert.Contains(t, startTopics.TopicsList().Topics(), retryTopic.TopicName(config.Scope))
