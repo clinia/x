@@ -40,7 +40,8 @@ func getRandomGroupTopics(t *testing.T, count int) (Group string, Topics []messa
 
 func getPubsubConfig(t *testing.T, retry bool) *pubsubx.Config {
 	t.Helper()
-	kafkaURLs := []string{"localhost:9091", "localhost:9092", "localhost:9093", "localhost:9094", "localhost:9095"}
+
+	kafkaURLs := []string{"localhost:19092", "localhost:29092", "localhost:39092"}
 	kafkaURLsFromEnv := os.Getenv("KAFKA")
 	if len(kafkaURLsFromEnv) > 0 {
 		kafkaURLs = strings.Split(kafkaURLsFromEnv, ",")
@@ -102,6 +103,14 @@ func getPublisher(t *testing.T, l *logrusx.Logger, conf *pubsubx.Config) *publis
 	require.NoError(t, err)
 
 	return pubSub.Publisher().(*publisher)
+}
+
+func getEventRetryHandler(t *testing.T, l *logrusx.Logger, conf *pubsubx.Config, group messagex.ConsumerGroup, opts *pubsubx.SubscriberOptions) *eventRetryHandler {
+	t.Helper()
+	pubSub, err := NewPubSub(l, conf, nil)
+	require.NoError(t, err)
+
+	return pubSub.eventRetryHandler(group, opts)
 }
 
 func getPoisonQueueHandler(t *testing.T, l *logrusx.Logger, conf *pubsubx.Config) *poisonQueueHandler {

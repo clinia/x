@@ -41,7 +41,7 @@ func TestGenerateRetryTopic(t *testing.T) {
 		topic, err := NewTopic("my-topic")
 		require.NoError(t, err)
 		retryTopic := topic.GenerateRetryTopic(ConsumerGroup("group"))
-		assert.Equal(t, "my-topic"+topicSeparator+"group"+retrySuffix, string(retryTopic))
+		assert.Equal(t, "my-topic"+topicSeparator+"group"+topicSeparator+retrySuffix, string(retryTopic))
 	})
 }
 
@@ -79,12 +79,17 @@ func TestBaseTopicFromName(t *testing.T) {
 	})
 
 	t.Run("should return a topic extracted from a retry topic name without scope", func(t *testing.T) {
-		topic := BaseTopicFromName("scope.my-topic.interestingly.consumer-group" + retrySuffix)
+		topic := BaseTopicFromName("scope.my-topic.interestingly.consumer-group." + retrySuffix)
 		assert.Equal(t, Topic("my-topic.interestingly"), topic)
 	})
 
 	t.Run("should return a topic extracted from a short retry topic", func(t *testing.T) {
-		topic := BaseTopicFromName("scope.my-topic.consumer-group" + retrySuffix)
+		topic := BaseTopicFromName("scope.my-topic.consumer-group." + retrySuffix)
 		assert.Equal(t, Topic("my-topic"), topic)
+	})
+
+	t.Run("should return an empty topic extracted from a retry suffix only topic", func(t *testing.T) {
+		topic := BaseTopicFromName("consumer-group." + retrySuffix)
+		assert.Equal(t, Topic(""), topic)
 	})
 }

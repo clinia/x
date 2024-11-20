@@ -44,10 +44,12 @@ func TestConsumer_Subscribe_Handling(t *testing.T) {
 		require.NoError(t, r.FirstErr())
 	}
 
-	t.Run("Should push back messages on retryable error", func(t *testing.T) {
+	t.Run("should push back messages on retryable error", func(t *testing.T) {
 		group, topics := getRandomGroupTopics(t, 1)
 		createTopic(t, config, topics[0])
-		consumer, err := newConsumer(l, nil, config, group, topics, opts, pqh)
+		cg := messagex.ConsumerGroup(group)
+		erh := getEventRetryHandler(t, l, config, cg, nil)
+		consumer, err := newConsumer(l, nil, config, cg, topics, opts, erh, pqh)
 		if err != nil {
 			t.Fatalf("failed to create consumer: %v", err)
 		}
@@ -88,10 +90,12 @@ func TestConsumer_Subscribe_Handling(t *testing.T) {
 		}, 5*time.Second, 250*time.Millisecond)
 	})
 
-	t.Run("Should not push back messages on non retryable error", func(t *testing.T) {
+	t.Run("should not push back messages on non retryable error", func(t *testing.T) {
 		group, topics := getRandomGroupTopics(t, 1)
 		createTopic(t, config, topics[0])
-		consumer, err := newConsumer(l, nil, config, group, topics, opts, pqh)
+		cg := messagex.ConsumerGroup(group)
+		erh := getEventRetryHandler(t, l, config, cg, nil)
+		consumer, err := newConsumer(l, nil, config, cg, topics, opts, erh, pqh)
 		if err != nil {
 			t.Fatalf("failed to create consumer: %v", err)
 		}
@@ -132,11 +136,13 @@ func TestConsumer_Subscribe_Handling(t *testing.T) {
 		}, 5*time.Second, 250*time.Millisecond)
 	})
 
-	t.Run("Should push back messages on retryable error for complete error", func(t *testing.T) {
-		t.Skipf("Tests takes at least 45 seconds to run, skipping to reduce test suite time, please manually trigger this test")
+	t.Run("should push back messages on retryable error for complete error", func(t *testing.T) {
+		t.Skipf("test takes at least 45 seconds to run, skipping to reduce test suite time, please manually trigger this test")
 		group, topics := getRandomGroupTopics(t, 1)
 		createTopic(t, config, topics[0])
-		consumer, err := newConsumer(l, nil, config, group, topics, opts, pqh)
+		cg := messagex.ConsumerGroup(group)
+		erh := getEventRetryHandler(t, l, config, cg, nil)
+		consumer, err := newConsumer(l, nil, config, cg, topics, opts, erh, pqh)
 		if err != nil {
 			t.Fatalf("failed to create consumer: %v", err)
 		}
@@ -213,7 +219,9 @@ func TestConsumer_Subscribe_Concurrency(t *testing.T) {
 
 	t.Run("should return an error if there are missing handlers", func(t *testing.T) {
 		group, topics := getRandomGroupTopics(t, 3)
-		consumer, err := newConsumer(l, nil, config, group, topics, opts, pqh)
+		cg := messagex.ConsumerGroup(group)
+		erh := getEventRetryHandler(t, l, config, cg, nil)
+		consumer, err := newConsumer(l, nil, config, cg, topics, opts, erh, pqh)
 		if err != nil {
 			t.Fatalf("failed to create consumer: %v", err)
 		}
@@ -246,7 +254,9 @@ func TestConsumer_Subscribe_Concurrency(t *testing.T) {
 		testTopic := topics[0]
 		createTopic(t, config, testTopic)
 
-		consumer, err := newConsumer(l, nil, config, group, topics, opts, pqh)
+		cg := messagex.ConsumerGroup(group)
+		erh := getEventRetryHandler(t, l, config, cg, nil)
+		consumer, err := newConsumer(l, nil, config, cg, topics, opts, erh, pqh)
 		if err != nil {
 			t.Fatalf("failed to create consumer: %v", err)
 		}
@@ -302,7 +312,9 @@ func TestConsumer_Subscribe_Concurrency(t *testing.T) {
 		createTopic(t, config, testTopic)
 
 		receivedMsgs := make(chan *messagex.Message, 10)
-		consumer, err := newConsumer(l, nil, config, group, topics, opts, pqh)
+		cg := messagex.ConsumerGroup(group)
+		erh := getEventRetryHandler(t, l, config, cg, nil)
+		consumer, err := newConsumer(l, nil, config, cg, topics, opts, erh, pqh)
 		if err != nil {
 			t.Fatalf("failed to create consumer: %v", err)
 		}
@@ -367,7 +379,9 @@ func TestConsumer_Subscribe_Concurrency(t *testing.T) {
 
 		// If we subscribe with another consumer group, we should receive both messages
 		anotherGroup, _ := getRandomGroupTopics(t, 1)
-		anotherConsumer, err := newConsumer(l, nil, config, anotherGroup, topics, opts, pqh)
+		acg := messagex.ConsumerGroup(anotherGroup)
+		aerh := getEventRetryHandler(t, l, config, acg, nil)
+		anotherConsumer, err := newConsumer(l, nil, config, acg, topics, opts, aerh, pqh)
 		t.Cleanup(func() {
 			anotherConsumer.Close()
 		})
@@ -410,7 +424,9 @@ func TestConsumer_Subscribe_Concurrency(t *testing.T) {
 		l.Entry.Logger.SetOutput(buf)
 
 		receivedMsgs := make(chan *messagex.Message, 10)
-		consumer, err := newConsumer(l, nil, config, group, topics, opts, pqh)
+		cg := messagex.ConsumerGroup(group)
+		erh := getEventRetryHandler(t, l, config, cg, nil)
+		consumer, err := newConsumer(l, nil, config, cg, topics, opts, erh, pqh)
 		if err != nil {
 			t.Fatalf("failed to create consumer: %v", err)
 		}
