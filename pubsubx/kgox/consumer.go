@@ -256,7 +256,7 @@ func (c *consumer) start(ctx context.Context) {
 }
 
 func (c *consumer) handleRemoteRetryLogic(ctx context.Context, topic messagex.Topic, errs []error, msgs []*messagex.Message) {
-	l := getContexLogger(ctx, c.l)
+	l := getContextLogger(ctx, c.l)
 	if c.erh == nil {
 		l.Errorf("EventRetryHandler should not be nil in the consumer")
 		return

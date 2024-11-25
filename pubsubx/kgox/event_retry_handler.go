@@ -74,7 +74,7 @@ func (c *eventRetryHandler) canTopicRetry() bool {
 }
 
 func (c *eventRetryHandler) parseRetryMessages(ctx context.Context, errs []error, allMsgs []*messagex.Message) ([]*messagex.Message, []*messagex.Message, []error) {
-	l := getContexLogger(ctx, c.l)
+	l := getContextLogger(ctx, c.l)
 	retryableMessages := make([]*messagex.Message, 0)
 	poisonQueueMessages := make([]*messagex.Message, 0)
 	poisonQueueErrs := make([]error, 0)

@@ -178,7 +178,7 @@ func (p *PubSub) AdminClient() (pubsubx.PubSubAdminClient, error) {
 
 // getContextLogger allows to extract the logger set in the context if we have some contextual logger
 // that is used
-func getContexLogger(ctx context.Context, fallback *logrusx.Logger) (l *logrusx.Logger) {
+func getContextLogger(ctx context.Context, fallback *logrusx.Logger) (l *logrusx.Logger) {
 	if ctxL := ctx.Value(ctxLoggerKey); ctxL != nil {
 		if ctxL, ok := ctxL.(*logrusx.Logger); ok {
 			l = ctxL
