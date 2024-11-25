@@ -10,9 +10,11 @@ import (
 	"github.com/clinia/x/pubsubx/messagex"
 	"github.com/samber/lo"
 	"github.com/twmb/franz-go/pkg/kadm"
+	"github.com/twmb/franz-go/pkg/kgo"
 )
 
 type KgoxAdminClient struct {
+	bClient *kgo.Client
 	*kadm.Client
 	*pubsubx.Config
 	defaultCreateTopicConfigEntries map[string]*string
@@ -20,8 +22,8 @@ type KgoxAdminClient struct {
 
 var _ pubsubx.PubSubAdminClient = (*KgoxAdminClient)(nil)
 
-func NewPubSubAdminClient(cl *kadm.Client, config *pubsubx.Config, defaultCreateTopicConfigEntries map[string]*string) *KgoxAdminClient {
-	return &KgoxAdminClient{cl, config, defaultCreateTopicConfigEntries}
+func NewPubSubAdminClient(cl *kgo.Client, config *pubsubx.Config, defaultCreateTopicConfigEntries map[string]*string) *KgoxAdminClient {
+	return &KgoxAdminClient{cl, kadm.NewClient(cl), config, defaultCreateTopicConfigEntries}
 }
 
 // CreateTopic implements PubSubAdminClient.
@@ -49,6 +51,10 @@ func (p *KgoxAdminClient) CreateTopics(ctx context.Context, partitions int32, re
 // HealthCheck implements pubsubx.PubSubAdminClient.
 func (p *KgoxAdminClient) HealthCheck(ctx context.Context) error {
 	_, err := p.ListBrokers(ctx)
+	if err != nil {
+		return errorx.InternalErrorf("failed to connect to pubsub: %v", err)
+	}
+	err = p.bClient.Ping(ctx)
 	if err != nil {
 		return errorx.InternalErrorf("failed to connect to pubsub: %v", err)
 	}
@@ -95,13 +101,12 @@ func (p *KgoxAdminClient) DeleteTopicsWithRetryTopics(ctx context.Context, topic
 	}
 	topicsToDelete := lo.Filter(rt.TopicsList().Topics(), func(t string, _ int) bool {
 		for _, topic := range topics {
-			if strings.HasPrefix(t, topic) && strings.HasSuffix(t, messagex.TopicRetrySuffix) {
+			if (strings.HasPrefix(t, topic) && strings.HasSuffix(t, messagex.TopicRetrySuffix)) || t == topic {
 				return true
 			}
 		}
 		return false
 	})
-	topicsToDelete = append(topicsToDelete, topics...)
 	return p.DeleteTopics(ctx, topicsToDelete...)
 }
 

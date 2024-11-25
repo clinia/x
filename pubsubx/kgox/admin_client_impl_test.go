@@ -18,7 +18,7 @@ import (
 
 func TestKadminClient_DeleteTopicsWithRetryTopics(t *testing.T) {
 	config := getPubsubConfig(t, true)
-	getKadmClient := func(t *testing.T, defaultCreateTopicConfigs ...map[string]*string) (*KgoxAdminClient, *kadm.Client) {
+	getKadmClient := func(t *testing.T, defaultCreateTopicConfigs ...map[string]*string) (*KgoxAdminClient, *kadm.Client, *kgo.Client) {
 		wc, err := kgo.NewClient(
 			kgo.SeedBrokers(config.Providers.Kafka.Brokers...),
 		)
@@ -30,17 +30,25 @@ func TestKadminClient_DeleteTopicsWithRetryTopics(t *testing.T) {
 		}
 
 		kadmCl := kadm.NewClient(wc)
-		return NewPubSubAdminClient(kadmCl, config, defaultCreateTopicConfigEntries), kadmCl
+		return NewPubSubAdminClient(wc, config, defaultCreateTopicConfigEntries), kadmCl, wc
 	}
 
 	ctx := context.Background()
 
 	t.Run("should delete a topic with retry topics", func(t *testing.T) {
-		kgoxAdmCl, kadmCl := getKadmClient(t)
+		kgoxAdmCl, kadmCl, _ := getKadmClient(t)
 		group, topic := getRandomGroupTopics(t, 1)
 		topics := []string{topic[0].TopicName(config.Scope), topic[0].GenerateRetryTopic(messagex.ConsumerGroup(group)).TopicName(config.Scope)}
 		//nolint:all
 		resCreate, err := kadmCl.CreateTopics(ctx, 1, int16(len(config.Providers.Kafka.Brokers)), make(map[string]*string), topics...)
+		require.NoError(t, err)
+		defer func() {
+			defer kadmCl.Close()
+			kadmCl.DeleteTopics(context.Background(), topics...)
+		}()
+		for _, v := range resCreate {
+			require.NoError(t, v.Err)
+		}
 		createdTopics := make([]string, len(resCreate))
 		i := 0
 		for k := range resCreate {
@@ -48,35 +56,48 @@ func TestKadminClient_DeleteTopicsWithRetryTopics(t *testing.T) {
 			i++
 		}
 		assert.NoError(t, err)
-		t.Cleanup(func() {
-			defer kadmCl.Close()
-			kadmCl.DeleteTopics(context.Background(), topics...)
-		})
 		require.NoError(t, err)
-		assert.Contains(t, createdTopics, topics[0])
-		assert.Contains(t, createdTopics, topics[1])
-		lt, err := kadmCl.ListTopics(ctx)
-		require.NoError(t, err)
-		assert.Contains(t, lt.TopicsList().Topics(), topics[0])
-		assert.Contains(t, lt.TopicsList().Topics(), topics[1])
+		for _, top := range topics {
+			assert.Contains(t, createdTopics, top)
+		}
+		assert.EventuallyWithT(t, func(c *assert.CollectT) {
+			lt, err := kadmCl.ListTopics(ctx)
+			require.NoError(c, err)
+			for _, top := range topics {
+				assert.Contains(c, lt.TopicsList().Topics(), top)
+			}
+		}, 2*time.Second, 250*time.Millisecond)
 		res, err := kgoxAdmCl.DeleteTopicWithRetryTopics(ctx, topic[0].TopicName(config.Scope))
+		assert.NoError(t, err)
 		assert.Equal(t, len(topics), len(res))
-		_, ok := res[topics[0]]
-		assert.True(t, ok)
-		_, ok = res[topics[1]]
-		assert.True(t, ok)
-		lt, err = kadmCl.ListTopics(ctx)
-		require.NoError(t, err)
-		assert.NotContains(t, lt.TopicsList().Topics(), topics[0])
-		assert.NotContains(t, lt.TopicsList().Topics(), topics[1])
+		for _, top := range topics {
+			r, ok := res[top]
+			assert.True(t, ok)
+			assert.NoError(t, r.Err)
+		}
+		assert.EventuallyWithT(t, func(c *assert.CollectT) {
+			lt, err := kadmCl.ListTopics(ctx)
+			require.NoError(c, err)
+			for _, top := range topics {
+				assert.NotContains(c, lt.TopicsList().Topics(), top)
+			}
+		}, 2*time.Second, 250*time.Millisecond)
 	})
 
-	t.Run("should delete a topics with retry topics", func(t *testing.T) {
-		kgoxAdmCl, kadmCl := getKadmClient(t)
+	t.Run("should delete topics with retry topics", func(t *testing.T) {
+		kgoxAdmCl, kadmCl, _ := getKadmClient(t)
 		group, topic := getRandomGroupTopics(t, 2)
 		topics := []string{topic[0].TopicName(config.Scope), topic[0].GenerateRetryTopic(messagex.ConsumerGroup(group)).TopicName(config.Scope), topic[1].TopicName(config.Scope), topic[1].GenerateRetryTopic(messagex.ConsumerGroup(group)).TopicName(config.Scope)}
 		//nolint:all
 		resCreate, err := kadmCl.CreateTopics(ctx, 1, int16(len(config.Providers.Kafka.Brokers)), make(map[string]*string), topics...)
+		require.NoError(t, err)
+		defer func() {
+			defer kadmCl.Close()
+			kadmCl.DeleteTopics(context.Background(), topics...)
+		}()
+		for _, v := range resCreate {
+			require.NoError(t, v.Err)
+		}
 		createdTopics := make([]string, len(resCreate))
 		i := 0
 		for k := range resCreate {
@@ -84,33 +105,36 @@ func TestKadminClient_DeleteTopicsWithRetryTopics(t *testing.T) {
 			i++
 		}
 		assert.NoError(t, err)
-		t.Cleanup(func() {
+		defer func() {
 			defer kadmCl.Close()
 			kadmCl.DeleteTopics(context.Background(), topics...)
-		})
+		}()
 		require.NoError(t, err)
-		assert.Contains(t, createdTopics, topics[0])
-		assert.Contains(t, createdTopics, topics[1])
-		assert.Contains(t, createdTopics, topics[2])
-		assert.Contains(t, createdTopics, topics[3])
-		lt, err := kadmCl.ListTopics(ctx)
-		require.NoError(t, err)
-		assert.Contains(t, lt.TopicsList().Topics(), topics[0])
-		assert.Contains(t, lt.TopicsList().Topics(), topics[1])
-		assert.Contains(t, lt.TopicsList().Topics(), topics[2])
-		assert.Contains(t, lt.TopicsList().Topics(), topics[3])
+		for _, top := range topics {
+			assert.Contains(t, createdTopics, top)
+		}
+		assert.EventuallyWithT(t, func(c *assert.CollectT) {
+			lt, err := kadmCl.ListTopics(ctx)
+			require.NoError(c, err)
+			for _, top := range topics {
+				assert.Contains(c, lt.TopicsList().Topics(), top)
+			}
+		}, 2*time.Second, 250*time.Millisecond)
 		res, err := kgoxAdmCl.DeleteTopicsWithRetryTopics(ctx, topic[0].TopicName(config.Scope), topic[1].TopicName(config.Scope))
+		assert.NoError(t, err)
 		assert.Equal(t, len(topics), len(res))
-		_, ok := res[topics[0]]
-		assert.True(t, ok)
-		_, ok = res[topics[1]]
-		assert.True(t, ok)
-		lt, err = kadmCl.ListTopics(ctx)
-		require.NoError(t, err)
-		assert.NotContains(t, lt.TopicsList().Topics(), topics[0])
-		assert.NotContains(t, lt.TopicsList().Topics(), topics[1])
-		assert.NotContains(t, lt.TopicsList().Topics(), topics[2])
-		assert.NotContains(t, lt.TopicsList().Topics(), topics[3])
+		for _, top := range topics {
+			r, ok := res[top]
+			assert.True(t, ok)
+			assert.NoError(t, r.Err)
+		}
+		assert.EventuallyWithT(t, func(c *assert.CollectT) {
+			lt, err := kadmCl.ListTopics(ctx)
+			require.NoError(c, err)
+			for _, top := range topics {
+				assert.NotContains(c, lt.TopicsList().Topics(), top)
+			}
+		}, 2*time.Second, 250*time.Millisecond)
 	})
 }
 
@@ -128,7 +152,7 @@ func TestKadminClient_CreateTopic(t *testing.T) {
 		}
 
 		kadmCl := kadm.NewClient(wc)
-		return NewPubSubAdminClient(kadmCl, config, defaultCreateTopicConfigEntries), kadmCl
+		return NewPubSubAdminClient(wc, config, defaultCreateTopicConfigEntries), kadmCl
 	}
 
 	ctx := context.Background()
@@ -230,7 +254,7 @@ func TestKadminClient_DeleteGroup(t *testing.T) {
 		}
 
 		kadmCl := kadm.NewClient(wc)
-		return NewPubSubAdminClient(kadmCl, config, defaultCreateTopicConfigEntries), kadmCl
+		return NewPubSubAdminClient(wc, config, defaultCreateTopicConfigEntries), kadmCl
 	}
 
 	t.Run("test delete consumer group with retry topics", func(t *testing.T) {
@@ -259,17 +283,20 @@ func TestKadminClient_DeleteGroup(t *testing.T) {
 		groupClient.ForceMetadataRefresh()
 		time.Sleep(500 * time.Millisecond)
 		startTopics, err := kadmCl.ListTopics(ctx)
+		assert.NoError(t, err)
 		assert.Contains(t, startTopics.TopicsList().Topics(), retryTopic.TopicName(config.Scope))
 		assert.NoError(t, err)
 		startGroups, err := kadmCl.ListGroups(ctx)
+		assert.NoError(t, err)
 		assert.Contains(t, startGroups.Groups(), cGroup.ConsumerGroup(config.Scope))
 		assert.NoError(t, err)
 		groupClient.Close()
 		assert.NoError(t, err)
 
-		_, err = kgoxAdmCl.DeleteGroup(ctx, cGroup)
+		res, err := kgoxAdmCl.DeleteGroup(ctx, cGroup)
 
 		assert.NoError(t, err)
+		assert.NoError(t, res.Err)
 		endTopics, err := kadmCl.ListTopics(ctx)
 		assert.NoError(t, err)
 		assert.NotContains(t, endTopics.TopicsList().Topics(), retryTopic.TopicName(config.Scope))
@@ -293,7 +320,7 @@ func TestKadminClient_DeleteGroups(t *testing.T) {
 		}
 
 		kadmCl := kadm.NewClient(wc)
-		return NewPubSubAdminClient(kadmCl, config, defaultCreateTopicConfigEntries), kadmCl
+		return NewPubSubAdminClient(wc, config, defaultCreateTopicConfigEntries), kadmCl
 	}
 
 	t.Run("test delete consumer groups with retry topics", func(t *testing.T) {
@@ -336,28 +363,58 @@ func TestKadminClient_DeleteGroups(t *testing.T) {
 		groupClient.ForceMetadataRefresh()
 		groupClient2.ForceMetadataRefresh()
 		time.Sleep(500 * time.Millisecond)
-		startTopics, err := kadmCl.ListTopics(ctx)
-		assert.Contains(t, startTopics.TopicsList().Topics(), retryTopic.TopicName(config.Scope))
-		assert.Contains(t, startTopics.TopicsList().Topics(), retryTopic2.TopicName(config.Scope))
-		assert.NoError(t, err)
-		startGroups, err := kadmCl.ListGroups(ctx)
-		assert.Contains(t, startGroups.Groups(), cGroup.ConsumerGroup(config.Scope))
-		assert.Contains(t, startGroups.Groups(), cGroup2.ConsumerGroup(config.Scope))
-		assert.NoError(t, err)
+		assert.EventuallyWithT(t, func(c *assert.CollectT) {
+			startTopics, err := kadmCl.ListTopics(ctx)
+			assert.Contains(c, startTopics.TopicsList().Topics(), retryTopic.TopicName(config.Scope))
+			assert.Contains(c, startTopics.TopicsList().Topics(), retryTopic2.TopicName(config.Scope))
+			assert.NoError(c, err)
+			startGroups, err := kadmCl.ListGroups(ctx)
+			assert.Contains(c, startGroups.Groups(), cGroup.ConsumerGroup(config.Scope))
+			assert.Contains(c, startGroups.Groups(), cGroup2.ConsumerGroup(config.Scope))
+			assert.NoError(c, err)
+		}, 2*time.Second, 250*time.Millisecond)
 		groupClient.Close()
 		groupClient2.Close()
 		assert.NoError(t, err)
 
-		_, err = kgoxAdmCl.DeleteGroups(ctx, cGroup, cGroup2)
+		res, err := kgoxAdmCl.DeleteGroups(ctx, cGroup, cGroup2)
 
 		assert.NoError(t, err)
-		endTopics, err := kadmCl.ListTopics(ctx)
+		for _, dgr := range res {
+			assert.NoError(t, dgr.Err)
+		}
+		assert.EventuallyWithT(t, func(c *assert.CollectT) {
+			endTopics, err := kadmCl.ListTopics(ctx)
+			assert.NoError(c, err)
+			assert.NotContains(c, endTopics.TopicsList().Topics(), retryTopic.TopicName(config.Scope))
+			assert.NotContains(c, endTopics.TopicsList().Topics(), retryTopic2.TopicName(config.Scope))
+			endGroups, err := kadmCl.ListGroups(ctx)
+			assert.NoError(c, err)
+			assert.NotContains(c, endGroups.Groups(), cGroup.ConsumerGroup(config.Scope))
+			assert.NotContains(c, endGroups.Groups(), cGroup2.ConsumerGroup(config.Scope))
+		}, 2*time.Second, 250*time.Millisecond)
+	})
+}
+
+func TestKadminClient_Healthcheck(t *testing.T) {
+	config := getPubsubConfig(t, true)
+	getKadmClient := func(t *testing.T, defaultCreateTopicConfigs ...map[string]*string) (*KgoxAdminClient, *kadm.Client) {
+		wc, err := kgo.NewClient(
+			kgo.SeedBrokers(config.Providers.Kafka.Brokers...),
+		)
+		require.NoError(t, err)
+		t.Cleanup(wc.Close)
+		var defaultCreateTopicConfigEntries map[string]*string
+		if len(defaultCreateTopicConfigs) > 0 {
+			defaultCreateTopicConfigEntries = lo.Assign(defaultCreateTopicConfigs...)
+		}
+
+		kadmCl := kadm.NewClient(wc)
+		return NewPubSubAdminClient(wc, config, defaultCreateTopicConfigEntries), kadmCl
+	}
+	t.Run("healthcheck should not return error", func(t *testing.T) {
+		c, _ := getKadmClient(t)
+		err := c.HealthCheck(context.Background())
 		assert.NoError(t, err)
-		assert.NotContains(t, endTopics.TopicsList().Topics(), retryTopic.TopicName(config.Scope))
-		assert.NotContains(t, endTopics.TopicsList().Topics(), retryTopic2.TopicName(config.Scope))
-		endGroups, err := kadmCl.ListGroups(ctx)
-		assert.NoError(t, err)
-		assert.NotContains(t, endGroups.Groups(), cGroup.ConsumerGroup(config.Scope))
-		assert.NotContains(t, endGroups.Groups(), cGroup2.ConsumerGroup(config.Scope))
 	})
 }

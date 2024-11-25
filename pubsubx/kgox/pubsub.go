@@ -172,13 +172,13 @@ func (p *PubSub) AdminClient() (pubsubx.PubSubAdminClient, error) {
 		return nil, errorx.InternalErrorf("failed to create kafka client: %v", err)
 	}
 
-	admClient := NewPubSubAdminClient(kadm.NewClient(wc), p.conf, p.defaultCreateTopicConfigEntries)
+	admClient := NewPubSubAdminClient(wc, p.conf, p.defaultCreateTopicConfigEntries)
 	return admClient, nil
 }
 
 // getContextLogger allows to extract the logger set in the context if we have some contextual logger
 // that is used
-func getContexLogger(ctx context.Context, fallback *logrusx.Logger) (l *logrusx.Logger) {
+func getContextLogger(ctx context.Context, fallback *logrusx.Logger) (l *logrusx.Logger) {
 	if ctxL := ctx.Value(ctxLoggerKey); ctxL != nil {
 		if ctxL, ok := ctxL.(*logrusx.Logger); ok {
 			l = ctxL

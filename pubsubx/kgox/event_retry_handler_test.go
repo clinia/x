@@ -20,18 +20,18 @@ func TestGenerateRetryTopics(t *testing.T) {
 		cg := messagex.ConsumerGroup(group)
 		erh := getEventRetryHandler(t, l, config, cg, nil)
 		retryTopics, errs, err := erh.generateRetryTopics(context.Background(), topics...)
-		t.Cleanup(func() {
+		defer func() {
 			cl, err := erh.AdminClient()
 			require.NoError(t, err)
 			for _, rt := range retryTopics {
 				cl.DeleteTopic(context.Background(), rt.TopicName(config.Scope))
 			}
 			cl.Close()
-		})
+		}()
 		assert.NoError(t, err)
 		assert.Empty(t, lo.Filter(errs, func(item error, _ int) bool { return item != nil }))
-		assert.Equal(t, lo.Map(topics, func(t messagex.Topic, _ int) messagex.Topic {
-			return t.GenerateRetryTopic(cg)
+		assert.Equal(t, lo.Map(topics, func(top messagex.Topic, _ int) messagex.Topic {
+			return top.GenerateRetryTopic(cg)
 		}), retryTopics)
 	})
 
@@ -42,19 +42,19 @@ func TestGenerateRetryTopics(t *testing.T) {
 		cl, err := erh.AdminClient()
 		require.NoError(t, err)
 		//nolint:all
-		_, err = cl.CreateTopic(context.Background(), 1, int16(len(config.Providers.Kafka.Brokers)), string(topics[1].GenerateRetryTopic(cg)))
+		_, err = cl.CreateTopic(context.Background(), 1, int16(len(config.Providers.Kafka.Brokers)), topics[1].GenerateRetryTopic(cg).TopicName(config.Scope))
 		assert.NoError(t, err)
 		retryTopics, errs, err := erh.generateRetryTopics(context.Background(), topics...)
-		t.Cleanup(func() {
+		defer func() {
 			for _, rt := range retryTopics {
 				cl.DeleteTopic(context.Background(), rt.TopicName(config.Scope))
 			}
 			cl.Close()
-		})
+		}()
 		assert.NoError(t, err)
 		assert.Empty(t, lo.Filter(errs, func(item error, _ int) bool { return item != nil }))
-		assert.Equal(t, lo.Map(topics, func(t messagex.Topic, _ int) messagex.Topic {
-			return t.GenerateRetryTopic(cg)
+		assert.Equal(t, lo.Map(topics, func(top messagex.Topic, _ int) messagex.Topic {
+			return top.GenerateRetryTopic(cg)
 		}), retryTopics)
 	})
 
@@ -64,19 +64,19 @@ func TestGenerateRetryTopics(t *testing.T) {
 		cg := messagex.ConsumerGroup(group)
 		erh := getEventRetryHandler(t, l, config, cg, nil)
 		retryTopics, errs, err := erh.generateRetryTopics(context.Background(), topics...)
-		t.Cleanup(func() {
+		defer func() {
 			cl, err := erh.AdminClient()
 			require.NoError(t, err)
 			for _, rt := range retryTopics {
 				cl.DeleteTopic(context.Background(), rt.TopicName(config.Scope))
 			}
 			cl.Close()
-		})
+		}()
 		assert.Error(t, err)
 		remainingErrs := lo.Filter(errs, func(item error, _ int) bool { return item != nil })
 		assert.Equal(t, 1, len(remainingErrs))
-		assert.Equal(t, lo.Map(topics[:len(topics)-1], func(t messagex.Topic, _ int) messagex.Topic {
-			return t.GenerateRetryTopic(cg)
+		assert.Equal(t, lo.Map(topics[:len(topics)-1], func(top messagex.Topic, _ int) messagex.Topic {
+			return top.GenerateRetryTopic(cg)
 		}), retryTopics)
 		assert.Equal(t, len(topics)-1, len(retryTopics))
 	})
