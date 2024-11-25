@@ -169,7 +169,7 @@ FLOOP:
 				err = fetches[0].Topics[0].Partitions[0].Err
 				pqh.l.WithError(err).Errorf("error fetches returned")
 			} else {
-				pqh.l.WithError(fetches[0].Topics[0].Partitions[0].Err).Infof("expected fetche error trigger consumption termination")
+				pqh.l.WithError(fetches[0].Topics[0].Partitions[0].Err).Infof("expected fetch error trigger consumption termination")
 			}
 			tcancel()
 			break FLOOP
