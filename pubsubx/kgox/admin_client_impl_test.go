@@ -60,12 +60,13 @@ func TestKadminClient_DeleteTopicsWithRetryTopics(t *testing.T) {
 		for _, top := range topics {
 			assert.Contains(t, createdTopics, top)
 		}
-		time.Sleep(time.Second)
-		lt, err := kadmCl.ListTopics(ctx)
-		require.NoError(t, err)
-		for _, top := range topics {
-			assert.Contains(t, lt.TopicsList().Topics(), top)
-		}
+		assert.EventuallyWithT(t, func(c *assert.CollectT) {
+			lt, err := kadmCl.ListTopics(ctx)
+			require.NoError(c, err)
+			for _, top := range topics {
+				assert.Contains(c, lt.TopicsList().Topics(), top)
+			}
+		}, 2*time.Second, 250*time.Millisecond)
 		res, err := kgoxAdmCl.DeleteTopicWithRetryTopics(ctx, topic[0].TopicName(config.Scope))
 		assert.NoError(t, err)
 		assert.Equal(t, len(topics), len(res))
@@ -74,12 +75,13 @@ func TestKadminClient_DeleteTopicsWithRetryTopics(t *testing.T) {
 			assert.True(t, ok)
 			assert.NoError(t, r.Err)
 		}
-		time.Sleep(time.Second)
-		lt, err = kadmCl.ListTopics(ctx)
-		require.NoError(t, err)
-		for _, top := range topics {
-			assert.NotContains(t, lt.TopicsList().Topics(), top)
-		}
+		assert.EventuallyWithT(t, func(c *assert.CollectT) {
+			lt, err := kadmCl.ListTopics(ctx)
+			require.NoError(c, err)
+			for _, top := range topics {
+				assert.NotContains(c, lt.TopicsList().Topics(), top)
+			}
+		}, 2*time.Second, 250*time.Millisecond)
 	})
 
 	t.Run("should delete topics with retry topics", func(t *testing.T) {
@@ -111,12 +113,13 @@ func TestKadminClient_DeleteTopicsWithRetryTopics(t *testing.T) {
 		for _, top := range topics {
 			assert.Contains(t, createdTopics, top)
 		}
-		time.Sleep(time.Second)
-		lt, err := kadmCl.ListTopics(ctx)
-		require.NoError(t, err)
-		for _, top := range topics {
-			assert.Contains(t, lt.TopicsList().Topics(), top)
-		}
+		assert.EventuallyWithT(t, func(c *assert.CollectT) {
+			lt, err := kadmCl.ListTopics(ctx)
+			require.NoError(c, err)
+			for _, top := range topics {
+				assert.Contains(c, lt.TopicsList().Topics(), top)
+			}
+		}, 2*time.Second, 250*time.Millisecond)
 		res, err := kgoxAdmCl.DeleteTopicsWithRetryTopics(ctx, topic[0].TopicName(config.Scope), topic[1].TopicName(config.Scope))
 		assert.NoError(t, err)
 		assert.Equal(t, len(topics), len(res))
@@ -125,12 +128,13 @@ func TestKadminClient_DeleteTopicsWithRetryTopics(t *testing.T) {
 			assert.True(t, ok)
 			assert.NoError(t, r.Err)
 		}
-		time.Sleep(time.Second)
-		lt, err = kadmCl.ListTopics(ctx)
-		require.NoError(t, err)
-		for _, top := range topics {
-			assert.NotContains(t, lt.TopicsList().Topics(), top)
-		}
+		assert.EventuallyWithT(t, func(c *assert.CollectT) {
+			lt, err := kadmCl.ListTopics(ctx)
+			require.NoError(c, err)
+			for _, top := range topics {
+				assert.NotContains(c, lt.TopicsList().Topics(), top)
+			}
+		}, 2*time.Second, 250*time.Millisecond)
 	})
 }
 
@@ -359,14 +363,16 @@ func TestKadminClient_DeleteGroups(t *testing.T) {
 		groupClient.ForceMetadataRefresh()
 		groupClient2.ForceMetadataRefresh()
 		time.Sleep(500 * time.Millisecond)
-		startTopics, err := kadmCl.ListTopics(ctx)
-		assert.Contains(t, startTopics.TopicsList().Topics(), retryTopic.TopicName(config.Scope))
-		assert.Contains(t, startTopics.TopicsList().Topics(), retryTopic2.TopicName(config.Scope))
-		assert.NoError(t, err)
-		startGroups, err := kadmCl.ListGroups(ctx)
-		assert.Contains(t, startGroups.Groups(), cGroup.ConsumerGroup(config.Scope))
-		assert.Contains(t, startGroups.Groups(), cGroup2.ConsumerGroup(config.Scope))
-		assert.NoError(t, err)
+		assert.EventuallyWithT(t, func(c *assert.CollectT) {
+			startTopics, err := kadmCl.ListTopics(ctx)
+			assert.Contains(c, startTopics.TopicsList().Topics(), retryTopic.TopicName(config.Scope))
+			assert.Contains(c, startTopics.TopicsList().Topics(), retryTopic2.TopicName(config.Scope))
+			assert.NoError(c, err)
+			startGroups, err := kadmCl.ListGroups(ctx)
+			assert.Contains(c, startGroups.Groups(), cGroup.ConsumerGroup(config.Scope))
+			assert.Contains(c, startGroups.Groups(), cGroup2.ConsumerGroup(config.Scope))
+			assert.NoError(c, err)
+		}, 2*time.Second, 250*time.Millisecond)
 		groupClient.Close()
 		groupClient2.Close()
 		assert.NoError(t, err)
@@ -377,14 +383,16 @@ func TestKadminClient_DeleteGroups(t *testing.T) {
 		for _, dgr := range res {
 			assert.NoError(t, dgr.Err)
 		}
-		endTopics, err := kadmCl.ListTopics(ctx)
-		assert.NoError(t, err)
-		assert.NotContains(t, endTopics.TopicsList().Topics(), retryTopic.TopicName(config.Scope))
-		assert.NotContains(t, endTopics.TopicsList().Topics(), retryTopic2.TopicName(config.Scope))
-		endGroups, err := kadmCl.ListGroups(ctx)
-		assert.NoError(t, err)
-		assert.NotContains(t, endGroups.Groups(), cGroup.ConsumerGroup(config.Scope))
-		assert.NotContains(t, endGroups.Groups(), cGroup2.ConsumerGroup(config.Scope))
+		assert.EventuallyWithT(t, func(c *assert.CollectT) {
+			endTopics, err := kadmCl.ListTopics(ctx)
+			assert.NoError(c, err)
+			assert.NotContains(c, endTopics.TopicsList().Topics(), retryTopic.TopicName(config.Scope))
+			assert.NotContains(c, endTopics.TopicsList().Topics(), retryTopic2.TopicName(config.Scope))
+			endGroups, err := kadmCl.ListGroups(ctx)
+			assert.NoError(c, err)
+			assert.NotContains(c, endGroups.Groups(), cGroup.ConsumerGroup(config.Scope))
+			assert.NotContains(c, endGroups.Groups(), cGroup2.ConsumerGroup(config.Scope))
+		}, 2*time.Second, 250*time.Millisecond)
 	})
 }
 
