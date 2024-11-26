@@ -184,9 +184,18 @@ FLOOP:
 		for _, f := range fetches {
 			for _, t := range f.Topics {
 				for _, p := range t.Partitions {
-					pEndOffset := endOffsets[t.Topic][p.Partition].Offset
-					if p.LogStartOffset >= pEndOffset {
-						pqh.l.Infof("reached the end offset identified on consumption start '%v' >= '%v'", p.LogStartOffset, pEndOffset)
+					topicEndOffset, ok := endOffsets[t.Topic]
+					if !ok {
+						tcancel()
+						return []error{}, errorx.InternalErrorf("end offset doesn't hold the consume topic")
+					}
+					pEndOffset, ok := topicEndOffset[p.Partition]
+					if !ok {
+						tcancel()
+						return []error{}, errorx.InternalErrorf("end offset doesn't hold the consume partition")
+					}
+					if p.LogStartOffset >= pEndOffset.Offset {
+						pqh.l.Infof("reached the end offset identified on consumption start '%v' >= '%v'", p.LogStartOffset, pEndOffset.Offset)
 						tcancel()
 						break FLOOP
 					}
