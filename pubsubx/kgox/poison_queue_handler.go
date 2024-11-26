@@ -29,6 +29,7 @@ const (
 	originConsumerGroupHeaderKey = "_clinia_origin_consumer_group"
 	originErrorHeaderKey         = "_clinia_origin_error"
 	originTopicHeaderKey         = "_clinia_origin_topic"
+	pqConsumepollTimeout         = 5
 )
 
 func (pqh *poisonQueueHandler) PublishMessagesToPoisonQueue(ctx context.Context, topic string, consumerGroup messagex.ConsumerGroup, msgErrs []error, msgs []*messagex.Message) error {
@@ -158,7 +159,7 @@ FLOOP:
 			break FLOOP
 		default:
 		}
-		tcctx, tcancel := context.WithTimeout(cctx, 5*time.Second)
+		tcctx, tcancel := context.WithTimeout(cctx, pqConsumepollTimeout*time.Second)
 		fetches := client.PollRecords(tcctx, 0)
 		// Check if it's a FetchErr, by default PollRecords return a single fetch with a single topic and single partition holding the err
 		if len(fetches) == 1 &&
