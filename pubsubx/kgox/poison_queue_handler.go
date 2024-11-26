@@ -4,9 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"time"
 
 	"github.com/clinia/x/errorx"
+	"github.com/clinia/x/pubsubx"
 	"github.com/clinia/x/pubsubx/messagex"
+	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kgo"
 )
 
@@ -16,6 +19,7 @@ type PoisonQueueHandler interface {
 	PublishMessagesToPoisonQueue(ctx context.Context, topic string, consumerGroup messagex.ConsumerGroup, msgErrs []error, msgs []*messagex.Message) error
 	PublishMessagesToPoisonQueueWithGenericError(ctx context.Context, topic string, consumerGroup messagex.ConsumerGroup, msgErr error, msgs ...*messagex.Message) error
 	CanUsePoisonQueue() bool
+	ConsumeQueue(ctx context.Context, handler pubsubx.Handler) ([]error, error)
 }
 
 var _ PoisonQueueHandler = (*poisonQueueHandler)(nil)
@@ -25,6 +29,7 @@ const (
 	originConsumerGroupHeaderKey = "_clinia_origin_consumer_group"
 	originErrorHeaderKey         = "_clinia_origin_error"
 	originTopicHeaderKey         = "_clinia_origin_topic"
+	pqConsumepollTimeout         = 5
 )
 
 func (pqh *poisonQueueHandler) PublishMessagesToPoisonQueue(ctx context.Context, topic string, consumerGroup messagex.ConsumerGroup, msgErrs []error, msgs []*messagex.Message) error {
@@ -116,5 +121,114 @@ func (pqh *poisonQueueHandler) generatePoisonQueueRecord(ctx context.Context, to
 }
 
 func (pqh *poisonQueueHandler) CanUsePoisonQueue() bool {
-	return pqh.conf != nil && pqh.conf.PoisonQueue.IsEnabled()
+	return pqh.conf != nil && pqh.conf.PoisonQueue.IsEnabled() && pqh.conf.PoisonQueue.TopicName != ""
+}
+
+// ConsumeQueue consumes all the event in the poison queue up to the moment this function is called,
+// only one execution of the handler is done to prevent pushing back any event on the poison queue while consuming
+func (pqh *poisonQueueHandler) ConsumeQueue(ctx context.Context, handler pubsubx.Handler) ([]error, error) {
+	if !pqh.CanUsePoisonQueue() {
+		return []error{}, errorx.InternalErrorf("poison queue is disabled")
+	}
+	cctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	pqTopic := messagex.Topic(pqh.conf.PoisonQueue.TopicName).TopicName(pqh.conf.Scope)
+	kopts := []kgo.Opt{
+		kgo.SeedBrokers(pqh.conf.Providers.Kafka.Brokers...),
+		kgo.ConsumeTopics(pqTopic),
+	}
+	if pqh.kotelService != nil {
+		kopts = append(kopts, kgo.WithHooks(pqh.kotelService.Hooks()...))
+	}
+	client, err := kgo.NewClient(kopts...)
+	if err != nil {
+		return []error{}, err
+	}
+	defer client.Close()
+	endOffsets, err := kadm.NewClient(client).ListEndOffsets(cctx, pqTopic)
+	if err != nil {
+		return []error{}, err
+	}
+
+	msgs := make([]*messagex.Message, 0)
+	errs := make([]error, 0)
+FLOOP:
+	for {
+		select {
+		case <-cctx.Done():
+			break FLOOP
+		default:
+		}
+		tcctx, tcancel := context.WithTimeout(cctx, pqConsumepollTimeout*time.Second)
+		fetches := client.PollRecords(tcctx, 0)
+		// Check if it's a FetchErr, by default PollRecords return a single fetch with a single topic and single partition holding the err
+		if len(fetches) == 1 &&
+			len(fetches[0].Topics) == 1 &&
+			len(fetches[0].Topics[0].Partitions) == 1 &&
+			fetches[0].Topics[0].Partitions[0].Err != nil {
+			if fetches[0].Topics[0].Partitions[0].Err != tcctx.Err() {
+				err = fetches[0].Topics[0].Partitions[0].Err
+				pqh.l.WithError(err).Errorf("error fetches returned")
+			} else {
+				pqh.l.WithError(fetches[0].Topics[0].Partitions[0].Err).Infof("expected fetch error trigger consumption termination")
+			}
+			tcancel()
+			break FLOOP
+		}
+		if len(fetches) == 0 {
+			pqh.l.Infof("no fetches were found, assuming poison queue is empty")
+			tcancel()
+			break FLOOP
+		}
+
+		for _, f := range fetches {
+			for _, t := range f.Topics {
+				for _, p := range t.Partitions {
+					topicEndOffset, ok := endOffsets[t.Topic]
+					if !ok {
+						tcancel()
+						return []error{}, errorx.InternalErrorf("end offset doesn't hold the consume topic")
+					}
+					pEndOffset, ok := topicEndOffset[p.Partition]
+					if !ok {
+						tcancel()
+						return []error{}, errorx.InternalErrorf("end offset doesn't hold the consume partition")
+					}
+					if p.LogStartOffset >= pEndOffset.Offset {
+						pqh.l.Infof("reached the end offset identified on consumption start '%v' >= '%v'", p.LogStartOffset, pEndOffset.Offset)
+						tcancel()
+						break FLOOP
+					}
+				}
+			}
+		}
+		fetches.EachRecord(func(r *kgo.Record) {
+			select {
+			case <-cctx.Done():
+				return
+			default:
+			}
+			msg, localErr := defaultMarshaler.Unmarshal(r)
+			msgs = append(msgs, msg)
+			errs = append(errs, localErr)
+		})
+		tcancel()
+	}
+	if err != nil {
+		return []error{}, err
+	}
+	if cctx.Err() != nil {
+		return []error{}, cctx.Err()
+	}
+	handlerErrs, err := handler(ctx, msgs)
+	if len(handlerErrs) != len(errs) {
+		pqh.l.Errorf("errors output length mismatch, dismissing Unmarshal errs")
+		return handlerErrs, err
+	}
+	for i := range handlerErrs {
+		if errs[i] != nil {
+			handlerErrs[i] = errs[i]
+		}
+	}
+	return handlerErrs, err
 }

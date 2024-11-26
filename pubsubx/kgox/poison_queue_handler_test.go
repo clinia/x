@@ -388,3 +388,84 @@ func TestPublishMessagesToPoisonQueue(t *testing.T) {
 		}, 8*time.Second, 500*time.Millisecond)
 	})
 }
+
+func TestConsumeQueue(t *testing.T) {
+	l := logrusx.New("test", "v0")
+	t.Run("should consume queue up to the current event", func(t *testing.T) {
+		config := getPubSubConfigWithCustomPoisonQueue(t, true, "pq-test-consume-1")
+		pqTopic := messagex.TopicFromName(config.PoisonQueue.TopicName).TopicName(config.Scope)
+		pqh := getPoisonQueueHandler(t, l, config)
+		tctx := context.Background()
+		p, err := json.Marshal(messagex.NewMessage([]byte("test")))
+		require.NoError(t, err)
+		msg := messagex.NewMessage(p)
+		r, err := defaultMarshaler.Marshal(tctx, msg, pqTopic)
+		require.NoError(t, err)
+		res := pqh.writeClient.ProduceSync(tctx, r)
+		assert.NoError(t, res.FirstErr())
+		t.Cleanup(func() {
+			// Delete the topic
+			psub := (*PubSub)(pqh)
+			admin, _ := psub.AdminClient()
+			admin.DeleteTopic(context.Background(), pqTopic)
+		})
+		cctx, cancel := context.WithCancel(tctx)
+		defer cancel()
+		mu := sync.Mutex{}
+		mu.Lock()
+		receivedMsgs := make([]*messagex.Message, 0)
+		mu.Unlock()
+
+		consumeFunc := func(ctx context.Context, msgs []*messagex.Message) ([]error, error) {
+			mu.Lock()
+			defer mu.Unlock()
+			for _, m := range msgs {
+				receivedMsgs = append(receivedMsgs, m)
+			}
+			return make([]error, len(receivedMsgs)), nil
+		}
+		go func() {
+			_, err = pqh.ConsumeQueue(cctx, consumeFunc)
+		}()
+		time.Sleep(6 * time.Second)
+		res = pqh.writeClient.ProduceSync(tctx, r)
+		assert.NoError(t, res.FirstErr())
+		assert.EventuallyWithT(t, func(c *assert.CollectT) {
+			mu.Lock()
+			assert.Equal(c, 1, len(receivedMsgs))
+			mu.Unlock()
+		}, 10*time.Second, 500*time.Millisecond)
+	})
+
+	t.Run("should consume queue with no event", func(t *testing.T) {
+		config := getPubSubConfigWithCustomPoisonQueue(t, true, "pq-test-consume-2")
+		pqTopic := messagex.TopicFromName(config.PoisonQueue.TopicName).TopicName(config.Scope)
+		pqh := getPoisonQueueHandler(t, l, config)
+		tctx := context.Background()
+		t.Cleanup(func() {
+			// Delete the topic
+			psub := (*PubSub)(pqh)
+			admin, _ := psub.AdminClient()
+			admin.DeleteTopic(context.Background(), pqTopic)
+		})
+		cctx, cancel := context.WithCancel(tctx)
+		defer cancel()
+		mu := sync.Mutex{}
+		mu.Lock()
+		receivedMsgs := make([]*messagex.Message, 0)
+		mu.Unlock()
+
+		consumeFunc := func(ctx context.Context, msgs []*messagex.Message) ([]error, error) {
+			mu.Lock()
+			defer mu.Unlock()
+			for _, m := range msgs {
+				receivedMsgs = append(receivedMsgs, m)
+			}
+			return make([]error, len(receivedMsgs)), nil
+		}
+		_, _ = pqh.ConsumeQueue(cctx, consumeFunc)
+		mu.Lock()
+		assert.Equal(t, 0, len(receivedMsgs))
+		mu.Unlock()
+	})
+}
