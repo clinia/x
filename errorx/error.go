@@ -159,6 +159,15 @@ func IsPermissionDeniedError(e error) bool {
 	return mE.Type == ErrorTypePermissionDenied
 }
 
+func IsContentTooLargeError(e error) bool {
+	mE, ok := IsCliniaError(e)
+	if !ok {
+		return false
+	}
+
+	return mE.Type == ErrorTypeContentTooLarge
+}
+
 // AlreadyExistsErrorf creates a CliniaError with type ErrorTypeAlreadyExists and a formatted message
 func AlreadyExistsErrorf(format string, args ...interface{}) CliniaError {
 	return CliniaError{
@@ -227,6 +236,14 @@ func UnauthenticatedErrorf(format string, args ...interface{}) CliniaError {
 func PermissionDeniedErrorf(format string, args ...interface{}) CliniaError {
 	return CliniaError{
 		Type:    ErrorTypePermissionDenied,
+		Message: fmt.Sprintf(format, args...),
+	}
+}
+
+// ContentTooLargeErrorf creates a CliniaError with type ErrorTypeContentTooLarge and a formatted message
+func ContentTooLargeErrorf(format string, args ...interface{}) CliniaError {
+	return CliniaError{
+		Type:    ErrorTypeContentTooLarge,
 		Message: fmt.Sprintf(format, args...),
 	}
 }
