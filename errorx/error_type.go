@@ -17,7 +17,7 @@ const (
 	ErrorTypeUnimplemented      = ErrorType("UNIMPLEMENTED")
 	ErrorTypeUnauthenticated    = ErrorType("UNAUTHENTICATED")
 	ErrorTypePermissionDenied   = ErrorType("PERMISSION_DENIED")
-	ErrorTypePayloadTooLarge    = ErrorType("PAYLOAD_TOO_LARGE")
+	ErrorTypeContentTooLarge    = ErrorType("CONTENT_TOO_LARGE")
 )
 
 func ParseErrorType(s string) (ErrorType, error) {
@@ -44,7 +44,7 @@ func (e ErrorType) Validate() error {
 		ErrorTypeUnimplemented,
 		ErrorTypeUnauthenticated,
 		ErrorTypePermissionDenied,
-		ErrorTypePayloadTooLarge:
+		ErrorTypeContentTooLarge:
 		return nil
 	default:
 		return InvalidArgumentErrorf("invalid error type: %s", e)
