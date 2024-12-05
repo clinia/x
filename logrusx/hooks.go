@@ -20,14 +20,12 @@ func (irh *requestIdHook) Levels() []logrus.Level {
 	return logrus.AllLevels
 }
 
-func (rih *requestIdHook) Fire(entry *logrus.Entry) (outErr error) {
+func (rih *requestIdHook) Fire(entry *logrus.Entry) error {
 	defer func() {
 		// Nullify panic to prevent having this hook break a request
-		if rec := recover(); rec != nil {
-			outErr = nil
-		}
+		recover()
 	}()
-	if entry == nil || entry.Context == nil {
+	if entry == nil || entry.Context == nil || entry.Data == nil {
 		return nil
 	}
 	requestId := entry.Context.Value(rih.rIdCtxKey)
