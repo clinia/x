@@ -29,6 +29,6 @@ func TestSetCliniaUnHealthyHeader(t *testing.T) {
 		SetCliniaUnHealthyHeader(req)
 		h, ok := req.Header[CliniaHealthyHeaderKey]
 		assert.True(t, ok)
-		assert.Contains(t, h, CliniaUnHeahlthyValue)
+		assert.Contains(t, h, CliniaUnHealthyValue)
 	})
 }

@@ -9,7 +9,7 @@ import (
 const (
 	CliniaHealthyHeaderKey = "X-Clinia-Healthy"
 	CliniaHealthyValue     = "true"
-	CliniaUnHeahlthyValue  = "false"
+	CliniaUnHealthyValue   = "false"
 )
 
 func SetCliniaHealthyHeader(r *http.Request) error {
@@ -24,6 +24,6 @@ func SetCliniaUnHealthyHeader(r *http.Request) error {
 	if r == nil {
 		return errorx.InternalErrorf("request can not be nil")
 	}
-	r.Header.Add(CliniaHealthyHeaderKey, CliniaUnHeahlthyValue)
+	r.Header.Add(CliniaHealthyHeaderKey, CliniaUnHealthyValue)
 	return nil
 }
