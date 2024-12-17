@@ -202,11 +202,10 @@ func (c *consumer) start(ctx context.Context) (restart bool) {
 					logrusx.NewLogFields(c.attributes(nil)...),
 				)
 				l.Infof("topic %s, no messages consumed for %s and lag of %d detected", tp.Topic, timeElapsed, largestLag)
-				
-				restart = true
-				return 
-			}
 
+				restart = true
+				return
+			}
 
 			if len(allMsgs) > 0 {
 				lastConsumptionTime = time.Now()
@@ -382,7 +381,7 @@ func (c *consumer) Subscribe(ctx context.Context, topicHandlers pubsubx.Handlers
 			c.wg.Done()
 			err := c.Close()
 			if err != nil {
-				c.l.WithError(err).Errorf("failed to close consumer")
+				c.l.WithError(err).Errorf("failed to close consumer group %s", c.group)
 			}
 
 			c.mu.Lock()
@@ -393,7 +392,7 @@ func (c *consumer) Subscribe(ctx context.Context, topicHandlers pubsubx.Handlers
 				c.l.Infof("reconnecting consumer group %s", c.group)
 				err = c.Subscribe(context.WithoutCancel(ctx), topicHandlers)
 				if err != nil {
-					c.l.WithError(err).Errorf("failed to reconnect consumer")
+					c.l.WithError(err).Errorf("failed to reconnect consumer group %s", c.group)
 				}
 			}
 		}()
