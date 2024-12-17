@@ -43,8 +43,11 @@ const (
 	// We do not want to have a max elapsed time as we are counting on `maxRetryCount` to stop retrying
 	maxElapsedTime = 0
 	// We want to wait a max of 3 seconds between retries
-	maxRetryInterval = 3 * time.Second
-	maxRetryCount    = 3
+	maxRetryInterval          = 3 * time.Second
+	maxRetryCount             = 3
+	messageConsumptionTimeout = 3 * time.Second
+	// TODO change me once able to mock lag in tests
+	maxLag = 0
 )
 
 func newConsumer(l *logrusx.Logger, kotelService *kotel.Kotel, config *pubsubx.Config, group messagex.ConsumerGroup, topics []messagex.Topic, opts *pubsubx.SubscriberOptions, erh *eventRetryHandler, pqh PoisonQueueHandler) (*consumer, error) {
@@ -140,10 +143,12 @@ func (c *consumer) Close() error {
 	return nil
 }
 
-func (c *consumer) start(ctx context.Context) {
+func (c *consumer) start(ctx context.Context) (restart bool) {
 	bc := backoff.NewExponentialBackOff()
 	bc.MaxElapsedTime = maxElapsedTime
 	bc.MaxInterval = maxRetryInterval
+
+	lastConsumptionTime := time.Now()
 
 	for {
 		select {
@@ -187,6 +192,24 @@ func (c *consumer) start(ctx context.Context) {
 				}
 
 				allMsgs = append(allMsgs, msg)
+			}
+
+			// If there is a lag and we have not consumed any messages for a while, we reconnect the consumer
+			largestLag := c.calculateLargestLag(tp)
+			timeElapsed := time.Since(lastConsumptionTime)
+			if largestLag > maxLag && timeElapsed > messageConsumptionTimeout {
+				l := c.l.WithFields(
+					logrusx.NewLogFields(c.attributes(nil)...),
+				)
+				l.Infof("topic %s, no messages consumed for %s and lag of %d detected", tp.Topic, timeElapsed, largestLag)
+				
+				restart = true
+				return 
+			}
+
+
+			if len(allMsgs) > 0 {
+				lastConsumptionTime = time.Now()
 			}
 
 			// We do not protect the read to handlers here since we cannot get to a point where the handlers are reset and we are still in this consuming loop
@@ -252,7 +275,28 @@ func (c *consumer) start(ctx context.Context) {
 				return
 			}
 		})
+
+		if restart {
+			return true
+		}
 	}
+}
+
+// calculateLargestLag calculates the largest lag across all partitions in the given FetchTopic
+func (c *consumer) calculateLargestLag(tp kgo.FetchTopic) int64 {
+	largestLag := int64(1)
+
+	for _, partition := range tp.Partitions {
+		if len(partition.Records) > 0 {
+			latestRecord := partition.Records[len(partition.Records)-1]
+			lag := partition.HighWatermark - latestRecord.Offset
+			if lag > largestLag {
+				largestLag = lag
+			}
+		}
+	}
+
+	return largestLag
 }
 
 func (c *consumer) handleRemoteRetryLogic(ctx context.Context, topic messagex.Topic, errs []error, msgs []*messagex.Message) {
@@ -328,20 +372,34 @@ func (c *consumer) Subscribe(ctx context.Context, topicHandlers pubsubx.Handlers
 
 	c.wg.Add(1)
 	go func() {
+		var restart bool
 		defer func() {
 			if r := recover(); r != nil {
 				c.l.Errorf("panic while consuming messages: %v", r)
 			}
 
 			// Teardown
+			c.wg.Done()
+			err := c.Close()
+			if err != nil {
+				c.l.WithError(err).Errorf("failed to close consumer")
+			}
+
 			c.mu.Lock()
 			c.cancel = nil
 			c.mu.Unlock()
 
-			c.wg.Done()
+			if restart {
+				c.l.Infof("reconnecting consumer group %s", c.group)
+				err = c.Subscribe(context.WithoutCancel(ctx), topicHandlers)
+				if err != nil {
+					c.l.WithError(err).Errorf("failed to reconnect consumer")
+				}
+			}
 		}()
 
-		c.start(ctx)
+		restart = c.start(ctx)
+
 	}()
 
 	return nil

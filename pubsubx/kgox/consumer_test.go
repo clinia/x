@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
@@ -188,6 +189,117 @@ func TestConsumer_Subscribe_Handling(t *testing.T) {
 		assert.Equal(t, 4, headerResult["0"])
 		assert.Equal(t, 4, headerResult["1"])
 		assert.Equal(t, 4, headerResult["2"])
+	})
+}
+
+func TestConsumer_Reconnect(t *testing.T) {
+	l := logrusx.New("test_reconnect", "")
+	config := getPubsubConfig(t, true)
+	opts := &pubsubx.SubscriberOptions{MaxBatchSize: 10, MaxTopicRetryCount: 3}
+	pqh := getPoisonQueueHandler(t, l, config)
+
+	getWriteClient := func(t *testing.T) *kgo.Client {
+		t.Helper()
+		wc, err := kgo.NewClient(
+			kgo.SeedBrokers(config.Providers.Kafka.Brokers...),
+		)
+		require.NoError(t, err)
+		t.Cleanup(wc.Close)
+		return wc
+	}
+
+	sendMessage := func(t *testing.T, ctx context.Context, wc *kgo.Client, topic messagex.Topic, msg *messagex.Message) {
+		t.Helper()
+
+		rec, err := defaultMarshaler.Marshal(ctx, msg, topic.TopicName(config.Scope))
+		require.NoError(t, err)
+
+		r := wc.ProduceSync(context.Background(), rec)
+		require.NoError(t, r.FirstErr())
+	}
+
+	t.Run("should re-subscribe when not consuming messages for a while and there is a lag", func(t *testing.T) {
+		var logBuffer bytes.Buffer
+		l.Entry.Logger.SetOutput(&logBuffer)
+
+		group, topics := getRandomGroupTopics(t, 1)
+		testTopic := topics[0]
+		wClient := getWriteClient(t)
+		createTopic(t, config, testTopic)
+
+		receivedMsgs := make(chan *messagex.Message, 10)
+		cg := messagex.ConsumerGroup(group)
+		erh := getEventRetryHandler(t, l, config, cg, nil)
+
+		consumer, err := newConsumer(l, nil, config, cg, topics, opts, erh, pqh)
+		require.NoError(t, err)
+
+		ctx := context.Background()
+		topicHandlers := pubsubx.Handlers{
+			testTopic: func(ctx context.Context, msgs []*messagex.Message) ([]error, error) {
+				for _, msg := range msgs {
+					receivedMsgs <- msg
+				}
+				return nil, nil
+			},
+		}
+
+		err = consumer.Subscribe(ctx, topicHandlers)
+		require.NoError(t, err)
+
+		expectedMsgBeforeReconnect := messagex.NewMessage([]byte("test before"))
+		expectedMsgAfterReconnect := messagex.NewMessage([]byte("test after"))
+
+		// send messages for 10 seconds and then stop for 5 seconds
+		go func() {
+			for i := 0; i < 25; i++ {
+				sendMessage(t, ctx, wClient, testTopic, expectedMsgBeforeReconnect)
+				time.Sleep(1 * time.Millisecond)
+			}
+
+			time.Sleep(messageConsumptionTimeout + 1*time.Second)
+
+			for i := 0; i < 25; i++ {
+				sendMessage(t, ctx, wClient, testTopic, expectedMsgAfterReconnect)
+				time.Sleep(1 * time.Millisecond)
+			}
+		}()
+
+		// Variables to track message receipt before and after reconnect
+		var receivedBeforeReconnect, receivedAfterReconnect bool
+
+		fmt.Println("waiting for messages")
+		// Wait for messages and check if they are received
+		for {
+			select {
+			case <-time.After(20 * time.Second):
+				t.Fatalf("timed out waiting for message to be consumed")
+			case msg := <-receivedMsgs:
+				// Check if we received the "before reconnect" message
+				if bytes.Equal(msg.Payload, expectedMsgBeforeReconnect.Payload) {
+					receivedBeforeReconnect = true
+				}
+
+				// Check if we received the "after reconnect" message
+				if bytes.Equal(msg.Payload, expectedMsgAfterReconnect.Payload) {
+					fmt.Println("received after reconnect")
+					receivedAfterReconnect = true
+					break
+				}
+
+			}
+			// If both messages have been received, exit the loop
+			if receivedAfterReconnect {
+				break
+			}
+		}
+
+		// Assert that both messages were received
+		require.True(t, receivedBeforeReconnect, "expected to receive 'before reconnect' message")
+		require.True(t, receivedAfterReconnect, "expected to receive 'after reconnect' message")
+
+		// Assert the log output
+		assert.Contains(t, logBuffer.String(), fmt.Sprintf("reconnecting consumer group %s", group))
 	})
 }
 
@@ -562,4 +674,32 @@ func (c *concurrentBuffer) String() string {
 	c.m.RLock()
 	defer c.m.RUnlock()
 	return c.b.String()
+}
+
+// Simulate PollRecords behavior with lag
+func getPollRecordsWithLag() func(ctx context.Context, batchSize int) kgo.Fetches {
+	return func(ctx context.Context, batchSize int) kgo.Fetches {
+		// Simulate a large lag between high watermark and offset
+		return kgo.Fetches{
+			// Example data, adjust based on actual implementation
+			kgo.Fetch{
+				Topics: []kgo.FetchTopic{
+					{
+						Topic: "testTopic",
+						Partitions: []kgo.FetchPartition{
+							{
+								Records: []*kgo.Record{
+									{
+										Offset: 100,
+										Value:  []byte("test message"),
+									},
+								},
+								HighWatermark: 200, // large lag here
+							},
+						},
+					},
+				},
+			},
+		}
+	}
 }
