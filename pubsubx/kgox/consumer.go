@@ -21,7 +21,7 @@ import (
 
 type consumer struct {
 	l            *logrusx.Logger
-	cl           *kgo.Client
+	cl           KgoClient
 	conf         *pubsubx.Config
 	group        messagex.ConsumerGroup
 	topics       []messagex.Topic
@@ -43,11 +43,10 @@ const (
 	// We do not want to have a max elapsed time as we are counting on `maxRetryCount` to stop retrying
 	maxElapsedTime = 0
 	// We want to wait a max of 3 seconds between retries
-	maxRetryInterval          = 3 * time.Second
-	maxRetryCount             = 3
-	messageConsumptionTimeout = 3 * time.Second
-	// TODO change me once able to mock lag in tests
-	maxLag = 0
+	maxRetryInterval      = 3 * time.Second
+	maxRetryCount         = 3
+	maxConsumptionTimeout = 3 * time.Second
+	maxLag                = 10
 )
 
 func newConsumer(l *logrusx.Logger, kotelService *kotel.Kotel, config *pubsubx.Config, group messagex.ConsumerGroup, topics []messagex.Topic, opts *pubsubx.SubscriberOptions, erh *eventRetryHandler, pqh PoisonQueueHandler) (*consumer, error) {
@@ -195,13 +194,13 @@ func (c *consumer) start(ctx context.Context) (restart bool) {
 			}
 
 			// If there is a lag and we have not consumed any messages for a while, we reconnect the consumer
-			largestLag := c.calculateLargestLag(tp)
+			lag := getLag(tp)
 			timeElapsed := time.Since(lastConsumptionTime)
-			if largestLag > maxLag && timeElapsed > messageConsumptionTimeout {
+			if lag > maxLag && timeElapsed > maxConsumptionTimeout {
 				l := c.l.WithFields(
 					logrusx.NewLogFields(c.attributes(nil)...),
 				)
-				l.Infof("topic %s, no messages consumed for %s and lag of %d detected", tp.Topic, timeElapsed, largestLag)
+				l.Infof("topic %s, no messages consumed for %s and lag of %d detected", tp.Topic, timeElapsed, lag)
 
 				restart = true
 				return
@@ -281,20 +280,15 @@ func (c *consumer) start(ctx context.Context) (restart bool) {
 	}
 }
 
-// calculateLargestLag calculates the largest lag across all partitions in the given FetchTopic
-func (c *consumer) calculateLargestLag(tp kgo.FetchTopic) int64 {
+// getLag computes the largest lag across all partitions in the given FetchTopic
+func getLag(tp kgo.FetchTopic) int64 {
 	largestLag := int64(1)
-
 	for _, partition := range tp.Partitions {
-		if len(partition.Records) > 0 {
-			latestRecord := partition.Records[len(partition.Records)-1]
-			lag := partition.HighWatermark - latestRecord.Offset
-			if lag > largestLag {
-				largestLag = lag
-			}
+		lag := partition.HighWatermark - partition.LastStableOffset
+		if lag > largestLag {
+			largestLag = lag
 		}
 	}
-
 	return largestLag
 }
 
@@ -398,7 +392,6 @@ func (c *consumer) Subscribe(ctx context.Context, topicHandlers pubsubx.Handlers
 		}()
 
 		restart = c.start(ctx)
-
 	}()
 
 	return nil

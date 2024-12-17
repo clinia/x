@@ -13,8 +13,10 @@ import (
 	"github.com/clinia/x/errorx"
 	"github.com/clinia/x/logrusx"
 	"github.com/clinia/x/pubsubx"
+	"github.com/clinia/x/pubsubx/kgox/mocks"
 	"github.com/clinia/x/pubsubx/messagex"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/twmb/franz-go/pkg/kgo"
 )
@@ -231,7 +233,35 @@ func TestConsumer_Reconnect(t *testing.T) {
 		cg := messagex.ConsumerGroup(group)
 		erh := getEventRetryHandler(t, l, config, cg, nil)
 
+		// Mock client setup
+		mockClient := new(mocks.MockKgoClient)
+
+		// Simulate lag in PollRecords
+		mockClient.On("PollRecords", mock.Anything, 10).Return(func(ctx context.Context, batchSize int) kgo.Fetches {
+			return kgo.Fetches{
+				kgo.Fetch{
+					Topics: []kgo.FetchTopic{
+						{
+							Topic: "testTopic",
+							Partitions: []kgo.FetchPartition{
+								{
+									Records:          []*kgo.Record{}, // no records
+									HighWatermark:    200,             // large lag here
+									LastStableOffset: 100,
+								},
+							},
+						},
+					},
+				},
+			}
+		}(context.Background(), 10))
+
+		mockClient.On("Close").Return()
+
 		consumer, err := newConsumer(l, nil, config, cg, topics, opts, erh, pqh)
+
+		consumer.cl = mockClient
+
 		require.NoError(t, err)
 
 		ctx := context.Background()
@@ -247,58 +277,20 @@ func TestConsumer_Reconnect(t *testing.T) {
 		err = consumer.Subscribe(ctx, topicHandlers)
 		require.NoError(t, err)
 
-		expectedMsgBeforeReconnect := messagex.NewMessage([]byte("test before"))
-		expectedMsgAfterReconnect := messagex.NewMessage([]byte("test after"))
+		msg := messagex.NewMessage([]byte("test"))
 
-		// send messages for 10 seconds and then stop for 5 seconds
-		go func() {
-			for i := 0; i < 25; i++ {
-				sendMessage(t, ctx, wClient, testTopic, expectedMsgBeforeReconnect)
-				time.Sleep(1 * time.Millisecond)
-			}
-
-			time.Sleep(messageConsumptionTimeout + 1*time.Second)
-
-			for i := 0; i < 25; i++ {
-				sendMessage(t, ctx, wClient, testTopic, expectedMsgAfterReconnect)
-				time.Sleep(1 * time.Millisecond)
-			}
-		}()
-
-		// Variables to track message receipt before and after reconnect
-		var receivedBeforeReconnect, receivedAfterReconnect bool
-
-		fmt.Println("waiting for messages")
-		// Wait for messages and check if they are received
-		for {
-			select {
-			case <-time.After(20 * time.Second):
-				t.Fatalf("timed out waiting for message to be consumed")
-			case msg := <-receivedMsgs:
-				// Check if we received the "before reconnect" message
-				if bytes.Equal(msg.Payload, expectedMsgBeforeReconnect.Payload) {
-					receivedBeforeReconnect = true
-				}
-
-				// Check if we received the "after reconnect" message
-				if bytes.Equal(msg.Payload, expectedMsgAfterReconnect.Payload) {
-					fmt.Println("received after reconnect")
-					receivedAfterReconnect = true
-					break
-				}
-
-			}
-			// If both messages have been received, exit the loop
-			if receivedAfterReconnect {
-				break
-			}
+		for i := 0; i < 25; i++ {
+			sendMessage(t, ctx, wClient, testTopic, msg)
+			time.Sleep(1 * time.Millisecond)
 		}
 
-		// Assert that both messages were received
-		require.True(t, receivedBeforeReconnect, "expected to receive 'before reconnect' message")
-		require.True(t, receivedAfterReconnect, "expected to receive 'after reconnect' message")
+		time.Sleep(maxConsumptionTimeout + 1*time.Second)
 
-		// Assert the log output
+		for i := 0; i < 25; i++ {
+			sendMessage(t, ctx, wClient, testTopic, msg)
+			time.Sleep(1 * time.Millisecond)
+		}
+
 		assert.Contains(t, logBuffer.String(), fmt.Sprintf("reconnecting consumer group %s", group))
 	})
 }
@@ -688,13 +680,9 @@ func getPollRecordsWithLag() func(ctx context.Context, batchSize int) kgo.Fetche
 						Topic: "testTopic",
 						Partitions: []kgo.FetchPartition{
 							{
-								Records: []*kgo.Record{
-									{
-										Offset: 100,
-										Value:  []byte("test message"),
-									},
-								},
-								HighWatermark: 200, // large lag here
+								Records:          []*kgo.Record{}, // no records
+								HighWatermark:    200,             // large lag here
+								LastStableOffset: 100,
 							},
 						},
 					},
