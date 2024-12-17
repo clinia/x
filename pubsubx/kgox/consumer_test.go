@@ -220,7 +220,7 @@ func TestConsumer_Reconnect(t *testing.T) {
 		require.NoError(t, r.FirstErr())
 	}
 
-	t.Run("should re-subscribe when not consuming messages for a while and there is a lag", func(t *testing.T) {
+	t.Run("should reconnect when not consuming messages for a while and there is a lag", func(t *testing.T) {
 		var logBuffer bytes.Buffer
 		l.Entry.Logger.SetOutput(&logBuffer)
 
