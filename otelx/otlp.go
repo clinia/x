@@ -24,10 +24,10 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-func SetupOTLPTracer(tracerName string, c *TracerConfig) (trace.Tracer, propagation.TextMapPropagator, error) {
+func SetupOTLPTracer(tracerName string, c *TracerConfig) (*sdktrace.TracerProvider, trace.Tracer, propagation.TextMapPropagator, error) {
 	exp, err := getTraceExporter(c)
 	if err != nil {
-		return nil, nil, errors.WithStack(err)
+		return nil, nil, nil, errors.WithStack(err)
 	}
 
 	atts := append([]attribute.KeyValue{}, semconv.ServiceNameKey.String(c.ServiceName))
@@ -55,7 +55,7 @@ func SetupOTLPTracer(tracerName string, c *TracerConfig) (trace.Tracer, propagat
 		propagation.Baggage{},
 	)
 
-	return tp.Tracer(tracerName), prop, nil
+	return tp, tp.Tracer(tracerName), prop, nil
 }
 
 func getTraceExporter(c *TracerConfig) (*otlptrace.Exporter, error) {
