@@ -181,11 +181,11 @@ func (p *PubSub) AdminClient() (pubsubx.PubSubAdminClient, error) {
 func getContextLogger(ctx context.Context, fallback *logrusx.Logger) (l *logrusx.Logger) {
 	if ctxL := ctx.Value(ctxLoggerKey); ctxL != nil {
 		if ctxL, ok := ctxL.(*logrusx.Logger); ok {
-			l = ctxL
+			l = ctxL.WithContext(ctx)
 		}
 	}
 	if l == nil {
-		l = fallback
+		l = fallback.WithContext(ctx)
 	}
 	return
 }
