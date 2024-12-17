@@ -17,6 +17,7 @@ import (
 
 type Tracer struct {
 	tracer     trace.Tracer
+	tp         trace.TracerProvider
 	propagator propagation.TextMapPropagator
 }
 
@@ -33,12 +34,13 @@ func (t *Tracer) setup(l *logrusx.Logger, c *TracerConfig) error {
 		t.propagator = prop
 		l.Infof("Jaeger tracer configured! Sending spans to %s", c.Providers.Jaeger.LocalAgentAddress)
 	case f.AddCase("otel"):
-		tracer, prop, err := SetupOTLPTracer(c.Name, c)
+		tp, tracer, prop, err := SetupOTLPTracer(c.Name, c)
 		if err != nil {
 			return err
 		}
 
 		t.tracer = tracer
+		t.tp = tp
 		t.propagator = prop
 		l.Infof("OTLP tracer configured! Sending spans to %s", c.Providers.OTLP.ServerURL)
 	case f.AddCase("stdout"):
@@ -83,6 +85,10 @@ func (t *Tracer) Tracer() trace.Tracer {
 
 // Provider returns a TracerProvider which in turn yieds this tracer unmodified.
 func (t *Tracer) Provider() trace.TracerProvider {
+	if t.tp != nil {
+		return t.tp
+	}
+
 	return tracerProvider{t: t.Tracer()}
 }
 
