@@ -196,7 +196,7 @@ func (c *consumer) start(ctx context.Context) (restart bool) {
 			// If there is a lag and we have not consumed any messages for a while, we reconnect the consumer
 			lag := getLag(tp)
 			timeElapsed := time.Since(lastConsumptionTime)
-			if lag > maxLag && timeElapsed > maxConsumptionTimeout {
+			if len(allMsgs) == 0 && lag > maxLag && timeElapsed > maxConsumptionTimeout {
 				l := c.l.WithFields(
 					logrusx.NewLogFields(c.attributes(nil)...),
 				)
