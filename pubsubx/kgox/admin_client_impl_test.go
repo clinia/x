@@ -17,7 +17,7 @@ import (
 )
 
 func TestKadminClient_DeleteTopicsWithRetryTopics(t *testing.T) {
-	config := getPubsubConfig(t, true)
+	config := getPubsubConfig(t, true, true)
 	getKadmClient := func(t *testing.T, defaultCreateTopicConfigs ...map[string]*string) (*KgoxAdminClient, *kadm.Client, *kgo.Client) {
 		wc, err := kgo.NewClient(
 			kgo.SeedBrokers(config.Providers.Kafka.Brokers...),
@@ -139,7 +139,7 @@ func TestKadminClient_DeleteTopicsWithRetryTopics(t *testing.T) {
 }
 
 func TestKadminClient_CreateTopic(t *testing.T) {
-	config := getPubsubConfig(t, true)
+	config := getPubsubConfig(t, true, true)
 	getKadmClient := func(t *testing.T, defaultCreateTopicConfigs ...map[string]*string) (*KgoxAdminClient, *kadm.Client) {
 		wc, err := kgo.NewClient(
 			kgo.SeedBrokers(config.Providers.Kafka.Brokers...),
@@ -241,7 +241,7 @@ func TestKadminClient_CreateTopic(t *testing.T) {
 }
 
 func TestKadminClient_DeleteGroup(t *testing.T) {
-	config := getPubsubConfig(t, true)
+	config := getPubsubConfig(t, true, true)
 	getKadmClient := func(t *testing.T, defaultCreateTopicConfigs ...map[string]*string) (*KgoxAdminClient, *kadm.Client) {
 		wc, err := kgo.NewClient(
 			kgo.SeedBrokers(config.Providers.Kafka.Brokers...),
@@ -307,7 +307,7 @@ func TestKadminClient_DeleteGroup(t *testing.T) {
 }
 
 func TestKadminClient_DeleteGroups(t *testing.T) {
-	config := getPubsubConfig(t, true)
+	config := getPubsubConfig(t, true, true)
 	getKadmClient := func(t *testing.T, defaultCreateTopicConfigs ...map[string]*string) (*KgoxAdminClient, *kadm.Client) {
 		wc, err := kgo.NewClient(
 			kgo.SeedBrokers(config.Providers.Kafka.Brokers...),
@@ -397,7 +397,7 @@ func TestKadminClient_DeleteGroups(t *testing.T) {
 }
 
 func TestKadminClient_Healthcheck(t *testing.T) {
-	config := getPubsubConfig(t, true)
+	config := getPubsubConfig(t, true, true)
 	getKadmClient := func(t *testing.T, defaultCreateTopicConfigs ...map[string]*string) (*KgoxAdminClient, *kadm.Client) {
 		wc, err := kgo.NewClient(
 			kgo.SeedBrokers(config.Providers.Kafka.Brokers...),

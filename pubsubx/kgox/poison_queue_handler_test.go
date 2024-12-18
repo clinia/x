@@ -20,7 +20,7 @@ func TestPublishMessagesToPoisonQueue(t *testing.T) {
 	l := logrusx.New("test", "")
 
 	t.Run("should not do anything if the messages list is empty", func(t *testing.T) {
-		config := getPubSubConfigWithCustomPoisonQueue(t, true, "pq-test-1")
+		config := getPubSubConfigWithCustomPoisonQueue(t, true, "pq-test-1", false)
 		pqTopic := messagex.TopicFromName(config.PoisonQueue.TopicName).TopicName(config.Scope)
 		kopts := []kgo.Opt{
 			kgo.SeedBrokers(config.Providers.Kafka.Brokers...),
@@ -70,7 +70,7 @@ func TestPublishMessagesToPoisonQueue(t *testing.T) {
 	})
 
 	t.Run("should publish to the queue with an empty error", func(t *testing.T) {
-		config := getPubSubConfigWithCustomPoisonQueue(t, true, "pq-test-2")
+		config := getPubSubConfigWithCustomPoisonQueue(t, true, "pq-test-2", false)
 		pqTopic := messagex.TopicFromName(config.PoisonQueue.TopicName).TopicName(config.Scope)
 		kopts := []kgo.Opt{
 			kgo.SeedBrokers(config.Providers.Kafka.Brokers...),
@@ -145,7 +145,7 @@ func TestPublishMessagesToPoisonQueue(t *testing.T) {
 	})
 
 	t.Run("should publish to the queue with one error and one messages", func(t *testing.T) {
-		config := getPubSubConfigWithCustomPoisonQueue(t, true, "pq-test-3")
+		config := getPubSubConfigWithCustomPoisonQueue(t, true, "pq-test-3", false)
 		pqTopic := messagex.TopicFromName(config.PoisonQueue.TopicName).TopicName(config.Scope)
 		kopts := []kgo.Opt{
 			kgo.SeedBrokers(config.Providers.Kafka.Brokers...),
@@ -219,7 +219,7 @@ func TestPublishMessagesToPoisonQueue(t *testing.T) {
 	})
 
 	t.Run("should publish to the queue with generic error when errors and messages mismatch", func(t *testing.T) {
-		config := getPubSubConfigWithCustomPoisonQueue(t, true, "pq-test-4")
+		config := getPubSubConfigWithCustomPoisonQueue(t, true, "pq-test-4", false)
 		pqTopic := messagex.TopicFromName(config.PoisonQueue.TopicName).TopicName(config.Scope)
 		kopts := []kgo.Opt{
 			kgo.SeedBrokers(config.Providers.Kafka.Brokers...),
@@ -292,7 +292,7 @@ func TestPublishMessagesToPoisonQueue(t *testing.T) {
 	})
 
 	t.Run("should publish to the queue with all matching errors and messages", func(t *testing.T) {
-		config := getPubSubConfigWithCustomPoisonQueue(t, true, "pq-test-5")
+		config := getPubSubConfigWithCustomPoisonQueue(t, true, "pq-test-5", false)
 		pqTopic := messagex.TopicFromName(config.PoisonQueue.TopicName).TopicName(config.Scope)
 		kopts := []kgo.Opt{
 			kgo.SeedBrokers(config.Providers.Kafka.Brokers...),
@@ -392,7 +392,7 @@ func TestPublishMessagesToPoisonQueue(t *testing.T) {
 func TestConsumeQueue(t *testing.T) {
 	l := logrusx.New("test", "v0")
 	t.Run("should consume queue up to the current event", func(t *testing.T) {
-		config := getPubSubConfigWithCustomPoisonQueue(t, true, "pq-test-consume-1")
+		config := getPubSubConfigWithCustomPoisonQueue(t, true, "pq-test-consume-1", false)
 		pqTopic := messagex.TopicFromName(config.PoisonQueue.TopicName).TopicName(config.Scope)
 		pqh := getPoisonQueueHandler(t, l, config)
 		tctx := context.Background()
@@ -438,7 +438,7 @@ func TestConsumeQueue(t *testing.T) {
 	})
 
 	t.Run("should consume queue with no event", func(t *testing.T) {
-		config := getPubSubConfigWithCustomPoisonQueue(t, true, "pq-test-consume-2")
+		config := getPubSubConfigWithCustomPoisonQueue(t, true, "pq-test-consume-2", false)
 		pqTopic := messagex.TopicFromName(config.PoisonQueue.TopicName).TopicName(config.Scope)
 		pqh := getPoisonQueueHandler(t, l, config)
 		tctx := context.Background()

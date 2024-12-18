@@ -16,7 +16,7 @@ import (
 
 func TestPublisher(t *testing.T) {
 	l := logrusx.New("test", "")
-	config := getPubsubConfig(t, false)
+	config := getPubsubConfig(t, false, true)
 
 	receivedMessages := func(t *testing.T, group string, topic messagex.Topic) <-chan *messagex.Message {
 		t.Helper()
