@@ -393,14 +393,10 @@ func (c *consumer) Subscribe(ctx context.Context, topicHandlers pubsubx.Handlers
 			}
 
 			// Teardown
-			err := c.Close()
-			if err != nil {
-				c.l.WithError(err).Errorf("failed to close consumer group %s", c.group)
-			}
-
 			c.mu.Lock()
 			c.cancel = nil
 			c.mu.Unlock()
+
 			c.wg.Done()
 		}()
 
