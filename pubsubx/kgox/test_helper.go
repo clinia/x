@@ -60,6 +60,7 @@ func getPubsubConfig(t *testing.T, retry bool) *pubsubx.Config {
 			TopicName: "poison-queue",
 			Enabled:   false,
 		},
+		MaxConsumptionTimeout: time.Duration(2 * time.Second),
 	}
 }
 

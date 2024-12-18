@@ -5,6 +5,7 @@ import (
 	_ "embed"
 	"io"
 	"math"
+	"time"
 
 	"github.com/clinia/x/pointerx"
 	"go.opentelemetry.io/otel/metric"
@@ -13,11 +14,12 @@ import (
 )
 
 type Config struct {
-	PoisonQueue PoisonQueueConfig `json:"poisonQueue"`
-	Scope       string            `json:"scope"`
-	Provider    string            `json:"provider"`
-	Providers   ProvidersConfig   `json:"providers"`
-	TopicRetry  bool              `json:"topicRetry"`
+	PoisonQueue           PoisonQueueConfig `json:"poisonQueue"`
+	Scope                 string            `json:"scope"`
+	Provider              string            `json:"provider"`
+	Providers             ProvidersConfig   `json:"providers"`
+	TopicRetry            bool              `json:"topicRetry"`
+	MaxConsumptionTimeout time.Duration
 }
 
 type ProvidersConfig struct {

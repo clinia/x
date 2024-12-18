@@ -515,6 +515,8 @@ func (p *Provider) PubSubConfig() *pubsubx.Config {
 			Enabled:   p.BoolF("pubsub.poisonQueue.enabled", false),
 			TopicName: p.StringF("pubsub.poisonQueue.topicName", "poison-queue"),
 		},
+		// TODO test config in atlas and define a value
+		MaxConsumptionTimeout: time.Duration(p.IntF("pubsub.maxConsumptionTimeout", 0)) * time.Minute,
 	}
 }
 

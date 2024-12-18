@@ -13,6 +13,7 @@ import (
 	"github.com/clinia/x/pubsubx/messagex"
 	"github.com/clinia/x/tracex"
 	"github.com/samber/lo"
+	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/plugin/kotel"
 	"go.opentelemetry.io/otel/attribute"
@@ -21,7 +22,7 @@ import (
 
 type consumer struct {
 	l            *logrusx.Logger
-	cl           KgoClient
+	cl           *kgo.Client
 	conf         *pubsubx.Config
 	group        messagex.ConsumerGroup
 	topics       []messagex.Topic
@@ -43,10 +44,8 @@ const (
 	// We do not want to have a max elapsed time as we are counting on `maxRetryCount` to stop retrying
 	maxElapsedTime = 0
 	// We want to wait a max of 3 seconds between retries
-	maxRetryInterval      = 3 * time.Second
-	maxRetryCount         = 3
-	maxConsumptionTimeout = 3 * time.Second
-	maxLag                = 10
+	maxRetryInterval = 3 * time.Second
+	maxRetryCount    = 3
 )
 
 func newConsumer(l *logrusx.Logger, kotelService *kotel.Kotel, config *pubsubx.Config, group messagex.ConsumerGroup, topics []messagex.Topic, opts *pubsubx.SubscriberOptions, erh *eventRetryHandler, pqh PoisonQueueHandler) (*consumer, error) {
@@ -142,12 +141,60 @@ func (c *consumer) Close() error {
 	return nil
 }
 
-func (c *consumer) start(ctx context.Context) (restart bool) {
+func (c *consumer) start(ctx context.Context) {
 	bc := backoff.NewExponentialBackOff()
 	bc.MaxElapsedTime = maxElapsedTime
 	bc.MaxInterval = maxRetryInterval
 
+	mu := sync.RWMutex{}
 	lastConsumptionTime := time.Now()
+
+	if c.conf.MaxConsumptionTimeout != 0 {
+		// goroutine to check the consumer is not stuck
+		// If it is, consumer group will close and will be restarted by atlas (health endpoint)
+		go func() {
+			// TODO Should we share the same admin client across consumer groups? What is the impact of having many admin clients?
+			adminClient := kadm.NewClient(c.cl)
+			defer adminClient.Close()
+			for {
+
+				mu.RLock()
+				timeElapsed := time.Since(lastConsumptionTime)
+				mu.RUnlock()
+
+				if timeElapsed < c.conf.MaxConsumptionTimeout {
+					continue
+				}
+
+				groupLags, err := adminClient.Lag(ctx, c.group.ConsumerGroup(c.conf.Scope))
+				if err != nil {
+					c.l.WithError(err).Errorf("failed to get group lags for group %s", c.group)
+				}
+
+				for _, lags := range groupLags {
+					totalLag := lags.Lag.Total()
+					if totalLag > 0 {
+						c.l.Errorf("Consumer group %s. Lag is %d and did no consume for %s. Closing consumer group for restart. ", c.group.ConsumerGroup(c.conf.Scope), totalLag, timeElapsed)
+
+						// TODO we cannot do c.Close() because there is a Wait in the Close method
+						c.mu.Lock()
+
+						c.closed = true
+						if cancel := c.cancel; cancel != nil {
+							cancel()
+						}
+
+						c.cancel = nil
+						c.mu.Unlock()
+
+						// Close the client
+						c.cl.Close()
+						return
+					}
+				}
+			}
+		}()
+	}
 
 	for {
 		select {
@@ -175,6 +222,11 @@ func (c *consumer) start(ctx context.Context) (restart bool) {
 		}
 
 		fetches.EachTopic(func(tp kgo.FetchTopic) {
+			defer func() {
+				mu.Lock()
+				lastConsumptionTime = time.Now()
+				mu.Unlock()
+			}()
 			// Use base name to handle the retry topics under the same topic handler
 			topic := messagex.BaseTopicFromName(tp.Topic)
 			l := c.l.WithFields(
@@ -191,23 +243,6 @@ func (c *consumer) start(ctx context.Context) (restart bool) {
 				}
 
 				allMsgs = append(allMsgs, msg)
-			}
-
-			// If there is a lag and we have not consumed any messages for a while, we reconnect the consumer
-			lag := getLag(tp)
-			timeElapsed := time.Since(lastConsumptionTime)
-			if len(allMsgs) == 0 && lag > maxLag && timeElapsed > maxConsumptionTimeout {
-				l := c.l.WithFields(
-					logrusx.NewLogFields(c.attributes(nil)...),
-				)
-				l.Infof("topic %s, no messages consumed for %s and lag of %d detected", tp.Topic, timeElapsed, lag)
-
-				restart = true
-				return
-			}
-
-			if len(allMsgs) > 0 {
-				lastConsumptionTime = time.Now()
 			}
 
 			// We do not protect the read to handlers here since we cannot get to a point where the handlers are reset and we are still in this consuming loop
@@ -274,22 +309,9 @@ func (c *consumer) start(ctx context.Context) (restart bool) {
 			}
 		})
 
-		if restart {
-			return true
-		}
+		// TODO find a way to test PollRecords being stuck without mocks. Uncommentiong this makes the test pass. This is a temporary test
+		// time.Sleep(60 * time.Second)
 	}
-}
-
-// getLag computes the largest lag across all partitions in the given FetchTopic
-func getLag(tp kgo.FetchTopic) int64 {
-	largestLag := int64(1)
-	for _, partition := range tp.Partitions {
-		lag := partition.HighWatermark - partition.LastStableOffset
-		if lag > largestLag {
-			largestLag = lag
-		}
-	}
-	return largestLag
 }
 
 func (c *consumer) handleRemoteRetryLogic(ctx context.Context, topic messagex.Topic, errs []error, msgs []*messagex.Message) {
@@ -365,14 +387,12 @@ func (c *consumer) Subscribe(ctx context.Context, topicHandlers pubsubx.Handlers
 
 	c.wg.Add(1)
 	go func() {
-		var restart bool
 		defer func() {
 			if r := recover(); r != nil {
 				c.l.Errorf("panic while consuming messages: %v", r)
 			}
 
 			// Teardown
-			c.wg.Done()
 			err := c.Close()
 			if err != nil {
 				c.l.WithError(err).Errorf("failed to close consumer group %s", c.group)
@@ -381,17 +401,10 @@ func (c *consumer) Subscribe(ctx context.Context, topicHandlers pubsubx.Handlers
 			c.mu.Lock()
 			c.cancel = nil
 			c.mu.Unlock()
-
-			if restart {
-				c.l.Infof("reconnecting consumer group %s", c.group)
-				err = c.Subscribe(context.WithoutCancel(ctx), topicHandlers)
-				if err != nil {
-					c.l.WithError(err).Errorf("failed to reconnect consumer group %s", c.group)
-				}
-			}
+			c.wg.Done()
 		}()
 
-		restart = c.start(ctx)
+		c.start(ctx)
 	}()
 
 	return nil

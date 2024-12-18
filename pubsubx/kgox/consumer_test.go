@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 	"sync"
 	"testing"
@@ -13,10 +12,8 @@ import (
 	"github.com/clinia/x/errorx"
 	"github.com/clinia/x/logrusx"
 	"github.com/clinia/x/pubsubx"
-	"github.com/clinia/x/pubsubx/kgox/mocks"
 	"github.com/clinia/x/pubsubx/messagex"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/twmb/franz-go/pkg/kgo"
 )
@@ -194,8 +191,8 @@ func TestConsumer_Subscribe_Handling(t *testing.T) {
 	})
 }
 
-func TestConsumer_Reconnect(t *testing.T) {
-	l := logrusx.New("test_reconnect", "")
+func TestConsumer_Timeout(t *testing.T) {
+	l := logrusx.New("test_timeout", "")
 	config := getPubsubConfig(t, true)
 	opts := &pubsubx.SubscriberOptions{MaxBatchSize: 10, MaxTopicRetryCount: 3}
 	pqh := getPoisonQueueHandler(t, l, config)
@@ -220,10 +217,7 @@ func TestConsumer_Reconnect(t *testing.T) {
 		require.NoError(t, r.FirstErr())
 	}
 
-	t.Run("should reconnect when not consuming messages for a while and there is a lag", func(t *testing.T) {
-		var logBuffer bytes.Buffer
-		l.Entry.Logger.SetOutput(&logBuffer)
-
+	t.Run("should close consumer group if non-consumption time exceeds timeout and a lag is persisting", func(t *testing.T) {
 		group, topics := getRandomGroupTopics(t, 1)
 		testTopic := topics[0]
 		wClient := getWriteClient(t)
@@ -233,35 +227,7 @@ func TestConsumer_Reconnect(t *testing.T) {
 		cg := messagex.ConsumerGroup(group)
 		erh := getEventRetryHandler(t, l, config, cg, nil)
 
-		// Mock client setup
-		mockClient := new(mocks.MockKgoClient)
-
-		// Simulate lag in PollRecords
-		mockClient.On("PollRecords", mock.Anything, 10).Return(func(ctx context.Context, batchSize int) kgo.Fetches {
-			return kgo.Fetches{
-				kgo.Fetch{
-					Topics: []kgo.FetchTopic{
-						{
-							Topic: "testTopic",
-							Partitions: []kgo.FetchPartition{
-								{
-									Records:          []*kgo.Record{}, // no records
-									HighWatermark:    200,             // large lag here
-									LastStableOffset: 100,
-								},
-							},
-						},
-					},
-				},
-			}
-		}(context.Background(), 10))
-
-		mockClient.On("Close").Return()
-
 		consumer, err := newConsumer(l, nil, config, cg, topics, opts, erh, pqh)
-
-		consumer.cl = mockClient
-
 		require.NoError(t, err)
 
 		ctx := context.Background()
@@ -279,19 +245,14 @@ func TestConsumer_Reconnect(t *testing.T) {
 
 		msg := messagex.NewMessage([]byte("test"))
 
-		for i := 0; i < 25; i++ {
+		for i := 0; i < 500; i++ {
 			sendMessage(t, ctx, wClient, testTopic, msg)
-			time.Sleep(1 * time.Millisecond)
+			time.Sleep(20 * time.Millisecond)
 		}
 
-		time.Sleep(maxConsumptionTimeout + 1*time.Second)
-
-		for i := 0; i < 25; i++ {
-			sendMessage(t, ctx, wClient, testTopic, msg)
-			time.Sleep(1 * time.Millisecond)
-		}
-
-		assert.Contains(t, logBuffer.String(), fmt.Sprintf("reconnecting consumer group %s", group))
+		// Expect the consumer group to have closed
+		err = consumer.Health()
+		assert.Error(t, err)
 	})
 }
 
