@@ -630,7 +630,7 @@ func TestConsumer_Monitoring(t *testing.T) {
 		fmt.Println("LastConsumptionTime:", lastConsumptionTime)
 		fmt.Println("Lag: ", lag)
 
-		time.Sleep(1 * time.Second)
+		time.Sleep(2 * time.Second)
 		// assert state was updated by the admin client
 		assert.True(t, timeOk)
 		assert.True(t, lagOk)
