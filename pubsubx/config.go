@@ -14,12 +14,12 @@ import (
 )
 
 type Config struct {
-	PoisonQueue           PoisonQueueConfig `json:"poisonQueue"`
-	Scope                 string            `json:"scope"`
-	Provider              string            `json:"provider"`
-	Providers             ProvidersConfig   `json:"providers"`
-	TopicRetry            bool              `json:"topicRetry"`
-	MaxConsumptionTimeout time.Duration     `json:"maxConsumptionTimeout"`
+	PoisonQueue   PoisonQueueConfig   `json:"poisonQueue"`
+	Scope         string              `json:"scope"`
+	Provider      string              `json:"provider"`
+	Providers     ProvidersConfig     `json:"providers"`
+	TopicRetry    bool                `json:"topicRetry"`
+	ConsumerGroup ConsumerGroupConfig `json:"consumerGroup"`
 }
 
 type ProvidersConfig struct {
@@ -44,6 +44,10 @@ type PubSubOptions struct {
 type PoisonQueueConfig struct {
 	Enabled   bool   `json:"enabled"`
 	TopicName string `json:"topicName"`
+}
+
+type ConsumerGroupConfig struct {
+	Timeout time.Duration `json:"timeout"`
 }
 
 func (pqc PoisonQueueConfig) IsEnabled() bool {

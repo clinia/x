@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -39,6 +40,9 @@ func TestConfigSchema(t *testing.T) {
 				TopicName: "poison-queue",
 			},
 			TopicRetry: true,
+			ConsumerGroup: ConsumerGroupConfig{
+				Timeout: time.Duration(10 * time.Minute),
+			},
 		}
 
 		rawConfig, err := sjson.Set("{}", "pubsubx", &conf)
@@ -52,5 +56,3 @@ func TestConfigSchema(t *testing.T) {
 		assert.NoError(t, schema.Validate(bytes.NewBufferString(rawConfig)))
 	})
 }
-
-// TODO add config test

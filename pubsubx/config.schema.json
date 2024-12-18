@@ -8,9 +8,7 @@
     "scope": {
       "type": "string",
       "description": "Set this to the scope you wish to use for pub sub. Defaults to the application id.",
-      "examples": [
-        "my-app"
-      ]
+      "examples": ["my-app"]
     },
     "poisonQueue": {
       "type": "object",
@@ -19,9 +17,7 @@
         "topicName": {
           "type": "string",
           "description": "Set this to the topic name you want the error event to go to for pub sub. Defaults to 'poison-queue'",
-          "examples": [
-            "poison-queue"
-          ],
+          "examples": ["poison-queue"],
           "default": "poison-queue"
         },
         "enabled": {
@@ -34,13 +30,8 @@
     "provider": {
       "type": "string",
       "description": "Set this to the pub sub backend you wish to use. Supports inmemory and kafka. Defaults to inmemory.",
-      "enum": [
-        "kafka",
-        "inmemory"
-      ],
-      "examples": [
-        "kafka"
-      ],
+      "enum": ["kafka", "inmemory"],
+      "examples": ["kafka"],
       "default": "inmemory"
     },
     "providers": {
@@ -57,15 +48,11 @@
               "description": "The list of kafka brokers to connect to.",
               "items": {
                 "type": "string",
-                "examples": [
-                  "localhost:9092"
-                ]
+                "examples": ["localhost:9092"]
               }
             }
           },
-          "required": [
-            "brokers"
-          ]
+          "required": ["brokers"]
         },
         "inmemory": {
           "type": "object",
@@ -79,6 +66,9 @@
       "type": "boolean",
       "description": "Enable the retry mechanism with pubsub topic",
       "default": false
+    },
+    "consumerGroup": {
+      "timeout": "10m"
     }
   }
 }

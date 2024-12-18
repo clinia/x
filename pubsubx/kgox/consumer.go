@@ -149,7 +149,7 @@ func (c *consumer) start(ctx context.Context) {
 	mu := sync.RWMutex{}
 	lastConsumptionTime := time.Now()
 
-	if c.conf.MaxConsumptionTimeout != 0 {
+	if c.conf.ConsumerGroup.Timeout != 0 {
 		// goroutine to check the consumer is not stuck
 		// If it is, consumer group will close and will be restarted by atlas (health endpoint)
 		go func() {
@@ -162,7 +162,7 @@ func (c *consumer) start(ctx context.Context) {
 				timeElapsed := time.Since(lastConsumptionTime)
 				mu.RUnlock()
 
-				if timeElapsed < c.conf.MaxConsumptionTimeout {
+				if timeElapsed < c.conf.ConsumerGroup.Timeout {
 					continue
 				}
 
