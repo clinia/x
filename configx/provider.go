@@ -515,8 +515,10 @@ func (p *Provider) PubSubConfig() *pubsubx.Config {
 			Enabled:   p.BoolF("pubsub.poisonQueue.enabled", false),
 			TopicName: p.StringF("pubsub.poisonQueue.topicName", "poison-queue"),
 		},
-		ConsumerGroup: pubsubx.ConsumerGroupConfig{
-			Timeout: p.DurationF("pubsub.consumerGroup.timeout", 0),
+		ConsumerGroupMonitoring: pubsubx.ConsumerGroupMonitoringConfig{
+			Enabled:         p.BoolF("pubsub.consumerGroupMonitoring.enabled", false),
+			HealthTimeout:   p.DurationF("pubsub.consumerGroupMonitoring.health_timeout", 0),
+			RefreshInterval: p.DurationF("pubsub.consumerGroupMonitoring.refresh_interval", 0),
 		},
 	}
 }

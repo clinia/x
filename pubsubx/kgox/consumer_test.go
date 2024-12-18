@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
@@ -19,8 +20,8 @@ import (
 )
 
 func TestConsumer_Subscribe_Handling(t *testing.T) {
-	l := logrusx.New("test", "")
-	config := getPubsubConfig(t, true)
+	l := logrusx.New("test2", "")
+	config := getPubsubConfig(t, true, true)
 	opts := &pubsubx.SubscriberOptions{MaxBatchSize: 10, MaxTopicRetryCount: 3}
 	pqh := getPoisonQueueHandler(t, l, config)
 
@@ -191,9 +192,9 @@ func TestConsumer_Subscribe_Handling(t *testing.T) {
 	})
 }
 
-func TestConsumer_Timeout(t *testing.T) {
+func TestConsumer_Monitoring(t *testing.T) {
 	l := logrusx.New("test_timeout", "")
-	config := getPubsubConfig(t, true)
+	config := getPubsubConfig(t, true, true)
 	opts := &pubsubx.SubscriberOptions{MaxBatchSize: 10, MaxTopicRetryCount: 3}
 	pqh := getPoisonQueueHandler(t, l, config)
 
@@ -247,18 +248,21 @@ func TestConsumer_Timeout(t *testing.T) {
 
 		for i := 0; i < 500; i++ {
 			sendMessage(t, ctx, wClient, testTopic, msg)
-			time.Sleep(20 * time.Millisecond)
 		}
 
-		// Expect the consumer group to have closed
+		// mock time elapsed to trigger health to return an error
+		consumer.state.LastConsumptionTimePerTopic[testTopic.TopicName(config.Scope)] = time.Now().Add(-time.Minute)
+
 		err = consumer.Health()
 		assert.Error(t, err)
+
+		assert.Contains(t, err.Error(), fmt.Sprintf("consumer group %s hanging", consumer.group.ConsumerGroup(consumer.conf.Scope)))
 	})
 }
 
 func TestConsumer_Subscribe_Concurrency(t *testing.T) {
 	l := logrusx.New("test", "")
-	config := getPubsubConfig(t, false)
+	config := getPubsubConfig(t, false, true)
 	pqh := getPoisonQueueHandler(t, l, config)
 	opts := &pubsubx.SubscriberOptions{MaxBatchSize: 10}
 

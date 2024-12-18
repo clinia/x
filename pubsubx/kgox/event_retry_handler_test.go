@@ -13,7 +13,7 @@ import (
 
 func TestGenerateRetryTopics(t *testing.T) {
 	l := logrusx.New("test", "")
-	config := getPubsubConfig(t, true)
+	config := getPubsubConfig(t, true, true)
 
 	t.Run("should create retry topic for the topic list", func(t *testing.T) {
 		group, topics := getRandomGroupTopics(t, 4)

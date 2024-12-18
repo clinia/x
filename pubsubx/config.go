@@ -14,12 +14,12 @@ import (
 )
 
 type Config struct {
-	PoisonQueue   PoisonQueueConfig   `json:"poisonQueue"`
-	Scope         string              `json:"scope"`
-	Provider      string              `json:"provider"`
-	Providers     ProvidersConfig     `json:"providers"`
-	TopicRetry    bool                `json:"topicRetry"`
-	ConsumerGroup ConsumerGroupConfig `json:"consumerGroup"`
+	PoisonQueue             PoisonQueueConfig             `json:"poisonQueue"`
+	Scope                   string                        `json:"scope"`
+	Provider                string                        `json:"provider"`
+	Providers               ProvidersConfig               `json:"providers"`
+	TopicRetry              bool                          `json:"topicRetry"`
+	ConsumerGroupMonitoring ConsumerGroupMonitoringConfig `json:"consumerGroup"`
 }
 
 type ProvidersConfig struct {
@@ -46,12 +46,18 @@ type PoisonQueueConfig struct {
 	TopicName string `json:"topicName"`
 }
 
-type ConsumerGroupConfig struct {
-	Timeout time.Duration `json:"timeout"`
-}
-
 func (pqc PoisonQueueConfig) IsEnabled() bool {
 	return pqc.Enabled && pqc.TopicName != ""
+}
+
+type ConsumerGroupMonitoringConfig struct {
+	Enabled         bool          `json:"enabled"`
+	HealthTimeout   time.Duration `json:"health_timeout"`
+	RefreshInterval time.Duration `json:"refresh_interval"`
+}
+
+func (cgm ConsumerGroupMonitoringConfig) IsEnabled() bool {
+	return cgm.Enabled && cgm.HealthTimeout != 0 && cgm.RefreshInterval != 0
 }
 
 type PubSubOption func(*PubSubOptions)

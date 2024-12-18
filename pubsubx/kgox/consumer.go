@@ -36,6 +36,11 @@ type consumer struct {
 	cancel context.CancelFunc
 	closed bool
 	wg     sync.WaitGroup
+
+	stateMu sync.RWMutex
+	state   State
+
+	adminClient *kadm.Client
 }
 
 var _ pubsubx.Subscriber = (*consumer)(nil)
@@ -146,54 +151,13 @@ func (c *consumer) start(ctx context.Context) {
 	bc.MaxElapsedTime = maxElapsedTime
 	bc.MaxInterval = maxRetryInterval
 
-	mu := sync.RWMutex{}
-	lastConsumptionTime := time.Now()
+	if c.conf.ConsumerGroupMonitoring.IsEnabled() {
+		c.state = State{
+			LastConsumptionTimePerTopic: make(map[string]time.Time),
+			TotalLagPerTopic:            make(kadm.GroupTopicsLag),
+		}
 
-	if c.conf.ConsumerGroup.Timeout != 0 {
-		// goroutine to check the consumer is not stuck
-		// If it is, consumer group will close and will be restarted by atlas (health endpoint)
-		go func() {
-			// TODO Should we share the same admin client across consumer groups? What is the impact of having many admin clients?
-			adminClient := kadm.NewClient(c.cl)
-			defer adminClient.Close()
-			for {
-
-				mu.RLock()
-				timeElapsed := time.Since(lastConsumptionTime)
-				mu.RUnlock()
-
-				if timeElapsed < c.conf.ConsumerGroup.Timeout {
-					continue
-				}
-
-				groupLags, err := adminClient.Lag(ctx, c.group.ConsumerGroup(c.conf.Scope))
-				if err != nil {
-					c.l.WithError(err).Errorf("failed to get group lags for group %s", c.group)
-				}
-
-				for _, lags := range groupLags {
-					totalLag := lags.Lag.Total()
-					if totalLag > 0 {
-						c.l.Errorf("Consumer group %s. Lag is %d and did no consume for %s. Closing consumer group for restart. ", c.group.ConsumerGroup(c.conf.Scope), totalLag, timeElapsed)
-
-						// TODO we cannot do c.Close() because there is a Wait in the Close method
-						c.mu.Lock()
-
-						c.closed = true
-						if cancel := c.cancel; cancel != nil {
-							cancel()
-						}
-
-						c.cancel = nil
-						c.mu.Unlock()
-
-						// Close the client
-						c.cl.Close()
-						return
-					}
-				}
-			}
-		}()
+		go c.monitor(ctx)
 	}
 
 	for {
@@ -222,11 +186,13 @@ func (c *consumer) start(ctx context.Context) {
 		}
 
 		fetches.EachTopic(func(tp kgo.FetchTopic) {
-			defer func() {
-				mu.Lock()
-				lastConsumptionTime = time.Now()
-				mu.Unlock()
-			}()
+			if c.conf.ConsumerGroupMonitoring.IsEnabled() {
+				defer func() {
+					c.stateMu.Lock()
+					c.state.LastConsumptionTimePerTopic[tp.Topic] = time.Now()
+					c.stateMu.Unlock()
+				}()
+			}
 			// Use base name to handle the retry topics under the same topic handler
 			topic := messagex.BaseTopicFromName(tp.Topic)
 			l := c.l.WithFields(
@@ -308,9 +274,6 @@ func (c *consumer) start(ctx context.Context) {
 				return
 			}
 		})
-
-		// TODO find a way to test PollRecords being stuck without mocks. Uncommentiong this makes the test pass. This is a temporary test
-		// time.Sleep(60 * time.Second)
 	}
 }
 
@@ -412,6 +375,23 @@ func (c *consumer) Health() error {
 	defer c.mu.RUnlock()
 	if c.cancel == nil {
 		return errorx.InternalErrorf("not subscribed to topics")
+	}
+
+	err := errorx.InternalErrorf("consumer group %s hanging", c.group.ConsumerGroup(c.conf.Scope))
+
+	for topic, lastConsumptionTime := range c.state.LastConsumptionTimePerTopic {
+		c.stateMu.RLock()
+		timeElapsed := time.Since(lastConsumptionTime)
+		lag := c.state.TotalLagPerTopic[topic].Lag
+		c.stateMu.RUnlock()
+
+		if timeElapsed > c.conf.ConsumerGroupMonitoring.HealthTimeout && lag > 0 {
+			err.WithDetails(errorx.InternalErrorf("topic '%s': no consumption for %s and lag is %d", topic, timeElapsed, lag))
+		}
+	}
+
+	if len(err.Details) > 0 {
+		return err
 	}
 
 	return nil

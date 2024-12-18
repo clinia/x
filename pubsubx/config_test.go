@@ -40,8 +40,10 @@ func TestConfigSchema(t *testing.T) {
 				TopicName: "poison-queue",
 			},
 			TopicRetry: true,
-			ConsumerGroup: ConsumerGroupConfig{
-				Timeout: time.Duration(10 * time.Minute),
+			ConsumerGroupMonitoring: ConsumerGroupMonitoringConfig{
+				Enabled:         true,
+				HealthTimeout:   time.Duration(10 * time.Minute),
+				RefreshInterval: time.Duration(1 * time.Minute),
 			},
 		}
 

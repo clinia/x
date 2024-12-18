@@ -67,8 +67,10 @@
       "description": "Enable the retry mechanism with pubsub topic",
       "default": false
     },
-    "consumerGroup": {
-      "timeout": "10m"
+    "consumerGroupMonitoring": {
+      "enabled": true,
+      "health_timeout": "1m",
+      "refresh_interval": "1s"
     }
   }
 }
