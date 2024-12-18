@@ -623,14 +623,14 @@ func TestConsumer_Monitoring(t *testing.T) {
 		for i := 0; i < 1000; i++ {
 			sendMessage(t, ctx, wClient, testTopic, msg)
 		}
+		time.Sleep(1 * time.Second)
+
 
 		lastConsumptionTime, timeOk := consumer.state.lastConsumptionTimePerTopic[testTopic.TopicName(config.Scope)]
 		lag, lagOk := consumer.state.totalLagPerTopic[testTopic.TopicName(config.Scope)]
 
 		fmt.Println("LastConsumptionTime:", lastConsumptionTime)
 		fmt.Println("Lag: ", lag)
-
-		time.Sleep(2 * time.Second)
 		// assert state was updated by the admin client
 		assert.True(t, timeOk)
 		assert.True(t, lagOk)
