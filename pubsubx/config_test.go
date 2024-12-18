@@ -52,3 +52,5 @@ func TestConfigSchema(t *testing.T) {
 		assert.NoError(t, schema.Validate(bytes.NewBufferString(rawConfig)))
 	})
 }
+
+// TODO add config test

@@ -19,7 +19,7 @@ type Config struct {
 	Provider              string            `json:"provider"`
 	Providers             ProvidersConfig   `json:"providers"`
 	TopicRetry            bool              `json:"topicRetry"`
-	MaxConsumptionTimeout time.Duration
+	MaxConsumptionTimeout time.Duration     `json:"maxConsumptionTimeout"`
 }
 
 type ProvidersConfig struct {
