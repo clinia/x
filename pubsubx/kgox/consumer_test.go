@@ -622,8 +622,8 @@ func TestConsumer_Monitoring(t *testing.T) {
 
 		for i := 0; i < 1000; i++ {
 			sendMessage(t, ctx, wClient, testTopic, msg)
-		}		
-		
+		}
+
 		lastConsumptionTime, timeOk := consumer.state.lastConsumptionTimePerTopic[testTopic.TopicName(config.Scope)]
 		lag, lagOk := consumer.state.totalLagPerTopic[testTopic.TopicName(config.Scope)]
 
