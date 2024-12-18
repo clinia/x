@@ -16,6 +16,7 @@ import (
 	"github.com/clinia/x/pubsubx/messagex"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kgo"
 )
 
@@ -246,13 +247,17 @@ func TestConsumer_Monitoring(t *testing.T) {
 
 		msg := messagex.NewMessage([]byte("test"))
 
-		for i := 0; i < 500; i++ {
+		for i := 0; i < 1000; i++ {
 			sendMessage(t, ctx, wClient, testTopic, msg)
 		}
 
-		// mock time elapsed to trigger health to return an error
-		consumer.state.LastConsumptionTimePerTopic[testTopic.TopicName(config.Scope)] = time.Now().Add(-time.Minute)
-
+		// mock time elapsed and lag to trigger health to return an error
+		consumer.state.LastConsumptionTimePerTopic[testTopic.TopicName(config.Scope)] = time.Now().Add(-2 * time.Minute)
+		consumer.state.TotalLagPerTopic[testTopic.TopicName(config.Scope)] = kadm.TopicLag{
+			Topic: testTopic.TopicName(config.Scope),
+			Lag: int64(1000),
+		}
+		
 		err = consumer.Health()
 		assert.Error(t, err)
 
