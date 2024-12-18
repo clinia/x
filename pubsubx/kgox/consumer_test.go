@@ -624,8 +624,9 @@ func TestConsumer_Monitoring(t *testing.T) {
 			sendMessage(t, ctx, wClient, testTopic, msg)
 		}
 
-		// force the consumer to refresh the state. This is to avoid flakyness on CI 
-		consumer.refreshLagState(ctx)
+		// force the consumer to refresh the state. This is to avoid flakyness on CI
+		err = consumer.refreshLagState(ctx)
+		require.NoError(t, err)
 
 		lastConsumptionTime, timeOk := consumer.state.lastConsumptionTimePerTopic[testTopic.TopicName(config.Scope)]
 		lag, lagOk := consumer.state.totalLagPerTopic[testTopic.TopicName(config.Scope)]
