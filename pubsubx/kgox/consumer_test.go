@@ -628,27 +628,3 @@ func (c *concurrentBuffer) String() string {
 	defer c.m.RUnlock()
 	return c.b.String()
 }
-
-// Simulate PollRecords behavior with lag
-func getPollRecordsWithLag() func(ctx context.Context, batchSize int) kgo.Fetches {
-	return func(ctx context.Context, batchSize int) kgo.Fetches {
-		// Simulate a large lag between high watermark and offset
-		return kgo.Fetches{
-			// Example data, adjust based on actual implementation
-			kgo.Fetch{
-				Topics: []kgo.FetchTopic{
-					{
-						Topic: "testTopic",
-						Partitions: []kgo.FetchPartition{
-							{
-								Records:          []*kgo.Record{}, // no records
-								HighWatermark:    200,             // large lag here
-								LastStableOffset: 100,
-							},
-						},
-					},
-				},
-			},
-		}
-	}
-}
