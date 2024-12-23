@@ -22,7 +22,7 @@ func SetCliniaHealthyHeader(w http.ResponseWriter) error {
 
 func SetCliniaUnHealthyHeader(w http.ResponseWriter) error {
 	if w == nil {
-		return errorx.InternalErrorf("response writer can not be nil")
+		return errorx.InternalErrorf("response writer cannot be nil")
 	}
 	w.Header().Add(CliniaHealthyHeaderKey, CliniaUnHealthyValue)
 	return nil
