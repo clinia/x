@@ -12,18 +12,18 @@ const (
 	CliniaUnHealthyValue   = "false"
 )
 
-func SetCliniaHealthyHeader(r *http.Request) error {
-	if r == nil {
-		return errorx.InternalErrorf("request can not be nil")
+func SetCliniaHealthyHeader(w http.ResponseWriter) error {
+	if w == nil {
+		return errorx.InternalErrorf("resposne writer can not be nil")
 	}
-	r.Header.Add(CliniaHealthyHeaderKey, CliniaHealthyValue)
+	w.Header().Add(CliniaHealthyHeaderKey, CliniaHealthyValue)
 	return nil
 }
 
-func SetCliniaUnHealthyHeader(r *http.Request) error {
-	if r == nil {
-		return errorx.InternalErrorf("request can not be nil")
+func SetCliniaUnHealthyHeader(w http.ResponseWriter) error {
+	if w == nil {
+		return errorx.InternalErrorf("response writer can not be nil")
 	}
-	r.Header.Add(CliniaHealthyHeaderKey, CliniaUnHealthyValue)
+	w.Header().Add(CliniaHealthyHeaderKey, CliniaUnHealthyValue)
 	return nil
 }
