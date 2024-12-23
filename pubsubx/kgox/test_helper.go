@@ -38,7 +38,7 @@ func getRandomGroupTopics(t *testing.T, count int) (Group string, Topics []messa
 	return
 }
 
-func getPubsubConfig(t *testing.T, retry bool) *pubsubx.Config {
+func getPubsubConfig(t *testing.T, retry bool, monitoring bool) *pubsubx.Config {
 	t.Helper()
 
 	kafkaURLs := []string{"localhost:19092", "localhost:29092", "localhost:39092"}
@@ -60,12 +60,17 @@ func getPubsubConfig(t *testing.T, retry bool) *pubsubx.Config {
 			TopicName: "poison-queue",
 			Enabled:   false,
 		},
+		ConsumerGroupMonitoring: pubsubx.ConsumerGroupMonitoringConfig{
+			Enabled:         monitoring,
+			HealthTimeout:   time.Duration(60 * time.Second),
+			RefreshInterval: time.Duration(50 * time.Millisecond),
+		},
 	}
 }
 
-func getPubSubConfigWithCustomPoisonQueue(t *testing.T, retry bool, customPoisonQueue string) *pubsubx.Config {
+func getPubSubConfigWithCustomPoisonQueue(t *testing.T, retry bool, customPoisonQueue string, monitoring bool) *pubsubx.Config {
 	t.Helper()
-	config := getPubsubConfig(t, retry)
+	config := getPubsubConfig(t, retry, monitoring)
 	config.PoisonQueue.TopicName = customPoisonQueue
 	config.PoisonQueue.Enabled = true
 	return config

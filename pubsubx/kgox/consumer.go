@@ -13,6 +13,7 @@ import (
 	"github.com/clinia/x/pubsubx/messagex"
 	"github.com/clinia/x/tracex"
 	"github.com/samber/lo"
+	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/plugin/kotel"
 	"go.opentelemetry.io/otel/attribute"
@@ -35,6 +36,15 @@ type consumer struct {
 	cancel context.CancelFunc
 	closed bool
 	wg     sync.WaitGroup
+
+	state state
+
+	adminClient *kadm.Client
+}
+
+type state struct {
+	lastConsumptionTimePerTopic map[string]time.Time
+	totalLagPerTopic            kadm.GroupTopicsLag
 }
 
 var _ pubsubx.Subscriber = (*consumer)(nil)
@@ -60,6 +70,13 @@ func newConsumer(l *logrusx.Logger, kotelService *kotel.Kotel, config *pubsubx.C
 
 	if err := cons.bootstrapClient(context.Background()); err != nil {
 		return nil, err
+	}
+
+	if config.ConsumerGroupMonitoring.IsEnabled() {
+		cons.state = state{
+			lastConsumptionTimePerTopic: make(map[string]time.Time, len(topics)),
+			totalLagPerTopic:            make(kadm.GroupTopicsLag, len(topics)),
+		}
 	}
 
 	return cons, nil
@@ -112,6 +129,9 @@ func (c *consumer) bootstrapClient(ctx context.Context) error {
 	}
 
 	c.cl = client
+
+	c.adminClient = kadm.NewClient(c.cl)
+
 	return nil
 }
 
@@ -145,6 +165,10 @@ func (c *consumer) start(ctx context.Context) {
 	bc.MaxElapsedTime = maxElapsedTime
 	bc.MaxInterval = maxRetryInterval
 
+	if c.conf.ConsumerGroupMonitoring.IsEnabled() {
+		go c.monitor(ctx)
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -171,6 +195,13 @@ func (c *consumer) start(ctx context.Context) {
 		}
 
 		fetches.EachTopic(func(tp kgo.FetchTopic) {
+			if c.conf.ConsumerGroupMonitoring.IsEnabled() {
+				defer func() {
+					c.mu.Lock()
+					c.state.lastConsumptionTimePerTopic[tp.Topic] = time.Now()
+					c.mu.Unlock()
+				}()
+			}
 			// Use base name to handle the retry topics under the same topic handler
 			topic := messagex.BaseTopicFromName(tp.Topic)
 			l := c.l.WithContext(ctx).WithFields(
@@ -354,6 +385,53 @@ func (c *consumer) Health() error {
 	if c.cancel == nil {
 		return errorx.InternalErrorf("not subscribed to topics")
 	}
+
+	if c.conf.ConsumerGroupMonitoring.IsEnabled() {
+		err := errorx.InternalErrorf("consumer group %s hanging", c.group.ConsumerGroup(c.conf.Scope))
+
+		for topic, lastConsumptionTime := range c.state.lastConsumptionTimePerTopic {
+			timeElapsed := time.Since(lastConsumptionTime)
+			lag := c.state.totalLagPerTopic[topic].Lag
+
+			if timeElapsed > c.conf.ConsumerGroupMonitoring.HealthTimeout && lag > 0 {
+				err.WithDetails(errorx.InternalErrorf("topic '%s': no consumption for %s and lag is %d", topic, timeElapsed, lag))
+			}
+		}
+
+		if len(err.Details) > 0 {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// monitor refreshes the lag state of the consumer group at the interval set in the config
+func (c *consumer) monitor(ctx context.Context) {
+	ticker := time.NewTicker(c.conf.ConsumerGroupMonitoring.RefreshInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			c.refreshLagState(ctx)
+		}
+	}
+}
+
+// refreshLagState fetches the lag from the admin client and updates the state
+func (c *consumer) refreshLagState(ctx context.Context) error {
+	groupLags, err := c.adminClient.Lag(ctx, c.group.ConsumerGroup(c.conf.Scope))
+	if err != nil {
+		return err
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.state.totalLagPerTopic = groupLags[c.group.ConsumerGroup(c.conf.Scope)].Lag.TotalByTopic()
 
 	return nil
 }
