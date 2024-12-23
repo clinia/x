@@ -14,7 +14,7 @@ const (
 
 func SetCliniaHealthyHeader(w http.ResponseWriter) error {
 	if w == nil {
-		return errorx.InternalErrorf("resposne writer can not be nil")
+		return errorx.InternalErrorf("response writer cannot be nil")
 	}
 	w.Header().Add(CliniaHealthyHeaderKey, CliniaHealthyValue)
 	return nil
