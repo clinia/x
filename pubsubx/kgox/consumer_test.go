@@ -624,16 +624,17 @@ func TestConsumer_Monitoring(t *testing.T) {
 			sendMessage(t, ctx, wClient, testTopic, msg)
 		}
 
-		consumer.stateMu.RLock()
-		lastConsumptionTime, timeOk := consumer.state.lastConsumptionTimePerTopic[testTopic.TopicName(config.Scope)]
-		lag, lagOk := consumer.state.totalLagPerTopic[testTopic.TopicName(config.Scope)]
-		consumer.stateMu.RUnlock()
+		var lastConsumptionTime time.Time
+		var lag kadm.TopicLag
+		var timeOk, lagOk bool
 
-		fmt.Println("LastConsumptionTime:", lastConsumptionTime)
-		fmt.Println("Lag: ", lag)
-		// assert state was updated by the admin client
-		assert.True(t, timeOk)
-		assert.True(t, lagOk)
+		require.Eventually(t, func() bool {
+			consumer.stateMu.RLock()
+			lastConsumptionTime, timeOk = consumer.state.lastConsumptionTimePerTopic[testTopic.TopicName(config.Scope)]
+			lag, lagOk = consumer.state.totalLagPerTopic[testTopic.TopicName(config.Scope)]
+			consumer.stateMu.RUnlock()
+			return timeOk && lagOk
+		}, 10*time.Second, 100*time.Millisecond)
 
 		assert.True(t, !lastConsumptionTime.IsZero())
 		assert.True(t, lag.Lag >= 0)
