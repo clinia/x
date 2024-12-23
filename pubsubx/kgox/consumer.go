@@ -37,8 +37,7 @@ type consumer struct {
 	closed bool
 	wg     sync.WaitGroup
 
-	stateMu sync.RWMutex
-	state   state
+	state state
 
 	adminClient *kadm.Client
 }
@@ -130,6 +129,9 @@ func (c *consumer) bootstrapClient() error {
 	}
 
 	c.cl = client
+
+	c.adminClient = kadm.NewClient(c.cl)
+
 	return nil
 }
 
@@ -195,9 +197,9 @@ func (c *consumer) start(ctx context.Context) {
 		fetches.EachTopic(func(tp kgo.FetchTopic) {
 			if c.conf.ConsumerGroupMonitoring.IsEnabled() {
 				defer func() {
-					c.stateMu.Lock()
+					c.mu.Lock()
 					c.state.lastConsumptionTimePerTopic[tp.Topic] = time.Now()
-					c.stateMu.Unlock()
+					c.mu.Unlock()
 				}()
 			}
 			// Use base name to handle the retry topics under the same topic handler
@@ -388,10 +390,8 @@ func (c *consumer) Health() error {
 		err := errorx.InternalErrorf("consumer group %s hanging", c.group.ConsumerGroup(c.conf.Scope))
 
 		for topic, lastConsumptionTime := range c.state.lastConsumptionTimePerTopic {
-			c.stateMu.RLock()
 			timeElapsed := time.Since(lastConsumptionTime)
 			lag := c.state.totalLagPerTopic[topic].Lag
-			c.stateMu.RUnlock()
 
 			if timeElapsed > c.conf.ConsumerGroupMonitoring.HealthTimeout && lag > 0 {
 				err.WithDetails(errorx.InternalErrorf("topic '%s': no consumption for %s and lag is %d", topic, timeElapsed, lag))
@@ -408,9 +408,6 @@ func (c *consumer) Health() error {
 
 // monitor refreshes the lag state of the consumer group at the interval set in the config
 func (c *consumer) monitor(ctx context.Context) {
-	c.adminClient = kadm.NewClient(c.cl)
-	defer c.adminClient.Close()
-
 	ticker := time.NewTicker(c.conf.ConsumerGroupMonitoring.RefreshInterval)
 	defer ticker.Stop()
 
@@ -431,8 +428,8 @@ func (c *consumer) refreshLagState(ctx context.Context) error {
 		return err
 	}
 
-	c.stateMu.Lock()
-	defer c.stateMu.Unlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	c.state.totalLagPerTopic = groupLags[c.group.ConsumerGroup(c.conf.Scope)].Lag.TotalByTopic()
 

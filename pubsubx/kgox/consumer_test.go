@@ -629,10 +629,10 @@ func TestConsumer_Monitoring(t *testing.T) {
 		var timeOk, lagOk bool
 
 		require.Eventually(t, func() bool {
-			consumer.stateMu.RLock()
+			consumer.mu.RLock()
 			lastConsumptionTime, timeOk = consumer.state.lastConsumptionTimePerTopic[testTopic.TopicName(config.Scope)]
 			lag, lagOk = consumer.state.totalLagPerTopic[testTopic.TopicName(config.Scope)]
-			consumer.stateMu.RUnlock()
+			consumer.mu.RUnlock()
 			return timeOk && lagOk
 		}, 10*time.Second, 100*time.Millisecond)
 
