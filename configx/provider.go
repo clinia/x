@@ -515,6 +515,8 @@ func (p *Provider) PubSubConfig() *pubsubx.Config {
 			Enabled:   p.BoolF("pubsub.poisonQueue.enabled", false),
 			TopicName: p.StringF("pubsub.poisonQueue.topicName", "poison-queue"),
 		},
+		DisableAutoCommit:    p.BoolF("pubsub.disableAutoCommit", false),
+		BlockRebalanceOnPoll: p.BoolF("pubsub.blockRebalanceOnPoll", false),
 	}
 }
 

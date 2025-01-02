@@ -79,6 +79,16 @@
       "type": "boolean",
       "description": "Enable the retry mechanism with pubsub topic",
       "default": false
+    },
+    "disableAutoCommit": {
+      "type": "boolean",
+      "description": "Disable auto-commit logic on records polling and use manual commit instead",
+      "default": false
+    },
+    "blockRebalanceOnPoll": {
+      "type": "boolean",
+      "description": "Block rebalance on poll and enables it between polling, if record processing is too slow, the pubsub connection might timeout. This config is only used if manual commit is enabled",
+      "default": false
     }
   }
 }
