@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io"
 	"strings"
 	"sync"
 	"testing"
@@ -18,8 +19,14 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 )
 
+func Logger() *logrusx.Logger {
+	l := logrusx.New("Clinia x", "testing")
+	l.Entry.Logger.SetOutput(io.Discard)
+	return l
+}
+
 func TestConsumer_Subscribe_Handling(t *testing.T) {
-	l := logrusx.New("test", "")
+	l := Logger()
 	config := getPubsubConfig(t, true)
 	opts := &pubsubx.SubscriberOptions{MaxBatchSize: 10, MaxTopicRetryCount: 3}
 	pqh := getPoisonQueueHandler(t, l, config)
@@ -136,6 +143,85 @@ func TestConsumer_Subscribe_Handling(t *testing.T) {
 		}, 5*time.Second, 250*time.Millisecond)
 	})
 
+	t.Run("should not commit the records if the connection with the pubsub service fails", func(t *testing.T) {
+		group, topics := getRandomGroupTopics(t, 1)
+		createTopic(t, config, topics[0])
+		cg := messagex.ConsumerGroup(group)
+		erh := getEventRetryHandler(t, l, config, cg, nil)
+		consumer, err := newConsumer(l, nil, config, cg, topics, opts, erh, pqh)
+		require.NoError(t, err)
+		wClient := getWriteClient(t)
+		ctx, cncl := context.WithCancel(context.Background())
+		cMu := sync.Mutex{}
+		shouldClose := false
+		wg := sync.WaitGroup{}
+		require.NoError(t, consumer.Subscribe(ctx, pubsubx.Handlers{
+			topics[0]: func(ctx context.Context, msgs []*messagex.Message) ([]error, error) {
+				defer func() {
+					for range msgs {
+						wg.Done()
+					}
+				}()
+				cMu.Lock()
+				defer cMu.Unlock()
+				if shouldClose {
+					// Breaking the logic of how we handle the client connection just to simulate a network failure
+					consumer.cancel()
+					go consumer.cl.Close()
+				}
+				return nil, nil
+			},
+		}))
+		expectedMsg := messagex.NewMessage([]byte("test"))
+		expectedMsg2 := messagex.NewMessage([]byte("test2"))
+		closeConsumer1 := func() {
+			cMu.Lock()
+			defer cMu.Unlock()
+			shouldClose = true
+		}
+
+		wg.Add(1)
+		sendMessage(t, ctx, wClient, topics[0], expectedMsg)
+		// This makes sure the first message has been processed and commited
+		time.Sleep(3 * time.Second)
+		wg.Add(1)
+		closeConsumer1()
+		sendMessage(t, ctx, wClient, topics[0], expectedMsg2)
+		// This waits for the failed execution
+		wg.Wait()
+		cncl()
+
+		// Add some sleep time to make sure the consumer has time to cancel it's execution
+		time.Sleep(2 * time.Second)
+
+		ctx = context.Background()
+		consumer2, err := newConsumer(l, nil, config, cg, topics, opts, erh, pqh)
+		require.NoError(t, err)
+
+		var mu sync.Mutex
+		count := 0
+		var receivedPayload string
+		err = consumer2.Subscribe(ctx, pubsubx.Handlers{
+			topics[0]: func(ctx context.Context, msgs []*messagex.Message) ([]error, error) {
+				mu.Lock()
+				defer mu.Unlock()
+				count += len(msgs)
+				if len(msgs) <= 0 {
+					t.Fail()
+				}
+				receivedPayload = string(msgs[0].Payload)
+				return make([]error, 0), nil
+			},
+		})
+		require.NoError(t, err)
+		assert.EventuallyWithT(t, func(c *assert.CollectT) {
+			mu.Lock()
+			defer mu.Unlock()
+			assert.Equal(c, "test2", receivedPayload)
+			assert.Equal(c, 1, count)
+		}, 5*time.Second, 250*time.Millisecond)
+	})
+
 	t.Run("should push back messages on retryable error for complete error", func(t *testing.T) {
 		t.Skipf("test takes at least 45 seconds to run, skipping to reduce test suite time, please manually trigger this test")
 		group, topics := getRandomGroupTopics(t, 1)
@@ -192,7 +278,7 @@ func TestConsumer_Subscribe_Handling(t *testing.T) {
 }
 
 func TestConsumer_Subscribe_Concurrency(t *testing.T) {
-	l := logrusx.New("test", "")
+	l := Logger()
 	config := getPubsubConfig(t, false)
 	pqh := getPoisonQueueHandler(t, l, config)
 	opts := &pubsubx.SubscriberOptions{MaxBatchSize: 10}
@@ -345,6 +431,8 @@ func TestConsumer_Subscribe_Concurrency(t *testing.T) {
 			assert.Equal(t, expectedMsg, msg)
 		}
 
+		time.Sleep(1 * time.Second)
+
 		// Close the consumer
 		err = consumer.Close()
 		require.NoError(t, err)
@@ -355,10 +443,10 @@ func TestConsumer_Subscribe_Concurrency(t *testing.T) {
 
 		// We should not receive the message since the consumer is closed
 		select {
+		case <-time.After(defaultExpectedNoReceiveTimeout):
+			t.Log("no message consumed, all good")
 		case <-receivedMsgs:
 			t.Fatalf("expected no message to be consumed")
-		default:
-			t.Log("no message consumed, all good")
 		}
 
 		// Re-open the consumer
@@ -372,6 +460,8 @@ func TestConsumer_Subscribe_Concurrency(t *testing.T) {
 		case msg := <-receivedMsgs:
 			assert.Equal(t, expectedMsg2, msg)
 		}
+
+		time.Sleep(1 * time.Second)
 
 		// Close the consumer
 		err = consumer.Close()
