@@ -60,8 +60,7 @@ func getPubsubConfig(t *testing.T, retry bool) *pubsubx.Config {
 			TopicName: "poison-queue",
 			Enabled:   false,
 		},
-		DisableAutoCommit:    true,
-		BlockRebalanceOnPoll: false,
+		DisableAutoCommit: true,
 	}
 }
 

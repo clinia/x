@@ -138,11 +138,6 @@ func (c *consumer) bootstrapClient(ctx context.Context) error {
 		)
 		// TODO: Add manual handling of the rebalancing while poling, currently we just assume that we might
 		// double process some records if it happens
-		if c.conf.BlockRebalanceOnPoll {
-			kopts = append(kopts,
-				kgo.BlockRebalanceOnPoll(),
-			)
-		}
 	}
 
 	client, err := kgo.NewClient(kopts...)

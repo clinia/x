@@ -13,13 +13,12 @@ import (
 )
 
 type Config struct {
-	PoisonQueue          PoisonQueueConfig `json:"poisonQueue"`
-	Scope                string            `json:"scope"`
-	Provider             string            `json:"provider"`
-	Providers            ProvidersConfig   `json:"providers"`
-	TopicRetry           bool              `json:"topicRetry"`
-	DisableAutoCommit    bool              `json:"disableAutoCommit"`
-	BlockRebalanceOnPoll bool              `json:"blockRebalanceOnPoll"`
+	PoisonQueue       PoisonQueueConfig `json:"poisonQueue"`
+	Scope             string            `json:"scope"`
+	Provider          string            `json:"provider"`
+	Providers         ProvidersConfig   `json:"providers"`
+	TopicRetry        bool              `json:"topicRetry"`
+	DisableAutoCommit bool              `json:"disableAutoCommit"`
 }
 
 type ProvidersConfig struct {
