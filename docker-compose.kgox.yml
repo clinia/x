@@ -9,7 +9,7 @@ services:
       - redpanda
       - start
       - --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:19092
-      - --advertise-kafka-addr internal://redpanda-0:9092,external://localhost:19092
+      - --advertise-kafka-addr internal://toxiproxy:19092,external://localhost:19092
       - --pandaproxy-addr internal://0.0.0.0:8082,external://0.0.0.0:18082
       - --advertise-pandaproxy-addr internal://redpanda-0:8082,external://localhost:18082
       - --schema-registry-addr internal://0.0.0.0:8081,external://0.0.0.0:18081
@@ -23,7 +23,6 @@ services:
     ports:
       - 18081:18081
       - 18082:18082
-      - 19092:19092
       - 19644:9644
 
   redpanda-1:
@@ -31,7 +30,7 @@ services:
       - redpanda
       - start
       - --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:29092
-      - --advertise-kafka-addr internal://redpanda-1:9092,external://localhost:29092
+      - --advertise-kafka-addr internal://toxiproxy:29092,external://localhost:29092
       - --pandaproxy-addr internal://0.0.0.0:8082,external://0.0.0.0:28082
       - --advertise-pandaproxy-addr internal://redpanda-1:8082,external://localhost:28082
       - --schema-registry-addr internal://0.0.0.0:8081,external://0.0.0.0:28081
@@ -46,7 +45,6 @@ services:
     ports:
       - 28081:28081
       - 28082:28082
-      - 29092:29092
       - 29644:9644
     depends_on:
       - redpanda-0
@@ -55,7 +53,7 @@ services:
       - redpanda
       - start
       - --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:39092
-      - --advertise-kafka-addr internal://redpanda-2:9092,external://localhost:39092
+      - --advertise-kafka-addr internal://toxiproxy:39092,external://localhost:39092
       - --pandaproxy-addr internal://0.0.0.0:8082,external://0.0.0.0:38082
       - --advertise-pandaproxy-addr internal://redpanda-2:8082,external://localhost:38082
       - --schema-registry-addr internal://0.0.0.0:8081,external://0.0.0.0:38081
@@ -70,10 +68,19 @@ services:
     ports:
       - 38081:38081
       - 38082:38082
-      - 39092:39092
       - 39644:9644
     depends_on:
       - redpanda-0
+  toxiproxy:
+    image: ghcr.io/shopify/toxiproxy
+    command: -host=0.0.0.0 --config /toxiconfig.json
+    ports:
+      - 8474:8474
+      - 19092:19092
+      - 29092:29092
+      - 39092:39092
+    volumes:
+      - ./toxiproxy.json:/toxiconfig.json
   redpanda-console:
     image: oci.clinia.dev/rp/redpandadata/console:v2.7.2
     entrypoint: /bin/sh
@@ -82,7 +89,7 @@ services:
       CONFIG_FILEPATH: /tmp/config.yml
       CONSOLE_CONFIG_FILE: |
         kafka:
-          brokers: ["redpanda-0:9092", "redpanda-1:9092", "redpanda-2:9092"]
+          brokers: ["toxiproxy:19092", "toxiproxy:29092", "toxiproxy:39092"]
           schemaRegistry:
             enabled: true
             urls: ["http://redpanda-0:8081", "http://redpanda-1:8081", "http://redpanda-2:8081"]
@@ -95,4 +102,7 @@ services:
     ports:
       - 8081:8081
     depends_on:
+      - toxiproxy
       - redpanda-0
+      - redpanda-1
+      - redpanda-2

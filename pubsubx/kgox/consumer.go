@@ -126,6 +126,8 @@ func (c *consumer) bootstrapClient(ctx context.Context) error {
 		kgo.ConsumerGroup(c.group.ConsumerGroup(c.conf.Scope)),
 		kgo.SeedBrokers(c.conf.Providers.Kafka.Brokers...),
 		kgo.ConsumeTopics(scopedTopics...),
+		// TODO: Make this configurable, and make the test actually shrink this to a very low value
+		// kgo.DialTimeout(),
 	}
 
 	if c.kotelService != nil {

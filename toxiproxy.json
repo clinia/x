@@ -1,0 +1,20 @@
+[
+    {
+        "name": "redpanda_0",
+        "listen": "[::]:19092",
+        "upstream": "redpanda-0:9092",
+        "enabled": true
+    },
+    {
+        "name": "redpanda_1",
+        "listen": "[::]:29092",
+        "upstream": "redpanda-1:9092",
+        "enabled": true
+    },
+    {
+        "name": "redpanda_2",
+        "listen": "[::]:39092",
+        "upstream": "redpanda-2:9092",
+        "enabled": true
+    }
+]

@@ -4,11 +4,14 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	toxiproxy "github.com/Shopify/toxiproxy/v2/client"
 
 	"github.com/clinia/x/errorx"
 	"github.com/clinia/x/logrusx"
@@ -151,9 +154,10 @@ func TestConsumer_Subscribe_Handling(t *testing.T) {
 		consumer, err := newConsumer(l, nil, config, cg, topics, opts, erh, pqh)
 		require.NoError(t, err)
 		wClient := getWriteClient(t)
-		ctx, cncl := context.WithCancel(context.Background())
+		ctx, _ := context.WithCancel(context.Background())
 		cMu := sync.Mutex{}
 		shouldClose := false
+		waitForClose := make(chan struct{})
 		wg := sync.WaitGroup{}
 		require.NoError(t, consumer.Subscribe(ctx, pubsubx.Handlers{
 			topics[0]: func(ctx context.Context, msgs []*messagex.Message) ([]error, error) {
@@ -165,15 +169,35 @@ func TestConsumer_Subscribe_Handling(t *testing.T) {
 				cMu.Lock()
 				defer cMu.Unlock()
 				if shouldClose {
-					// Breaking the logic of how we handle the client connection just to simulate a network failure
-					consumer.cancel()
-					go consumer.cl.Close()
+					<-waitForClose
 				}
 				return nil, nil
 			},
 		}))
 		expectedMsg := messagex.NewMessage([]byte("test"))
 		expectedMsg2 := messagex.NewMessage([]byte("test2"))
+		cl := toxiproxy.NewClient("localhost:8474")
+		proxies := []*toxiproxy.Proxy{}
+		for i := range 3 {
+			proxy, err := cl.Proxy(fmt.Sprintf("redpanda_%d", i))
+			require.NoError(t, err)
+			proxies = append(proxies, proxy)
+		}
+		disableProxies := func() {
+			for _, proxy := range proxies {
+				proxy.Disable()
+			}
+			waitForClose <- struct{}{}
+		}
+
+		enableProxies := func() {
+			for _, proxy := range proxies {
+				proxy.Enable()
+			}
+		}
+
+		t.Cleanup(enableProxies)
+
 		closeConsumer1 := func() {
 			cMu.Lock()
 			defer cMu.Unlock()
@@ -183,16 +207,19 @@ func TestConsumer_Subscribe_Handling(t *testing.T) {
 		wg.Add(1)
 		sendMessage(t, ctx, wClient, topics[0], expectedMsg)
 		// This makes sure the first message has been processed and commited
-		time.Sleep(3 * time.Second)
+		wg.Wait()
 		wg.Add(1)
 		closeConsumer1()
 		sendMessage(t, ctx, wClient, topics[0], expectedMsg2)
+		disableProxies()
 		// This waits for the failed execution
 		wg.Wait()
-		cncl()
+		// cncl()
 
 		// Add some sleep time to make sure the consumer has time to cancel it's execution
-		time.Sleep(2 * time.Second)
+		consumer.wg.Wait()
+		consumer.Close()
+		enableProxies()
 
 		ctx = context.Background()
 		consumer2, err := newConsumer(l, nil, config, cg, topics, opts, erh, pqh)
