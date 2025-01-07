@@ -523,7 +523,7 @@ func consumer_Subscribe_Concurrency_test(t *testing.T, eae bool) {
 		group, topics := getRandomGroupTopics(t, 3)
 		counter := make([]atomic.Int32, len(topics))
 		wClient := getWriteClient(t)
-		hs := make(pubsubx.Handlers)
+		hs := make(pubsubx.Handlers, len(topics))
 		for i, topic := range topics {
 			createTopic(t, config, topic)
 			hs[topic] = func(ctx context.Context, msgs []*messagex.Message) ([]error, error) {
