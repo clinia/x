@@ -68,7 +68,7 @@ func newConsumer(l *logrusx.Logger, kotelService *kotel.Kotel, config *pubsubx.C
 
 	cons := &consumer{l: l, kotelService: kotelService, group: group, conf: config, topics: topics, opts: opts, erh: erh, pqh: pqh}
 
-	if err := cons.bootstrapClient(); err != nil {
+	if err := cons.bootstrapClient(context.Background()); err != nil {
 		return nil, err
 	}
 
@@ -98,13 +98,13 @@ func (c *consumer) attributes(topic *messagex.Topic) []attribute.KeyValue {
 	return attrs
 }
 
-func (c *consumer) bootstrapClient() error {
+func (c *consumer) bootstrapClient(ctx context.Context) error {
 	if c.erh == nil {
 		return errorx.InternalErrorf("EventRetryHandler should not be nil in the consumer")
 	}
 	retryTopics, _, err := c.erh.generateRetryTopics(context.Background(), c.topics...)
 	if err != nil {
-		c.l.WithError(err).Errorf("event retry mechanism might not work properly")
+		c.l.WithContext(ctx).WithError(err).Errorf("event retry mechanism might not work properly")
 	}
 	scopedTopics := make([]string, len(c.topics)+len(retryTopics))
 	for i, t := range c.topics {
@@ -182,7 +182,7 @@ func (c *consumer) start(ctx context.Context) {
 			// returned from polls so that users can notice and take action.
 			// TODO: Handle errors
 			// If its a context canceled error, we should return
-			l := c.l.WithFields(
+			l := c.l.WithContext(ctx).WithFields(
 				logrusx.NewLogFields(c.attributes(nil)...),
 			)
 			if lo.SomeBy(errs, func(err kgo.FetchError) bool { return errs[0].Err == context.Canceled }) {
@@ -204,7 +204,7 @@ func (c *consumer) start(ctx context.Context) {
 			}
 			// Use base name to handle the retry topics under the same topic handler
 			topic := messagex.BaseTopicFromName(tp.Topic)
-			l := c.l.WithFields(
+			l := c.l.WithContext(ctx).WithFields(
 				logrusx.NewLogFields(c.attributes(&topic)...),
 			)
 			ctx := context.WithValue(ctx, ctxLoggerKey, l)
@@ -313,7 +313,7 @@ func (c *consumer) publishPoisonQueueMessages(ctx context.Context, topic message
 	topicName := topic.TopicName(c.conf.Scope)
 	localErrs := errs
 	if len(errs) > 1 && len(errs) != len(msgs) {
-		c.l.Errorf("tried to publish poison queue messages but error don't match messages number, failing back to empty error")
+		c.l.WithContext(ctx).Errorf("tried to publish poison queue messages but error don't match messages number, failing back to empty error")
 		localErrs = []error{}
 	}
 	if len(errs) == 1 {
@@ -340,7 +340,7 @@ func (c *consumer) Subscribe(ctx context.Context, topicHandlers pubsubx.Handlers
 		c.wg.Wait()
 
 		// We can create a new client
-		if err := c.bootstrapClient(); err != nil {
+		if err := c.bootstrapClient(ctx); err != nil {
 			c.mu.RUnlock()
 			return err
 		}
@@ -361,7 +361,7 @@ func (c *consumer) Subscribe(ctx context.Context, topicHandlers pubsubx.Handlers
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				c.l.Errorf("panic while consuming messages: %v", r)
+				c.l.WithContext(ctx).Errorf("panic while consuming messages: %v", r)
 			}
 
 			// Teardown

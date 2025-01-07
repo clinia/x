@@ -22,8 +22,9 @@ type eventRetryHandler struct {
 }
 
 func (erh *eventRetryHandler) generateRetryTopics(ctx context.Context, topics ...messagex.Topic) ([]messagex.Topic, []error, error) {
+	l := erh.l.WithContext(ctx)
 	if !erh.canTopicRetry() || len(topics) == 0 {
-		erh.l.Debugf("not generating any retry topics, configuration is either disable, max topic count is <= 0 or no topic are passed in")
+		l.Debugf("not generating any retry topics, configuration is either disable, max topic count is <= 0 or no topic are passed in")
 		return []messagex.Topic{}, []error{}, nil
 	}
 	retryTopics := lo.Map(topics, func(topic messagex.Topic, _ int) messagex.Topic {
@@ -32,7 +33,7 @@ func (erh *eventRetryHandler) generateRetryTopics(ctx context.Context, topics ..
 
 	pbac, err := erh.AdminClient()
 	if err != nil {
-		erh.l.WithError(err).Errorf("failed to generate admin client on retry topic creation")
+		l.WithError(err).Errorf("failed to generate admin client on retry topic creation")
 		return []messagex.Topic{}, []error{}, err
 	}
 
@@ -46,7 +47,7 @@ func (erh *eventRetryHandler) generateRetryTopics(ctx context.Context, topics ..
 	}
 	res, err := pbac.CreateTopics(ctx, 1, replicationFactor, scopedRetryTopics, erh.defaultCreateTopicConfigEntries)
 	if err != nil {
-		erh.l.WithError(err).Errorf("failed to execute retry topic creation")
+		l.WithError(err).Errorf("failed to execute retry topic creation")
 		return []messagex.Topic{}, []error{}, err
 	}
 	out := make([]messagex.Topic, 0, len(topics))
@@ -55,12 +56,12 @@ func (erh *eventRetryHandler) generateRetryTopics(ctx context.Context, topics ..
 		scopeTopic := retryTopic.TopicName(erh.conf.Scope)
 		tr, ok := res[scopeTopic]
 		if !ok {
-			erh.l.Errorf("retry topic [%s] not included in topic creation response", scopeTopic)
+			l.Errorf("retry topic [%s] not included in topic creation response", scopeTopic)
 			errs[i] = errorx.InvalidArgumentErrorf("retry topic [%s] not included in topic creation response", scopeTopic)
 			continue
 		}
 		if tr.Err != nil && tr.Err.Error() != kerr.TopicAlreadyExists.Error() {
-			erh.l.WithError(tr.Err).Errorf("failed to create retry topic [%s]", scopeTopic)
+			l.WithError(tr.Err).Errorf("failed to create retry topic [%s]", scopeTopic)
 			errs[i] = tr.Err
 			continue
 		}
