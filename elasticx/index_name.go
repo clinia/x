@@ -10,20 +10,20 @@ func NewIndexName(elements ...string) IndexName {
 	return IndexName(strings.Join(elements, pathSeparator))
 }
 
-func (i IndexName) elements() []string {
+func (i IndexName) Elements() []string {
 	return strings.Split(string(i), pathSeparator)
 }
 
 func (i IndexName) EngineName() string {
-	elems := i.elements()
+	elems := i.Elements()
 	if len(elems) < 2 {
 		return ""
 	}
-	return i.elements()[1]
+	return i.Elements()[1]
 }
 
 func (i IndexName) Name() string {
-	elems := i.elements()
+	elems := i.Elements()
 	if len(elems) < 3 {
 		return ""
 	}
