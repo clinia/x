@@ -17,6 +17,7 @@ import (
 	"github.com/twmb/franz-go/plugin/kotel"
 	"go.opentelemetry.io/otel/attribute"
 	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
+	"golang.org/x/sync/errgroup"
 )
 
 type consumer struct {
@@ -26,7 +27,7 @@ type consumer struct {
 	group        messagex.ConsumerGroup
 	topics       []messagex.Topic
 	opts         *pubsubx.SubscriberOptions
-	handlers     pubsubx.Handlers
+	handlers     map[messagex.Topic]handlerExecutor
 	kotelService *kotel.Kotel
 	erh          *eventRetryHandler
 	pqh          PoisonQueueHandler
@@ -35,6 +36,26 @@ type consumer struct {
 	cancel context.CancelFunc
 	closed bool
 	wg     sync.WaitGroup
+}
+
+// TODO: Add the ability to handle repartition and cancel specific topic handling if the parition is revoked
+// TODO: Add gauge metric to record the current count of records that are being processed
+// TODO: Add a histogram metric to record the latency of the handler
+type handlerExecutor struct {
+	l *logrusx.Logger
+	h pubsubx.Handler
+	t messagex.Topic
+}
+
+func (he *handlerExecutor) handle(ctx context.Context, msgs []*messagex.Message) (outErrs []error, outErr error) {
+	defer func() {
+		if r := recover(); r != nil {
+			outErr = errorx.InternalErrorf("panic while handling messages")
+			stackTrace := tracex.GetStackTrace()
+			he.l.WithContext(ctx).WithFields(logrusx.NewLogFields(semconv.ExceptionStacktrace(stackTrace))).Errorf("panic while handling messages")
+		}
+	}()
+	return he.h(ctx, msgs)
 }
 
 var _ pubsubx.Subscriber = (*consumer)(nil)
@@ -106,6 +127,14 @@ func (c *consumer) bootstrapClient(ctx context.Context) error {
 		kopts = append(kopts, kgo.WithHooks(c.kotelService.Hooks()...))
 	}
 
+	if !c.conf.EnableAutoCommit {
+		kopts = append(kopts,
+			kgo.DisableAutoCommit(),
+		)
+		// TODO: Add manual handling of the rebalancing while poling, currently we just assume that we might
+		// double process some records if it happens
+	}
+
 	client, err := kgo.NewClient(kopts...)
 	if err != nil {
 		return err
@@ -140,10 +169,100 @@ func (c *consumer) Close() error {
 	return nil
 }
 
-func (c *consumer) start(ctx context.Context) {
+func (c *consumer) convertRecordsToMessages(rs []*kgo.Record) []*messagex.Message {
+	// TODO: Handle the records that can't be Unmarhsal, now they are dropped and lost
+	msgs := make([]*messagex.Message, 0, len(rs))
+	for _, r := range rs {
+		m, err := defaultMarshaler.Unmarshal(r)
+		if err != nil {
+			c.l.WithError(err).Errorf("failed to unmarshal message: %v", err)
+			continue
+		}
+
+		msgs = append(msgs, m)
+	}
+	return msgs
+}
+
+func (c *consumer) handleTopic(ctx context.Context, tp kgo.FetchTopic) error {
+	// Use base name to handle the retry topics under the same topic handler
+	topic := messagex.BaseTopicFromName(tp.Topic)
+	l := c.l.WithContext(ctx).WithFields(
+		logrusx.NewLogFields(c.attributes(&topic)...),
+	)
+	ctx = context.WithValue(ctx, ctxLoggerKey, l)
+
+	// We do not protect the read to handlers here since we cannot get to a point where the handlers are reset and we are still in this consuming loop
+	topicHandler, ok := c.handlers[topic]
+	if !ok {
+		l.Errorf("no handler for topic")
+		return errorx.InternalErrorf("no handler for topic")
+	}
+	msgs := c.convertRecordsToMessages(tp.Records())
+
 	bc := backoff.NewExponentialBackOff()
 	bc.MaxElapsedTime = maxElapsedTime
 	bc.MaxInterval = maxRetryInterval
+	retries := 0
+	err := backoff.Retry(func() error {
+		errs, err := topicHandler.handle(ctx, msgs)
+		if err != nil {
+			l.WithError(err).Errorf("error while handling messages")
+
+			if err == pubsubx.AbortSubscribeError() {
+				return backoff.Permanent(err)
+			}
+
+			retries++
+			if retries > maxRetryCount {
+				// In this case, we should abort the subscription as this is most likely a critical error
+				return backoff.Permanent(pubsubx.AbortSubscribeError())
+			}
+
+			return err
+		}
+
+		if len(errs) > 0 {
+			allErrs := errors.Join(errs...)
+			if allErrs != nil {
+				l.WithError(allErrs).Errorf("errors while handling messages")
+			}
+			c.handleRemoteRetryLogic(ctx, topic, errs, msgs)
+		}
+
+		return nil
+	}, bc)
+
+	if err == pubsubx.AbortSubscribeError() {
+		l.WithError(err).Warnf("subscriber abort error returned from topic : %s", tp.Topic)
+		c.handleRemoteRetryLogic(ctx, topic, []error{errorx.NewRetryableError(err)}, msgs)
+	} else if err != nil {
+		l.WithError(err).Warnf("unhandled error happened while handling topic : %s", tp.Topic)
+	}
+	return err
+}
+
+func (c *consumer) start(ctx context.Context) {
+	l := c.l.WithContext(ctx)
+	handleTopicErrorHandler := func(err error) {
+		switch err {
+		case nil:
+			return
+		case pubsubx.AbortSubscribeError():
+			l.Infof("aborting consumer")
+			c.mu.RLock()
+			defer c.mu.RUnlock()
+			// This is required since the context is cancelled by the backoff
+			if c.cancel != nil {
+				l.WithError(err).Infof("cancelled consumer")
+				c.cancel()
+			} else {
+				l.WithError(err).Warnf("abort requested but no cancel function found, this should not happen")
+			}
+		default:
+			l.WithError(err).Errorf("non abort error, not doing anything")
+		}
+	}
 
 	for {
 		select {
@@ -152,106 +271,60 @@ func (c *consumer) start(ctx context.Context) {
 		default:
 		}
 
+		// Sync task that hang until it receive at least one record
+		// When records are pulled, metadata is also updated within the client
 		fetches := c.cl.PollRecords(ctx, int(c.opts.MaxBatchSize))
 		if errs := fetches.Errors(); len(errs) > 0 {
 			// All errors are retried internally when fetching, but non-retriable errors are
 			// returned from polls so that users can notice and take action.
 			// TODO: Handle errors
 			// If its a context canceled error, we should return
-			l := c.l.WithContext(ctx).WithFields(
+			l := c.l.WithFields(
 				logrusx.NewLogFields(c.attributes(nil)...),
 			)
 			if lo.SomeBy(errs, func(err kgo.FetchError) bool { return errs[0].Err == context.Canceled }) {
-				l.Infof("context canceled, stopping consumer")
+				l.Warnf("context canceled, stopping consumer")
 				return
 			}
 
 			l.WithError(errors.Join(lo.Map(errs, func(err kgo.FetchError, i int) error { return err.Err })...)).Errorf("error while polling records, Stopping consumer")
 			return
 		}
-
+		var wg errgroup.Group
+		if c.opts.MaxParallelAsyncExecution <= 0 {
+			wg.SetLimit(-1)
+		} else {
+			wg.SetLimit(int(c.opts.MaxParallelAsyncExecution))
+		}
 		fetches.EachTopic(func(tp kgo.FetchTopic) {
-			// Use base name to handle the retry topics under the same topic handler
-			topic := messagex.BaseTopicFromName(tp.Topic)
-			l := c.l.WithContext(ctx).WithFields(
-				logrusx.NewLogFields(c.attributes(&topic)...),
-			)
-			ctx := context.WithValue(ctx, ctxLoggerKey, l)
-			records := tp.Records()
-			allMsgs := make([]*messagex.Message, 0, len(records))
-			for _, record := range records {
-				msg, err := defaultMarshaler.Unmarshal(record)
-				if err != nil {
-					l.Warnf("failed to unmarshal message: %v", err)
-					continue
-				}
-
-				allMsgs = append(allMsgs, msg)
-			}
-
-			// We do not protect the read to handlers here since we cannot get to a point where the handlers are reset and we are still in this consuming loop
-			topicHandler, ok := c.handlers[topic]
-			if !ok || topicHandler == nil {
-				l.Errorf("no handler for topic")
-				return
-			}
-			wrappedHandler := func(ctx context.Context, msgs []*messagex.Message) (outErrs []error, outErr error) {
-				defer func() {
-					if r := recover(); r != nil {
-						outErr = errorx.InternalErrorf("panic while handling messages")
-						stackTrace := tracex.GetStackTrace()
-						l.WithContext(ctx).WithFields(logrusx.NewLogFields(semconv.ExceptionStacktrace(stackTrace))).Errorf("panic while handling messages")
+			switch {
+			case c.opts.EnableAsyncExecution:
+				wg.Go(func() error {
+					if err := c.handleTopic(ctx, tp); err != nil {
+						switch err {
+						case pubsubx.AbortSubscribeError():
+							return err
+						default:
+							return nil
+						}
 					}
-				}()
-				return topicHandler(ctx, msgs)
-			}
-
-			bc.Reset()
-			retries := 0
-			err := backoff.Retry(func() error {
-				errs, err := wrappedHandler(ctx, allMsgs)
-				if err != nil {
-					if err == pubsubx.AbortSubscribeError() {
-						return backoff.Permanent(err)
-					}
-
-					l.WithError(err).Errorf("error while handling messages")
-
-					retries++
-					if retries > maxRetryCount {
-						// In this case, we should abort the subscription as this is most likely a critical error
-						return backoff.Permanent(pubsubx.AbortSubscribeError())
-					}
-
-					return err
-				}
-
-				if len(errs) > 0 {
-					allErrs := errors.Join(errs...)
-					if allErrs != nil {
-						l.WithError(allErrs).Errorf("errors while handling messages")
-					}
-					c.handleRemoteRetryLogic(ctx, topic, errs, allMsgs)
-				}
-
-				return nil
-			}, bc)
-
-			if err == pubsubx.AbortSubscribeError() {
-				l.Infof("aborting consumer")
-				c.mu.RLock()
-				defer c.mu.RUnlock()
-				c.handleRemoteRetryLogic(ctx, topic, []error{errorx.NewRetryableError(err)}, allMsgs)
-				// This is required since the context is cancelled by the backoff
-				if c.cancel != nil {
-					c.cancel()
-					l.Infof("cancelled consumer")
-				} else {
-					l.Warnf("abort requested but no cancel function found")
-				}
-				return
+					return nil
+				})
+			default:
+				handleTopicErrorHandler(c.handleTopic(ctx, tp))
 			}
 		})
+		if c.opts.EnableAsyncExecution {
+			handleTopicErrorHandler(wg.Wait())
+		}
+		if !c.conf.EnableAutoCommit {
+			// If commiting the offsets fails, kill the loop by returning
+			if err := c.cl.CommitUncommittedOffsets(ctx); err != nil {
+				l.WithError(err).Errorf("failed to commit records")
+				return
+			}
+		}
+		c.cl.AllowRebalance()
 	}
 }
 
@@ -294,11 +367,18 @@ func (c *consumer) publishPoisonQueueMessages(ctx context.Context, topic message
 
 // Subscribe implements pubsubx.Subscriber.
 func (c *consumer) Subscribe(ctx context.Context, topicHandlers pubsubx.Handlers) error {
+	handlers := make(map[messagex.Topic]handlerExecutor)
 	for _, topic := range c.topics {
-		if handler, ok := topicHandlers[topic]; !ok {
+		handler, ok := topicHandlers[topic]
+		if !ok {
 			return errorx.FailedPreconditionErrorf("missing handler for topic %s", topic)
 		} else if handler == nil {
 			return errorx.FailedPreconditionErrorf("nil handler for topic %s", topic)
+		}
+		handlers[topic] = handlerExecutor{
+			t: topic,
+			h: handler,
+			l: c.l,
 		}
 	}
 
@@ -323,7 +403,7 @@ func (c *consumer) Subscribe(ctx context.Context, topicHandlers pubsubx.Handlers
 	}
 	ctx, cancel := context.WithCancel(ctx)
 
-	c.handlers = topicHandlers
+	c.handlers = handlers
 	c.cancel = cancel
 
 	c.wg.Add(1)

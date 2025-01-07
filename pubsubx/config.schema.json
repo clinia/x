@@ -79,6 +79,11 @@
       "type": "boolean",
       "description": "Enable the retry mechanism with pubsub topic",
       "default": false
+    },
+    "enableAutoCommit": {
+      "type": "boolean",
+      "description": "Enable auto-commit logic on records polling",
+      "default": true
     }
   }
 }

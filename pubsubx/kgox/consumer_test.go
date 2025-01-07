@@ -4,8 +4,12 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
+	"io"
+	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -18,10 +22,24 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 )
 
+func Logger() *logrusx.Logger {
+	l := logrusx.New("Clinia x", "testing")
+	l.Entry.Logger.SetOutput(io.Discard)
+	return l
+}
+
 func TestConsumer_Subscribe_Handling(t *testing.T) {
-	l := logrusx.New("test", "")
+	consumer_Subscribe_Handling_test(t, false)
+}
+
+func TestConsumer_Subscribe_Handling_async(t *testing.T) {
+	consumer_Subscribe_Handling_test(t, true)
+}
+
+func consumer_Subscribe_Handling_test(t *testing.T, eae bool) {
+	l := Logger()
 	config := getPubsubConfig(t, true)
-	opts := &pubsubx.SubscriberOptions{MaxBatchSize: 10, MaxTopicRetryCount: 3}
+	opts := &pubsubx.SubscriberOptions{MaxBatchSize: 10, MaxTopicRetryCount: 3, EnableAsyncExecution: eae}
 	pqh := getPoisonQueueHandler(t, l, config)
 
 	getWriteClient := func(t *testing.T) *kgo.Client {
@@ -44,7 +62,7 @@ func TestConsumer_Subscribe_Handling(t *testing.T) {
 		require.NoError(t, r.FirstErr())
 	}
 
-	t.Run("should push back messages on retryable error", func(t *testing.T) {
+	t.Run("should push back messages on retryable error async : "+strconv.FormatBool(eae), func(t *testing.T) {
 		group, topics := getRandomGroupTopics(t, 1)
 		createTopic(t, config, topics[0])
 		cg := messagex.ConsumerGroup(group)
@@ -56,20 +74,17 @@ func TestConsumer_Subscribe_Handling(t *testing.T) {
 		wClient := getWriteClient(t)
 
 		ctx := context.Background()
-		headerResult := map[string]int{
-			"0": 0,
-			"1": 0,
-			"2": 0,
+		headerResult := map[string]*atomic.Int32{
+			"0": {},
+			"1": {},
+			"2": {},
 		}
 
-		mu := sync.Mutex{}
 		topicHandlers := pubsubx.Handlers{
 			topics[0]: func(ctx context.Context, msgs []*messagex.Message) ([]error, error) {
-				mu.Lock()
-				defer mu.Unlock()
 				errs := make([]error, len(msgs))
 				for i, msg := range msgs {
-					headerResult[msg.Metadata[messagex.RetryCountHeaderKey]] += 1
+					headerResult[msg.Metadata[messagex.RetryCountHeaderKey]].Add(1)
 					errs[i] = errorx.NewRetryableError(errors.New("Retry Me"))
 				}
 				return errs, nil
@@ -82,15 +97,13 @@ func TestConsumer_Subscribe_Handling(t *testing.T) {
 		sendMessage(t, ctx, wClient, topics[0], expectedMsg)
 
 		assert.EventuallyWithT(t, func(c *assert.CollectT) {
-			mu.Lock()
-			defer mu.Unlock()
-			assert.Equal(c, 1, headerResult["0"])
-			assert.Equal(c, 1, headerResult["1"])
-			assert.Equal(c, 1, headerResult["2"])
+			assert.Equal(c, int32(1), headerResult["0"].Load())
+			assert.Equal(c, int32(1), headerResult["1"].Load())
+			assert.Equal(c, int32(1), headerResult["2"].Load())
 		}, 5*time.Second, 250*time.Millisecond)
 	})
 
-	t.Run("should not push back messages on non retryable error", func(t *testing.T) {
+	t.Run("should not push back messages on non retryable error async : "+strconv.FormatBool(eae), func(t *testing.T) {
 		group, topics := getRandomGroupTopics(t, 1)
 		createTopic(t, config, topics[0])
 		cg := messagex.ConsumerGroup(group)
@@ -102,10 +115,10 @@ func TestConsumer_Subscribe_Handling(t *testing.T) {
 		wClient := getWriteClient(t)
 
 		ctx := context.Background()
-		headerResult := map[string]int{
-			"0": 0,
-			"1": 0,
-			"2": 0,
+		headerResult := map[string]*atomic.Int32{
+			"0": {},
+			"1": {},
+			"2": {},
 		}
 
 		mu := sync.Mutex{}
@@ -115,7 +128,7 @@ func TestConsumer_Subscribe_Handling(t *testing.T) {
 				defer mu.Unlock()
 				errs := make([]error, len(msgs))
 				for i, msg := range msgs {
-					headerResult[msg.Metadata[messagex.RetryCountHeaderKey]] += 1
+					headerResult[msg.Metadata[messagex.RetryCountHeaderKey]].Add(1)
 					errs[i] = errors.New("Retry Me")
 				}
 				return errs, nil
@@ -130,13 +143,89 @@ func TestConsumer_Subscribe_Handling(t *testing.T) {
 		assert.EventuallyWithT(t, func(c *assert.CollectT) {
 			mu.Lock()
 			defer mu.Unlock()
-			assert.Equal(c, 1, headerResult["0"])
-			assert.Equal(c, 0, headerResult["1"])
-			assert.Equal(c, 0, headerResult["2"])
+			assert.Equal(c, int32(1), headerResult["0"].Load())
+			assert.Equal(c, int32(0), headerResult["1"].Load())
+			assert.Equal(c, int32(0), headerResult["2"].Load())
 		}, 5*time.Second, 250*time.Millisecond)
 	})
 
-	t.Run("should push back messages on retryable error for complete error", func(t *testing.T) {
+	t.Run("should not commit the records if the connection with the pubsub service fails async : "+strconv.FormatBool(eae), func(t *testing.T) {
+		group, topics := getRandomGroupTopics(t, 1)
+		createTopic(t, config, topics[0])
+		cg := messagex.ConsumerGroup(group)
+		erh := getEventRetryHandler(t, l, config, cg, nil)
+		consumer, err := newConsumer(l, nil, config, cg, topics, opts, erh, pqh)
+		require.NoError(t, err)
+		wClient := getWriteClient(t)
+		ctx := context.Background()
+		cMu := sync.Mutex{}
+		shouldClose := false
+		wg := sync.WaitGroup{}
+		require.NoError(t, consumer.Subscribe(ctx, pubsubx.Handlers{
+			topics[0]: func(ctx context.Context, msgs []*messagex.Message) ([]error, error) {
+				defer func() {
+					for range msgs {
+						wg.Done()
+					}
+				}()
+				cMu.Lock()
+				defer cMu.Unlock()
+				if shouldClose {
+					// Breaking the logic of how we handle the client connection just to simulate a network failure
+					consumer.cancel()
+					go consumer.cl.Close()
+				}
+				return nil, nil
+			},
+		}))
+		expectedMsg := messagex.NewMessage([]byte("test"))
+		expectedMsg2 := messagex.NewMessage([]byte("test2"))
+		closeConsumer1 := func() {
+			cMu.Lock()
+			defer cMu.Unlock()
+			shouldClose = true
+		}
+
+		wg.Add(1)
+		sendMessage(t, ctx, wClient, topics[0], expectedMsg)
+		// This makes sure the first message has been processed and commited
+		time.Sleep(3 * time.Second)
+		wg.Add(1)
+		closeConsumer1()
+		sendMessage(t, ctx, wClient, topics[0], expectedMsg2)
+		// This waits for the failed execution
+		wg.Wait()
+		consumer.wg.Wait()
+
+		ctx = context.Background()
+		consumer2, err := newConsumer(l, nil, config, cg, topics, opts, erh, pqh)
+		require.NoError(t, err)
+
+		var mu sync.Mutex
+		count := 0
+		var receivedPayload string
+		err = consumer2.Subscribe(ctx, pubsubx.Handlers{
+			topics[0]: func(ctx context.Context, msgs []*messagex.Message) ([]error, error) {
+				mu.Lock()
+				defer mu.Unlock()
+				count += len(msgs)
+				if len(msgs) <= 0 {
+					t.Fail()
+				}
+				receivedPayload = string(msgs[0].Payload)
+				return make([]error, 0), nil
+			},
+		})
+		require.NoError(t, err)
+		assert.EventuallyWithT(t, func(c *assert.CollectT) {
+			mu.Lock()
+			defer mu.Unlock()
+			assert.Equal(c, "test2", receivedPayload)
+			assert.Equal(c, 1, count)
+		}, 5*time.Second, 250*time.Millisecond)
+	})
+
+	t.Run("should push back messages on retryable error for complete error async : "+strconv.FormatBool(eae), func(t *testing.T) {
 		t.Skipf("test takes at least 45 seconds to run, skipping to reduce test suite time, please manually trigger this test")
 		group, topics := getRandomGroupTopics(t, 1)
 		createTopic(t, config, topics[0])
@@ -192,10 +281,18 @@ func TestConsumer_Subscribe_Handling(t *testing.T) {
 }
 
 func TestConsumer_Subscribe_Concurrency(t *testing.T) {
-	l := logrusx.New("test", "")
+	consumer_Subscribe_Concurrency_test(t, false)
+}
+
+func TestConsumer_Subscribe_Concurrency_async(t *testing.T) {
+	consumer_Subscribe_Concurrency_test(t, true)
+}
+
+func consumer_Subscribe_Concurrency_test(t *testing.T, eae bool) {
+	l := Logger()
 	config := getPubsubConfig(t, false)
 	pqh := getPoisonQueueHandler(t, l, config)
-	opts := &pubsubx.SubscriberOptions{MaxBatchSize: 10}
+	opts := &pubsubx.SubscriberOptions{MaxBatchSize: 10, EnableAsyncExecution: eae}
 
 	getWriteClient := func(t *testing.T) *kgo.Client {
 		t.Helper()
@@ -217,7 +314,7 @@ func TestConsumer_Subscribe_Concurrency(t *testing.T) {
 		require.NoError(t, r.FirstErr())
 	}
 
-	t.Run("should return an error if there are missing handlers", func(t *testing.T) {
+	t.Run("should return an error if there are missing handlers async : "+strconv.FormatBool(eae), func(t *testing.T) {
 		group, topics := getRandomGroupTopics(t, 3)
 		cg := messagex.ConsumerGroup(group)
 		erh := getEventRetryHandler(t, l, config, cg, nil)
@@ -249,7 +346,7 @@ func TestConsumer_Subscribe_Concurrency(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("should handle concurrent Subscribe calls and close", func(t *testing.T) {
+	t.Run("should handle concurrent Subscribe calls and close async : "+strconv.FormatBool(eae), func(t *testing.T) {
 		group, topics := getRandomGroupTopics(t, 1)
 		testTopic := topics[0]
 		createTopic(t, config, testTopic)
@@ -305,7 +402,7 @@ func TestConsumer_Subscribe_Concurrency(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("should be able to consume messages again after closing", func(t *testing.T) {
+	t.Run("should be able to consume messages again after closing async : "+strconv.FormatBool(eae), func(t *testing.T) {
 		group, topics := getRandomGroupTopics(t, 1)
 		testTopic := topics[0]
 		wClient := getWriteClient(t)
@@ -345,6 +442,8 @@ func TestConsumer_Subscribe_Concurrency(t *testing.T) {
 			assert.Equal(t, expectedMsg, msg)
 		}
 
+		time.Sleep(1 * time.Second)
+
 		// Close the consumer
 		err = consumer.Close()
 		require.NoError(t, err)
@@ -355,10 +454,10 @@ func TestConsumer_Subscribe_Concurrency(t *testing.T) {
 
 		// We should not receive the message since the consumer is closed
 		select {
+		case <-time.After(defaultExpectedNoReceiveTimeout):
+			t.Log("no message consumed, all good")
 		case <-receivedMsgs:
 			t.Fatalf("expected no message to be consumed")
-		default:
-			t.Log("no message consumed, all good")
 		}
 
 		// Re-open the consumer
@@ -372,6 +471,8 @@ func TestConsumer_Subscribe_Concurrency(t *testing.T) {
 		case msg := <-receivedMsgs:
 			assert.Equal(t, expectedMsg2, msg)
 		}
+
+		time.Sleep(1 * time.Second)
 
 		// Close the consumer
 		err = consumer.Close()
@@ -413,7 +514,63 @@ func TestConsumer_Subscribe_Concurrency(t *testing.T) {
 		}
 	})
 
-	t.Run("should be able to retry up to the max retry attempts", func(t *testing.T) {
+	t.Run("should be able to consume multiple topics and abort from one topic failure async : "+strconv.FormatBool(eae), func(t *testing.T) {
+		group, topics := getRandomGroupTopics(t, 3)
+		counter := make([]atomic.Int32, len(topics))
+		wClient := getWriteClient(t)
+		hs := make(pubsubx.Handlers, len(topics))
+		for i, topic := range topics {
+			createTopic(t, config, topic)
+			hs[topic] = func(ctx context.Context, msgs []*messagex.Message) ([]error, error) {
+				counter[i].Add(int32(len(msgs)))
+				var err error = nil
+				errs := make([]error, len(msgs))
+				for _, msg := range msgs {
+					if msg != nil && string(msg.Payload) == "abort" {
+						err = pubsubx.AbortSubscribeError()
+					}
+					errs[i] = errors.New("abort error on this message")
+				}
+				return errs, err
+			}
+		}
+		ctx := context.Background()
+		for i := range 10 * len(topics) {
+			expectedMsg := messagex.NewMessage([]byte("test" + strconv.Itoa(i)))
+			sendMessage(t, ctx, wClient, topics[i%len(topics)], expectedMsg)
+		}
+		// Give time to all the message to be available in event queue service
+		time.Sleep(2 * time.Second)
+		cg := messagex.ConsumerGroup(group)
+		erh := getEventRetryHandler(t, l, config, cg, nil)
+		c, err := newConsumer(l, nil, config, cg, topics, opts, erh, pqh)
+		require.NoError(t, err)
+		require.NoError(t, c.Subscribe(ctx, hs))
+		defer c.Close()
+
+		expected := []int32{10, 10, 10}
+		assert.EventuallyWithT(t, func(c *assert.CollectT) {
+			for i, topic := range topics {
+				assert.Equal(c, expected[i], counter[i].Load(),
+					fmt.Sprintf("topic '%s' did not receive the expected msg count", topic))
+			}
+		}, 5*time.Second, 250*time.Millisecond)
+
+		for i := range len(topics) {
+			expectedMsg := messagex.NewMessage([]byte("test" + strconv.Itoa(i)))
+			if i == len(topics)/2 {
+				expectedMsg = messagex.NewMessage([]byte("abort"))
+			}
+			sendMessage(t, ctx, wClient, topics[i%len(topics)], expectedMsg)
+		}
+
+		// This will wait until the consumer closed after receiving the AbortSubscribeError
+		c.wg.Wait()
+
+		assert.Equal(t, expected[len(expected)/2]+4, counter[len(counter)/2].Load())
+	})
+
+	t.Run("should be able to retry up to the max retry attempts async : "+strconv.FormatBool(eae), func(t *testing.T) {
 		group, topics := getRandomGroupTopics(t, 1)
 		testTopic := topics[0]
 		wClient := getWriteClient(t)
