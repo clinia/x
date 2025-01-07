@@ -17,6 +17,7 @@ import (
 	"github.com/twmb/franz-go/plugin/kotel"
 	"go.opentelemetry.io/otel/attribute"
 	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
+	"golang.org/x/sync/errgroup"
 )
 
 type consumer struct {
@@ -273,30 +274,59 @@ func (c *consumer) start(ctx context.Context) {
 			l.WithError(errors.Join(lo.Map(errs, func(err kgo.FetchError, i int) error { return err.Err })...)).Errorf("error while polling records, Stopping consumer")
 			return
 		}
-		wg := sync.WaitGroup{}
+		var wg errgroup.Group
 		fetches.EachTopic(func(tp kgo.FetchTopic) {
-			wg.Add(1)
-			defer wg.Done()
-			// TODO: Look into making this here a go-routine to allow parallel execution of all topics handled by this consumer
-			// WaitGroup is currently useless as the logic is running serially.
-			if err := c.handleTopic(ctx, tp); err != nil {
-				if err == pubsubx.AbortSubscribeError() {
-					l.Infof("aborting consumer")
-					c.mu.RLock()
-					defer c.mu.RUnlock()
-					// This is required since the context is cancelled by the backoff
-					if c.cancel != nil {
-						c.cancel()
-						l.WithError(err).Infof("cancelled consumer")
-					} else {
-						l.WithError(err).Warnf("abort requested but no cancel function found, this should not happen")
+			switch {
+			case c.opts.EnableAsyncExecution:
+				wg.Go(func() error {
+					if err := c.handleTopic(ctx, tp); err != nil {
+						if err == pubsubx.AbortSubscribeError() {
+							l.WithError(err).Warnf("subscriber abort error returned from topic : %s", tp.Topic)
+							return err
+						}
+						l.WithError(err).Warnf("unhandled error happened while handling topic : %s", tp.Topic)
 					}
-					return
+					return nil
+				})
+			default:
+				if err := c.handleTopic(ctx, tp); err != nil {
+					if err == pubsubx.AbortSubscribeError() {
+						l.Infof("aborting consumer")
+						c.mu.RLock()
+						defer c.mu.RUnlock()
+						// This is required since the context is cancelled by the backoff
+						if c.cancel != nil {
+							c.cancel()
+							l.WithError(err).Infof("cancelled consumer")
+						} else {
+							l.WithError(err).Warnf("abort requested but no cancel function found, this should not happen")
+						}
+						return
+					}
+					l.WithError(err).Warnf("unhandled error happened while handling topic : %s", tp.Topic)
 				}
-				l.WithError(err).Warnf("unhandled error happened while handling topic : %s", tp.Topic)
 			}
 		})
-		wg.Wait()
+		if c.opts.EnableAsyncExecution {
+			if err := wg.Wait(); err != nil {
+				if err == pubsubx.AbortSubscribeError() {
+					l.Infof("aborting consumer")
+					func() {
+						c.mu.RLock()
+						defer c.mu.RUnlock()
+						// This is required since the context is cancelled by the backoff
+						if c.cancel != nil {
+							c.cancel()
+							l.WithError(err).Infof("cancelled consumer")
+						} else {
+							l.WithError(err).Warnf("abort requested but no cancel function found, this should not happen")
+						}
+					}()
+				} else {
+					l.WithError(err).Errorf("non abort error should not propagate here, this should not happen")
+				}
+			}
+		}
 		if c.conf.DisableAutoCommit {
 			// If commiting the offsets fails, kill the loop by returning
 			if err := c.cl.CommitUncommittedOffsets(ctx); err != nil {

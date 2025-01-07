@@ -99,12 +99,15 @@ type SubscriberOptions struct {
 	// MaxTopicRetryCount indicate how many time we allow to push to
 	// the retry topic before considering a retryable error non retryable
 	MaxTopicRetryCount uint16
+	// Allows the handler to run each topic handling in parallel
+	EnableAsyncExecution bool
 }
 
 func NewDefaultSubscriberOptions() *SubscriberOptions {
 	return &SubscriberOptions{
-		MaxBatchSize:       100,
-		MaxTopicRetryCount: 3,
+		MaxBatchSize:         100,
+		MaxTopicRetryCount:   3,
+		EnableAsyncExecution: false,
 	}
 }
 
@@ -131,6 +134,12 @@ func WithMaxTopicRetryCount(maxTopicRetryCount int) SubscriberOption {
 			//#nosec G115 -- Remove once https://github.com/securego/gosec/issues/1187 is solved
 			o.MaxTopicRetryCount = uint16(maxTopicRetryCount)
 		}
+	}
+}
+
+func WithAsyncExecution() SubscriberOption {
+	return func(o *SubscriberOptions) {
+		o.EnableAsyncExecution = true
 	}
 }
 

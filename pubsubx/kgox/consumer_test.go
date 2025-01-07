@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -26,9 +27,17 @@ func Logger() *logrusx.Logger {
 }
 
 func TestConsumer_Subscribe_Handling(t *testing.T) {
+	consumer_Subscribe_Handling_test(t, false)
+}
+
+func TestConsumer_Subscribe_Handling_async(t *testing.T) {
+	consumer_Subscribe_Handling_test(t, true)
+}
+
+func consumer_Subscribe_Handling_test(t *testing.T, eae bool) {
 	l := Logger()
 	config := getPubsubConfig(t, true)
-	opts := &pubsubx.SubscriberOptions{MaxBatchSize: 10, MaxTopicRetryCount: 3}
+	opts := &pubsubx.SubscriberOptions{MaxBatchSize: 10, MaxTopicRetryCount: 3, EnableAsyncExecution: eae}
 	pqh := getPoisonQueueHandler(t, l, config)
 
 	getWriteClient := func(t *testing.T) *kgo.Client {
@@ -51,7 +60,7 @@ func TestConsumer_Subscribe_Handling(t *testing.T) {
 		require.NoError(t, r.FirstErr())
 	}
 
-	t.Run("should push back messages on retryable error", func(t *testing.T) {
+	t.Run("should push back messages on retryable error async : "+strconv.FormatBool(eae), func(t *testing.T) {
 		group, topics := getRandomGroupTopics(t, 1)
 		createTopic(t, config, topics[0])
 		cg := messagex.ConsumerGroup(group)
@@ -97,7 +106,7 @@ func TestConsumer_Subscribe_Handling(t *testing.T) {
 		}, 5*time.Second, 250*time.Millisecond)
 	})
 
-	t.Run("should not push back messages on non retryable error", func(t *testing.T) {
+	t.Run("should not push back messages on non retryable error async : "+strconv.FormatBool(eae), func(t *testing.T) {
 		group, topics := getRandomGroupTopics(t, 1)
 		createTopic(t, config, topics[0])
 		cg := messagex.ConsumerGroup(group)
@@ -143,7 +152,7 @@ func TestConsumer_Subscribe_Handling(t *testing.T) {
 		}, 5*time.Second, 250*time.Millisecond)
 	})
 
-	t.Run("should not commit the records if the connection with the pubsub service fails", func(t *testing.T) {
+	t.Run("should not commit the records if the connection with the pubsub service fails async : "+strconv.FormatBool(eae), func(t *testing.T) {
 		group, topics := getRandomGroupTopics(t, 1)
 		createTopic(t, config, topics[0])
 		cg := messagex.ConsumerGroup(group)
@@ -151,7 +160,7 @@ func TestConsumer_Subscribe_Handling(t *testing.T) {
 		consumer, err := newConsumer(l, nil, config, cg, topics, opts, erh, pqh)
 		require.NoError(t, err)
 		wClient := getWriteClient(t)
-		ctx, cncl := context.WithCancel(context.Background())
+		ctx := context.Background()
 		cMu := sync.Mutex{}
 		shouldClose := false
 		wg := sync.WaitGroup{}
@@ -189,10 +198,10 @@ func TestConsumer_Subscribe_Handling(t *testing.T) {
 		sendMessage(t, ctx, wClient, topics[0], expectedMsg2)
 		// This waits for the failed execution
 		wg.Wait()
-		cncl()
 
 		// Add some sleep time to make sure the consumer has time to cancel it's execution
 		time.Sleep(2 * time.Second)
+		consumer.wg.Wait()
 
 		ctx = context.Background()
 		consumer2, err := newConsumer(l, nil, config, cg, topics, opts, erh, pqh)
@@ -222,7 +231,7 @@ func TestConsumer_Subscribe_Handling(t *testing.T) {
 		}, 5*time.Second, 250*time.Millisecond)
 	})
 
-	t.Run("should push back messages on retryable error for complete error", func(t *testing.T) {
+	t.Run("should push back messages on retryable error for complete error async : "+strconv.FormatBool(eae), func(t *testing.T) {
 		t.Skipf("test takes at least 45 seconds to run, skipping to reduce test suite time, please manually trigger this test")
 		group, topics := getRandomGroupTopics(t, 1)
 		createTopic(t, config, topics[0])
@@ -278,10 +287,18 @@ func TestConsumer_Subscribe_Handling(t *testing.T) {
 }
 
 func TestConsumer_Subscribe_Concurrency(t *testing.T) {
+	consumer_Subscribe_Concurrency_test(t, false)
+}
+
+func TestConsumer_Subscribe_Concurrency_async(t *testing.T) {
+	consumer_Subscribe_Concurrency_test(t, true)
+}
+
+func consumer_Subscribe_Concurrency_test(t *testing.T, eae bool) {
 	l := Logger()
 	config := getPubsubConfig(t, false)
 	pqh := getPoisonQueueHandler(t, l, config)
-	opts := &pubsubx.SubscriberOptions{MaxBatchSize: 10}
+	opts := &pubsubx.SubscriberOptions{MaxBatchSize: 10, EnableAsyncExecution: eae}
 
 	getWriteClient := func(t *testing.T) *kgo.Client {
 		t.Helper()
@@ -303,7 +320,7 @@ func TestConsumer_Subscribe_Concurrency(t *testing.T) {
 		require.NoError(t, r.FirstErr())
 	}
 
-	t.Run("should return an error if there are missing handlers", func(t *testing.T) {
+	t.Run("should return an error if there are missing handlers async : "+strconv.FormatBool(eae), func(t *testing.T) {
 		group, topics := getRandomGroupTopics(t, 3)
 		cg := messagex.ConsumerGroup(group)
 		erh := getEventRetryHandler(t, l, config, cg, nil)
@@ -335,7 +352,7 @@ func TestConsumer_Subscribe_Concurrency(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("should handle concurrent Subscribe calls and close", func(t *testing.T) {
+	t.Run("should handle concurrent Subscribe calls and close async : "+strconv.FormatBool(eae), func(t *testing.T) {
 		group, topics := getRandomGroupTopics(t, 1)
 		testTopic := topics[0]
 		createTopic(t, config, testTopic)
@@ -391,7 +408,7 @@ func TestConsumer_Subscribe_Concurrency(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("should be able to consume messages again after closing", func(t *testing.T) {
+	t.Run("should be able to consume messages again after closing async : "+strconv.FormatBool(eae), func(t *testing.T) {
 		group, topics := getRandomGroupTopics(t, 1)
 		testTopic := topics[0]
 		wClient := getWriteClient(t)
@@ -503,7 +520,7 @@ func TestConsumer_Subscribe_Concurrency(t *testing.T) {
 		}
 	})
 
-	t.Run("should be able to retry up to the max retry attempts", func(t *testing.T) {
+	t.Run("should be able to retry up to the max retry attempts async : "+strconv.FormatBool(eae), func(t *testing.T) {
 		group, topics := getRandomGroupTopics(t, 1)
 		testTopic := topics[0]
 		wClient := getWriteClient(t)
