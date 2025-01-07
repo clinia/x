@@ -45,21 +45,15 @@ type handlerExecutor struct {
 	l *logrusx.Logger
 	h pubsubx.Handler
 	t messagex.Topic
-
-	ctx    context.Context
-	cancel context.CancelFunc
 }
 
 func (he *handlerExecutor) handle(ctx context.Context, msgs []*messagex.Message) (outErrs []error, outErr error) {
-	he.ctx, he.cancel = context.WithCancel(ctx)
 	defer func() {
 		if r := recover(); r != nil {
 			outErr = errorx.InternalErrorf("panic while handling messages")
 			stackTrace := tracex.GetStackTrace()
 			he.l.WithContext(ctx).WithFields(logrusx.NewLogFields(semconv.ExceptionStacktrace(stackTrace))).Errorf("panic while handling messages")
 		}
-		he.cancel()
-		he.ctx, he.cancel = nil, nil
 	}()
 	return he.h(ctx, msgs)
 }
@@ -133,7 +127,7 @@ func (c *consumer) bootstrapClient(ctx context.Context) error {
 		kopts = append(kopts, kgo.WithHooks(c.kotelService.Hooks()...))
 	}
 
-	if c.conf.DisableAutoCommit {
+	if !c.conf.EnableAutoCommit {
 		kopts = append(kopts,
 			kgo.DisableAutoCommit(),
 		)
@@ -241,13 +235,34 @@ func (c *consumer) handleTopic(ctx context.Context, tp kgo.FetchTopic) error {
 
 	if err == pubsubx.AbortSubscribeError() {
 		c.handleRemoteRetryLogic(ctx, topic, []error{errorx.NewRetryableError(err)}, msgs)
+	} else if err != nil {
+		l.WithError(err).Warnf("unhandled error happened while handling topic : %s", tp.Topic)
 	}
-
 	return err
 }
 
 func (c *consumer) start(ctx context.Context) {
 	l := c.l.WithContext(ctx)
+	handleTopicErrorHandler := func(err error) {
+		switch err {
+		case nil:
+			return
+		case pubsubx.AbortSubscribeError():
+			l.Infof("aborting consumer")
+			c.mu.RLock()
+			defer c.mu.RUnlock()
+			// This is required since the context is cancelled by the backoff
+			if c.cancel != nil {
+				l.WithError(err).Infof("cancelled consumer")
+				c.cancel()
+			} else {
+				l.WithError(err).Warnf("abort requested but no cancel function found, this should not happen")
+			}
+		default:
+			l.WithError(err).Errorf("non abort error, not doing anything")
+		}
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -284,50 +299,17 @@ func (c *consumer) start(ctx context.Context) {
 							l.WithError(err).Warnf("subscriber abort error returned from topic : %s", tp.Topic)
 							return err
 						}
-						l.WithError(err).Warnf("unhandled error happened while handling topic : %s", tp.Topic)
 					}
 					return nil
 				})
 			default:
-				if err := c.handleTopic(ctx, tp); err != nil {
-					if err == pubsubx.AbortSubscribeError() {
-						l.Infof("aborting consumer")
-						c.mu.RLock()
-						defer c.mu.RUnlock()
-						// This is required since the context is cancelled by the backoff
-						if c.cancel != nil {
-							c.cancel()
-							l.WithError(err).Infof("cancelled consumer")
-						} else {
-							l.WithError(err).Warnf("abort requested but no cancel function found, this should not happen")
-						}
-						return
-					}
-					l.WithError(err).Warnf("unhandled error happened while handling topic : %s", tp.Topic)
-				}
+				handleTopicErrorHandler(c.handleTopic(ctx, tp))
 			}
 		})
 		if c.opts.EnableAsyncExecution {
-			if err := wg.Wait(); err != nil {
-				if err == pubsubx.AbortSubscribeError() {
-					l.Infof("aborting consumer")
-					func() {
-						c.mu.RLock()
-						defer c.mu.RUnlock()
-						// This is required since the context is cancelled by the backoff
-						if c.cancel != nil {
-							c.cancel()
-							l.WithError(err).Infof("cancelled consumer")
-						} else {
-							l.WithError(err).Warnf("abort requested but no cancel function found, this should not happen")
-						}
-					}()
-				} else {
-					l.WithError(err).Errorf("non abort error should not propagate here, this should not happen")
-				}
-			}
+			handleTopicErrorHandler(wg.Wait())
 		}
-		if c.conf.DisableAutoCommit {
+		if !c.conf.EnableAutoCommit {
 			// If commiting the offsets fails, kill the loop by returning
 			if err := c.cl.CommitUncommittedOffsets(ctx); err != nil {
 				l.WithError(err).Errorf("failed to commit records")

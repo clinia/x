@@ -80,10 +80,10 @@
       "description": "Enable the retry mechanism with pubsub topic",
       "default": false
     },
-    "disableAutoCommit": {
+    "enableAutoCommit": {
       "type": "boolean",
-      "description": "Disable auto-commit logic on records polling and use manual commit instead",
-      "default": false
+      "description": "Enable auto-commit logic on records polling",
+      "default": true
     }
   }
 }
