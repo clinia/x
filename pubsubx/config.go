@@ -149,7 +149,11 @@ func WithAsyncExecution() SubscriberOption {
 
 func WithMaxParalleAsyncExecution(max int16) SubscriberOption {
 	return func(o *SubscriberOptions) {
-		o.MaxParallelAsyncExecution = max
+		if o.MaxParallelAsyncExecution <= 0 {
+			o.MaxParallelAsyncExecution = -1
+		} else {
+			o.MaxParallelAsyncExecution = max
+		}
 	}
 }
 

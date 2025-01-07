@@ -234,6 +234,7 @@ func (c *consumer) handleTopic(ctx context.Context, tp kgo.FetchTopic) error {
 	}, bc)
 
 	if err == pubsubx.AbortSubscribeError() {
+		l.WithError(err).Warnf("subscriber abort error returned from topic : %s", tp.Topic)
 		c.handleRemoteRetryLogic(ctx, topic, []error{errorx.NewRetryableError(err)}, msgs)
 	} else if err != nil {
 		l.WithError(err).Warnf("unhandled error happened while handling topic : %s", tp.Topic)
@@ -290,15 +291,21 @@ func (c *consumer) start(ctx context.Context) {
 			return
 		}
 		var wg errgroup.Group
-		wg.SetLimit(int(c.opts.MaxParallelAsyncExecution))
+		if c.opts.MaxParallelAsyncExecution <= 0 {
+			wg.SetLimit(-1)
+		} else {
+			wg.SetLimit(int(c.opts.MaxParallelAsyncExecution))
+		}
 		fetches.EachTopic(func(tp kgo.FetchTopic) {
 			switch {
 			case c.opts.EnableAsyncExecution:
 				wg.Go(func() error {
 					if err := c.handleTopic(ctx, tp); err != nil {
-						if err == pubsubx.AbortSubscribeError() {
-							l.WithError(err).Warnf("subscriber abort error returned from topic : %s", tp.Topic)
+						switch err {
+						case pubsubx.AbortSubscribeError():
 							return err
+						default:
+							return nil
 						}
 					}
 					return nil
