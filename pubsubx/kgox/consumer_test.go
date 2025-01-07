@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -515,6 +517,62 @@ func consumer_Subscribe_Concurrency_test(t *testing.T, eae bool) {
 				assert.Equal(t, expectedMsg, msg)
 			}
 		}
+	})
+
+	t.Run("should be able to consume multiple topics and abort from one topic failure async : "+strconv.FormatBool(eae), func(t *testing.T) {
+		group, topics := getRandomGroupTopics(t, 3)
+		counter := make([]atomic.Int32, len(topics))
+		wClient := getWriteClient(t)
+		hs := make(pubsubx.Handlers)
+		for i, topic := range topics {
+			createTopic(t, config, topic)
+			hs[topic] = func(ctx context.Context, msgs []*messagex.Message) ([]error, error) {
+				counter[i].Add(int32(len(msgs)))
+				var err error = nil
+				errs := make([]error, len(msgs))
+				for _, msg := range msgs {
+					if msg != nil && string(msg.Payload) == "abort" {
+						err = pubsubx.AbortSubscribeError()
+					}
+					errs[i] = errors.New("abort error on this message")
+				}
+				return errs, err
+			}
+		}
+		ctx := context.Background()
+		for i := range 10 * len(topics) {
+			expectedMsg := messagex.NewMessage([]byte("test" + strconv.Itoa(i)))
+			sendMessage(t, ctx, wClient, topics[i%len(topics)], expectedMsg)
+		}
+		// Give time to all the message to be available in event queue service
+		time.Sleep(2 * time.Second)
+		cg := messagex.ConsumerGroup(group)
+		erh := getEventRetryHandler(t, l, config, cg, nil)
+		c, err := newConsumer(l, nil, config, cg, topics, opts, erh, pqh)
+		require.NoError(t, err)
+		require.NoError(t, c.Subscribe(ctx, hs))
+		defer c.Close()
+
+		expected := []int32{10, 10, 10}
+		assert.EventuallyWithT(t, func(c *assert.CollectT) {
+			for i, topic := range topics {
+				assert.Equal(c, expected[i], counter[i].Load(),
+					fmt.Sprintf("topic '%s' did not receive the expected msg count", topic))
+			}
+		}, 5*time.Second, 250*time.Millisecond)
+
+		for i := range len(topics) {
+			expectedMsg := messagex.NewMessage([]byte("test" + strconv.Itoa(i)))
+			if i == len(topics)/2 {
+				expectedMsg = messagex.NewMessage([]byte("abort"))
+			}
+			sendMessage(t, ctx, wClient, topics[i%len(topics)], expectedMsg)
+		}
+
+		// This will wait until the consumer closed after receiving the AbortSubscribeError
+		c.wg.Wait()
+
+		assert.Equal(t, expected[len(expected)/2]+4, counter[len(counter)/2].Load())
 	})
 
 	t.Run("should be able to retry up to the max retry attempts async : "+strconv.FormatBool(eae), func(t *testing.T) {
