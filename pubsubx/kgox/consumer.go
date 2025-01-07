@@ -290,6 +290,7 @@ func (c *consumer) start(ctx context.Context) {
 			return
 		}
 		var wg errgroup.Group
+		wg.SetLimit(int(c.opts.MaxParallelAsyncExecution))
 		fetches.EachTopic(func(tp kgo.FetchTopic) {
 			switch {
 			case c.opts.EnableAsyncExecution:

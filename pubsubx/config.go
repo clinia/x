@@ -101,13 +101,17 @@ type SubscriberOptions struct {
 	MaxTopicRetryCount uint16
 	// Allows the handler to run each topic handling in parallel
 	EnableAsyncExecution bool
+	// Define the number of maximum topic handler that can run in parallel
+	// on record processing
+	MaxParallelAsyncExecution int16
 }
 
 func NewDefaultSubscriberOptions() *SubscriberOptions {
 	return &SubscriberOptions{
-		MaxBatchSize:         100,
-		MaxTopicRetryCount:   3,
-		EnableAsyncExecution: false,
+		MaxBatchSize:              100,
+		MaxTopicRetryCount:        3,
+		EnableAsyncExecution:      false,
+		MaxParallelAsyncExecution: -1,
 	}
 }
 
@@ -140,6 +144,12 @@ func WithMaxTopicRetryCount(maxTopicRetryCount int) SubscriberOption {
 func WithAsyncExecution() SubscriberOption {
 	return func(o *SubscriberOptions) {
 		o.EnableAsyncExecution = true
+	}
+}
+
+func WithMaxParalleAsyncExecution(max int16) SubscriberOption {
+	return func(o *SubscriberOptions) {
+		o.MaxParallelAsyncExecution = max
 	}
 }
 
