@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/twmb/franz-go/pkg/kgo"
+	"go.opentelemetry.io/otel/metric/noop"
 )
 
 func Logger() *logrusx.Logger {
@@ -41,6 +42,7 @@ func consumer_Subscribe_Handling_test(t *testing.T, eae bool) {
 	config := getPubsubConfig(t, true)
 	opts := &pubsubx.SubscriberOptions{MaxBatchSize: 10, MaxTopicRetryCount: 3, EnableAsyncExecution: eae}
 	pqh := getPoisonQueueHandler(t, l, config)
+	m := noop.NewMeterProvider().Meter("test")
 
 	getWriteClient := func(t *testing.T) *kgo.Client {
 		t.Helper()
@@ -67,7 +69,7 @@ func consumer_Subscribe_Handling_test(t *testing.T, eae bool) {
 		createTopic(t, config, topics[0])
 		cg := messagex.ConsumerGroup(group)
 		erh := getEventRetryHandler(t, l, config, cg, nil)
-		consumer, err := newConsumer(l, nil, config, cg, topics, opts, erh, pqh)
+		consumer, err := newConsumer(context.Background(), l, nil, config, cg, topics, opts, erh, pqh, m)
 		if err != nil {
 			t.Fatalf("failed to create consumer: %v", err)
 		}
@@ -108,7 +110,7 @@ func consumer_Subscribe_Handling_test(t *testing.T, eae bool) {
 		createTopic(t, config, topics[0])
 		cg := messagex.ConsumerGroup(group)
 		erh := getEventRetryHandler(t, l, config, cg, nil)
-		consumer, err := newConsumer(l, nil, config, cg, topics, opts, erh, pqh)
+		consumer, err := newConsumer(context.Background(), l, nil, config, cg, topics, opts, erh, pqh, m)
 		if err != nil {
 			t.Fatalf("failed to create consumer: %v", err)
 		}
@@ -154,10 +156,10 @@ func consumer_Subscribe_Handling_test(t *testing.T, eae bool) {
 		createTopic(t, config, topics[0])
 		cg := messagex.ConsumerGroup(group)
 		erh := getEventRetryHandler(t, l, config, cg, nil)
-		consumer, err := newConsumer(l, nil, config, cg, topics, opts, erh, pqh)
+		ctx := context.Background()
+		consumer, err := newConsumer(ctx, l, nil, config, cg, topics, opts, erh, pqh, m)
 		require.NoError(t, err)
 		wClient := getWriteClient(t)
-		ctx := context.Background()
 		cMu := sync.Mutex{}
 		shouldClose := false
 		wg := sync.WaitGroup{}
@@ -198,7 +200,7 @@ func consumer_Subscribe_Handling_test(t *testing.T, eae bool) {
 		consumer.wg.Wait()
 
 		ctx = context.Background()
-		consumer2, err := newConsumer(l, nil, config, cg, topics, opts, erh, pqh)
+		consumer2, err := newConsumer(ctx, l, nil, config, cg, topics, opts, erh, pqh, m)
 		require.NoError(t, err)
 
 		var mu sync.Mutex
@@ -231,7 +233,7 @@ func consumer_Subscribe_Handling_test(t *testing.T, eae bool) {
 		createTopic(t, config, topics[0])
 		cg := messagex.ConsumerGroup(group)
 		erh := getEventRetryHandler(t, l, config, cg, nil)
-		consumer, err := newConsumer(l, nil, config, cg, topics, opts, erh, pqh)
+		consumer, err := newConsumer(context.Background(), l, nil, config, cg, topics, opts, erh, pqh, m)
 		if err != nil {
 			t.Fatalf("failed to create consumer: %v", err)
 		}
@@ -293,6 +295,7 @@ func consumer_Subscribe_Concurrency_test(t *testing.T, eae bool) {
 	config := getPubsubConfig(t, false)
 	pqh := getPoisonQueueHandler(t, l, config)
 	opts := &pubsubx.SubscriberOptions{MaxBatchSize: 10, EnableAsyncExecution: eae}
+	m := noop.NewMeterProvider().Meter("test")
 
 	getWriteClient := func(t *testing.T) *kgo.Client {
 		t.Helper()
@@ -318,7 +321,7 @@ func consumer_Subscribe_Concurrency_test(t *testing.T, eae bool) {
 		group, topics := getRandomGroupTopics(t, 3)
 		cg := messagex.ConsumerGroup(group)
 		erh := getEventRetryHandler(t, l, config, cg, nil)
-		consumer, err := newConsumer(l, nil, config, cg, topics, opts, erh, pqh)
+		consumer, err := newConsumer(context.Background(), l, nil, config, cg, topics, opts, erh, pqh, m)
 		if err != nil {
 			t.Fatalf("failed to create consumer: %v", err)
 		}
@@ -353,7 +356,7 @@ func consumer_Subscribe_Concurrency_test(t *testing.T, eae bool) {
 
 		cg := messagex.ConsumerGroup(group)
 		erh := getEventRetryHandler(t, l, config, cg, nil)
-		consumer, err := newConsumer(l, nil, config, cg, topics, opts, erh, pqh)
+		consumer, err := newConsumer(context.Background(), l, nil, config, cg, topics, opts, erh, pqh, m)
 		if err != nil {
 			t.Fatalf("failed to create consumer: %v", err)
 		}
@@ -411,7 +414,7 @@ func consumer_Subscribe_Concurrency_test(t *testing.T, eae bool) {
 		receivedMsgs := make(chan *messagex.Message, 10)
 		cg := messagex.ConsumerGroup(group)
 		erh := getEventRetryHandler(t, l, config, cg, nil)
-		consumer, err := newConsumer(l, nil, config, cg, topics, opts, erh, pqh)
+		consumer, err := newConsumer(context.Background(), l, nil, config, cg, topics, opts, erh, pqh, m)
 		if err != nil {
 			t.Fatalf("failed to create consumer: %v", err)
 		}
@@ -482,7 +485,7 @@ func consumer_Subscribe_Concurrency_test(t *testing.T, eae bool) {
 		anotherGroup, _ := getRandomGroupTopics(t, 1)
 		acg := messagex.ConsumerGroup(anotherGroup)
 		aerh := getEventRetryHandler(t, l, config, acg, nil)
-		anotherConsumer, err := newConsumer(l, nil, config, acg, topics, opts, aerh, pqh)
+		anotherConsumer, err := newConsumer(context.Background(), l, nil, config, acg, topics, opts, aerh, pqh, m)
 		t.Cleanup(func() {
 			anotherConsumer.Close()
 		})
@@ -543,7 +546,7 @@ func consumer_Subscribe_Concurrency_test(t *testing.T, eae bool) {
 		time.Sleep(2 * time.Second)
 		cg := messagex.ConsumerGroup(group)
 		erh := getEventRetryHandler(t, l, config, cg, nil)
-		c, err := newConsumer(l, nil, config, cg, topics, opts, erh, pqh)
+		c, err := newConsumer(context.Background(), l, nil, config, cg, topics, opts, erh, pqh, m)
 		require.NoError(t, err)
 		require.NoError(t, c.Subscribe(ctx, hs))
 		defer c.Close()
@@ -583,7 +586,7 @@ func consumer_Subscribe_Concurrency_test(t *testing.T, eae bool) {
 		receivedMsgs := make(chan *messagex.Message, 10)
 		cg := messagex.ConsumerGroup(group)
 		erh := getEventRetryHandler(t, l, config, cg, nil)
-		consumer, err := newConsumer(l, nil, config, cg, topics, opts, erh, pqh)
+		consumer, err := newConsumer(context.Background(), l, nil, config, cg, topics, opts, erh, pqh, m)
 		if err != nil {
 			t.Fatalf("failed to create consumer: %v", err)
 		}
