@@ -198,9 +198,6 @@ func consumer_Subscribe_Handling_test(t *testing.T, eae bool) {
 		sendMessage(t, ctx, wClient, topics[0], expectedMsg2)
 		// This waits for the failed execution
 		wg.Wait()
-
-		// Add some sleep time to make sure the consumer has time to cancel it's execution
-		time.Sleep(2 * time.Second)
 		consumer.wg.Wait()
 
 		ctx = context.Background()
