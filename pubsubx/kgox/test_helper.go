@@ -56,23 +56,23 @@ func getPubsubConfig(t *testing.T, retry bool, monitoring bool) *pubsubx.Config 
 			},
 		},
 		TopicRetry: retry,
-		PoisonQueue: pubsubx.PoisonQueueConfig{
-			TopicName: "poison-queue",
-			Enabled:   false,
-		},
-		ConsumerGroupMonitoring: pubsubx.ConsumerGroupMonitoringConfig{
-			Enabled:         monitoring,
-			HealthTimeout:   time.Duration(60 * time.Second),
-			RefreshInterval: time.Duration(50 * time.Millisecond),
-		},
+		PoisonQueue: pubsubx.NewPoisonQueueConfig(
+			false,
+			"poison-queue",
+		),
+		ConsumerGroupMonitoring: pubsubx.NewConsumerGroupMonitoringConfig(
+			monitoring,
+			time.Duration(60*time.Second),
+			time.Duration(50*time.Millisecond),
+		),
 	}
 }
 
 func getPubSubConfigWithCustomPoisonQueue(t *testing.T, retry bool, customPoisonQueue string, monitoring bool) *pubsubx.Config {
 	t.Helper()
 	config := getPubsubConfig(t, retry, monitoring)
-	config.PoisonQueue.TopicName = customPoisonQueue
-	config.PoisonQueue.Enabled = true
+	config.PoisonQueue = pubsubx.NewPoisonQueueConfig(true, customPoisonQueue)
+
 	return config
 }
 

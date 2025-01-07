@@ -69,8 +69,8 @@
     },
     "consumerGroupMonitoring": {
       "enabled": true,
-      "health_timeout": "1m",
-      "refresh_interval": "1s"
+      "healthTimeout": "1m",
+      "refreshInterval": "1s"
     }
   }
 }

@@ -511,15 +511,15 @@ func (p *Provider) PubSubConfig() *pubsubx.Config {
 			},
 		},
 		TopicRetry: p.BoolF("pubsub.topicRetry", false),
-		PoisonQueue: pubsubx.PoisonQueueConfig{
-			Enabled:   p.BoolF("pubsub.poisonQueue.enabled", false),
-			TopicName: p.StringF("pubsub.poisonQueue.topicName", "poison-queue"),
-		},
-		ConsumerGroupMonitoring: pubsubx.ConsumerGroupMonitoringConfig{
-			Enabled:         p.BoolF("pubsub.consumerGroupMonitoring.enabled", false),
-			HealthTimeout:   p.DurationF("pubsub.consumerGroupMonitoring.health_timeout", 0),
-			RefreshInterval: p.DurationF("pubsub.consumerGroupMonitoring.refresh_interval", 0),
-		},
+		PoisonQueue: pubsubx.NewPoisonQueueConfig(
+			p.BoolF("pubsub.poisonQueue.enabled", false),
+			p.StringF("pubsub.poisonQueue.topicName", "poison-queue"),
+		),
+		ConsumerGroupMonitoring: pubsubx.NewConsumerGroupMonitoringConfig(
+			p.BoolF("pubsub.consumerGroupMonitoring.enabled", false),
+			p.DurationF("pubsub.consumerGroupMonitoring.healthTimeout", 5*time.Minute),
+			p.DurationF("pubsub.consumerGroupMonitoring.refreshInterval", 5*time.Second),
+		),
 	}
 }
 

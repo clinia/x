@@ -386,21 +386,23 @@ func (c *consumer) Health() error {
 		return errorx.InternalErrorf("not subscribed to topics")
 	}
 
-	if c.conf.ConsumerGroupMonitoring.IsEnabled() {
-		err := errorx.InternalErrorf("consumer group %s hanging", c.group.ConsumerGroup(c.conf.Scope))
+	if !c.conf.ConsumerGroupMonitoring.IsEnabled() {
+		return nil
+	}
 
-		for topic, lastConsumptionTime := range c.state.lastConsumptionTimePerTopic {
-			timeElapsed := time.Since(lastConsumptionTime)
-			lag := c.state.totalLagPerTopic[topic].Lag
+	err := errorx.InternalErrorf("consumer group %s hanging", c.group.ConsumerGroup(c.conf.Scope))
 
-			if timeElapsed > c.conf.ConsumerGroupMonitoring.HealthTimeout && lag > 0 {
-				err.WithDetails(errorx.InternalErrorf("topic '%s': no consumption for %s and lag is %d", topic, timeElapsed, lag))
-			}
+	for topic, lastConsumptionTime := range c.state.lastConsumptionTimePerTopic {
+		timeElapsed := time.Since(lastConsumptionTime)
+		lag := c.state.totalLagPerTopic[topic].Lag
+
+		if timeElapsed > c.conf.ConsumerGroupMonitoring.HealthTimeout && lag > 0 {
+			err.WithDetails(errorx.InternalErrorf("topic '%s': no consumption for %s and lag is %d", topic, timeElapsed, lag))
 		}
+	}
 
-		if len(err.Details) > 0 {
-			return err
-		}
+	if len(err.Details) > 0 {
+		return err
 	}
 
 	return nil

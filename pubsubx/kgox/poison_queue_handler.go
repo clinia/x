@@ -33,7 +33,7 @@ const (
 )
 
 func (pqh *poisonQueueHandler) PublishMessagesToPoisonQueue(ctx context.Context, topic string, consumerGroup messagex.ConsumerGroup, msgErrs []error, msgs []*messagex.Message) error {
-	if !pqh.conf.PoisonQueue.Enabled && len(msgs) == 0 {
+	if !pqh.conf.PoisonQueue.IsEnabled() && len(msgs) == 0 {
 		return nil
 	}
 	poisonQueueRecords := make([]*kgo.Record, len(msgs))
@@ -68,7 +68,7 @@ func (pqh *poisonQueueHandler) PublishMessagesToPoisonQueue(ctx context.Context,
 }
 
 func (pqh *poisonQueueHandler) PublishMessagesToPoisonQueueWithGenericError(ctx context.Context, topic string, consumerGroup messagex.ConsumerGroup, msgErr error, msgs ...*messagex.Message) error {
-	if !pqh.conf.PoisonQueue.Enabled && len(msgs) == 0 {
+	if !pqh.conf.PoisonQueue.IsEnabled() && len(msgs) == 0 {
 		return nil
 	}
 	poisonQueueRecords := make([]*kgo.Record, len(msgs))

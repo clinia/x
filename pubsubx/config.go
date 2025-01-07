@@ -42,22 +42,37 @@ type PubSubOptions struct {
 }
 
 type PoisonQueueConfig struct {
-	Enabled   bool   `json:"enabled"`
+	enabled   bool
 	TopicName string `json:"topicName"`
 }
 
+func NewPoisonQueueConfig(enabled bool, topicName string) PoisonQueueConfig {
+	return PoisonQueueConfig{
+		enabled:   enabled,
+		TopicName: topicName,
+	}
+}
+
 func (pqc PoisonQueueConfig) IsEnabled() bool {
-	return pqc.Enabled && pqc.TopicName != ""
+	return pqc.enabled && pqc.TopicName != ""
 }
 
 type ConsumerGroupMonitoringConfig struct {
-	Enabled         bool          `json:"enabled"`
-	HealthTimeout   time.Duration `json:"health_timeout"`
-	RefreshInterval time.Duration `json:"refresh_interval"`
+	enabled         bool
+	HealthTimeout   time.Duration `json:"healthTimeout"`
+	RefreshInterval time.Duration `json:"refreshInterval"`
+}
+
+func NewConsumerGroupMonitoringConfig(enabled bool, healthTimeout time.Duration, refreshInterval time.Duration) ConsumerGroupMonitoringConfig {
+	return ConsumerGroupMonitoringConfig{
+		enabled:         enabled,
+		HealthTimeout:   healthTimeout,
+		RefreshInterval: refreshInterval,
+	}
 }
 
 func (cgm ConsumerGroupMonitoringConfig) IsEnabled() bool {
-	return cgm.Enabled && cgm.HealthTimeout != 0 && cgm.RefreshInterval != 0
+	return cgm.enabled && cgm.HealthTimeout > 0 && cgm.RefreshInterval > 0
 }
 
 type PubSubOption func(*PubSubOptions)
