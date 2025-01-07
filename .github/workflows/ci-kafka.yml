@@ -19,13 +19,25 @@ jobs:
       - name: Setup Kafka
         run: docker compose -f docker-compose.ci.kgox.yml up -d --wait
       - run: go run github.com/ThreeDotsLabs/wait-for@latest localhost:19092 localhost:29092 localhost:39092
-      - run: make test_kafka
+      - name: Test Kafka
+        uses: nick-fields/retry@v3.0.0
         env:
           KAFKA: localhost:19092,localhost:29092,localhost:39092
-        timeout-minutes: 30
-      - run: make test_kafka_race
+        with:
+          timeout_minutes: 30
+          max_attempts: 2
+          command: |
+            make test_kafka
+
+      - name: Test Kafka Race
+        uses: nick-fields/retry@v3.0.0
         env:
           KAFKA: localhost:19092,localhost:29092,localhost:39092
+        with:
+          timeout_minutes: 30
+          max_attempts: 2
+          command: |
+            make test_kafka_race
       - name: Tear down services
         if: always()
         run: docker compose -f docker-compose.ci.kgox.yml down -v

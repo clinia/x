@@ -74,20 +74,17 @@ func consumer_Subscribe_Handling_test(t *testing.T, eae bool) {
 		wClient := getWriteClient(t)
 
 		ctx := context.Background()
-		headerResult := map[string]int{
-			"0": 0,
-			"1": 0,
-			"2": 0,
+		headerResult := map[string]*atomic.Int32{
+			"0": {},
+			"1": {},
+			"2": {},
 		}
 
-		mu := sync.Mutex{}
 		topicHandlers := pubsubx.Handlers{
 			topics[0]: func(ctx context.Context, msgs []*messagex.Message) ([]error, error) {
-				mu.Lock()
-				defer mu.Unlock()
 				errs := make([]error, len(msgs))
 				for i, msg := range msgs {
-					headerResult[msg.Metadata[messagex.RetryCountHeaderKey]] += 1
+					headerResult[msg.Metadata[messagex.RetryCountHeaderKey]].Add(1)
 					errs[i] = errorx.NewRetryableError(errors.New("Retry Me"))
 				}
 				return errs, nil
@@ -100,11 +97,9 @@ func consumer_Subscribe_Handling_test(t *testing.T, eae bool) {
 		sendMessage(t, ctx, wClient, topics[0], expectedMsg)
 
 		assert.EventuallyWithT(t, func(c *assert.CollectT) {
-			mu.Lock()
-			defer mu.Unlock()
-			assert.Equal(c, 1, headerResult["0"])
-			assert.Equal(c, 1, headerResult["1"])
-			assert.Equal(c, 1, headerResult["2"])
+			assert.Equal(c, int32(1), headerResult["0"].Load())
+			assert.Equal(c, int32(1), headerResult["1"].Load())
+			assert.Equal(c, int32(1), headerResult["2"].Load())
 		}, 5*time.Second, 250*time.Millisecond)
 	})
 
@@ -120,10 +115,10 @@ func consumer_Subscribe_Handling_test(t *testing.T, eae bool) {
 		wClient := getWriteClient(t)
 
 		ctx := context.Background()
-		headerResult := map[string]int{
-			"0": 0,
-			"1": 0,
-			"2": 0,
+		headerResult := map[string]*atomic.Int32{
+			"0": {},
+			"1": {},
+			"2": {},
 		}
 
 		mu := sync.Mutex{}
@@ -133,7 +128,7 @@ func consumer_Subscribe_Handling_test(t *testing.T, eae bool) {
 				defer mu.Unlock()
 				errs := make([]error, len(msgs))
 				for i, msg := range msgs {
-					headerResult[msg.Metadata[messagex.RetryCountHeaderKey]] += 1
+					headerResult[msg.Metadata[messagex.RetryCountHeaderKey]].Add(1)
 					errs[i] = errors.New("Retry Me")
 				}
 				return errs, nil
@@ -148,9 +143,9 @@ func consumer_Subscribe_Handling_test(t *testing.T, eae bool) {
 		assert.EventuallyWithT(t, func(c *assert.CollectT) {
 			mu.Lock()
 			defer mu.Unlock()
-			assert.Equal(c, 1, headerResult["0"])
-			assert.Equal(c, 0, headerResult["1"])
-			assert.Equal(c, 0, headerResult["2"])
+			assert.Equal(c, int32(1), headerResult["0"].Load())
+			assert.Equal(c, int32(0), headerResult["1"].Load())
+			assert.Equal(c, int32(0), headerResult["2"].Load())
 		}, 5*time.Second, 250*time.Millisecond)
 	})
 
