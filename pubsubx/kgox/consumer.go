@@ -3,6 +3,7 @@ package kgox
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -283,6 +284,7 @@ func (c *consumer) start(ctx context.Context) {
 				return
 			}
 		})
+		fmt.Println("end of polling records")
 	}
 }
 
@@ -382,8 +384,11 @@ func (c *consumer) Subscribe(ctx context.Context, topicHandlers pubsubx.Handlers
 func (c *consumer) Health() error {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
+
+	err := errorx.InternalErrorf("consumer group %s is not healthy", c.group.ConsumerGroup(c.conf.Scope))
+
 	if c.cancel == nil {
-		return errorx.InternalErrorf("not subscribed to topics")
+		return err
 	}
 
 	if !c.conf.ConsumerGroupMonitoring.IsEnabled() {
@@ -393,8 +398,6 @@ func (c *consumer) Health() error {
 	if c.state.previousDescribedGroupLag.Group == "" || c.state.currentDescribedGroupLag.Group == "" {
 		return nil
 	}
-
-	err := errorx.InternalErrorf("consumer group %s is not healthy", c.group.ConsumerGroup(c.conf.Scope))
 
 	for topic, lastConsumptionTime := range c.state.lastConsumptionTimePerTopic {
 		timeElapsed := time.Since(lastConsumptionTime)
@@ -446,16 +449,38 @@ func (c *consumer) monitor(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			c.refreshLagState(ctx)
+			err := c.refreshLagState(ctx)
+			if err != nil {
+				c.l.WithContext(ctx).WithError(errorx.InternalErrorf("failed to fetch lag for consumer group %s: %v", c.group.ConsumerGroup(c.conf.Scope), err))
+
+				// Teardown
+				// Note: Next call to Health() will return error and will trigger consumer group restart
+				c.mu.Lock()
+				c.cancel = nil
+				c.mu.Unlock()
+
+				c.wg.Done()
+				fmt.Println("Teardown done")
+
+				return
+			}
 		}
 	}
 }
 
-// refreshLagState fetches the lag from the admin client and updates the state
+// refreshLagState fetches the lag with retry mechanism from the admin client and updates the state
 func (c *consumer) refreshLagState(ctx context.Context) error {
-	groupLags, err := c.adminClient.Lag(ctx, c.group.ConsumerGroup(c.conf.Scope))
-	if err != nil {
+	bc := backoff.NewExponentialBackOff()
+	bc.MaxElapsedTime = 3 * time.Second
+
+	var groupLags map[string]kadm.DescribedGroupLag
+	var err error
+	retryErr := backoff.Retry(func() error {
+		groupLags, err = c.adminClient.Lag(ctx, c.group.ConsumerGroup(c.conf.Scope))
 		return err
+	}, bc)
+	if retryErr != nil {
+		return retryErr
 	}
 
 	c.mu.Lock()
@@ -463,7 +488,7 @@ func (c *consumer) refreshLagState(ctx context.Context) error {
 
 	// copy the current state to the previous state
 	c.state.previousDescribedGroupLag = c.state.currentDescribedGroupLag
-	// update the current state 
+	// update the current state
 	c.state.currentDescribedGroupLag = groupLags[c.group.ConsumerGroup(c.conf.Scope)]
 
 	// If all the lags are 0, reset all the last consumption times
