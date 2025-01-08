@@ -1,0 +1,20 @@
+[
+    {
+        "name": "redpanda_0",
+        "listen": "[::]:19092",
+        "upstream": "localhost:19992",
+        "enabled": true
+    },
+    {
+        "name": "redpanda_1",
+        "listen": "[::]:29092",
+        "upstream": "localhost:29992",
+        "enabled": true
+    },
+    {
+        "name": "redpanda_2",
+        "listen": "[::]:39092",
+        "upstream": "localhost:39992",
+        "enabled": true
+    }
+]
