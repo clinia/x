@@ -368,7 +368,7 @@ func (c *consumer) Subscribe(ctx context.Context, topicHandlers pubsubx.Handlers
 
 			// Teardown
 			c.mu.Lock()
-			c.cancel()
+			c.cancel = nil
 			c.mu.Unlock()
 
 			c.wg.Done()
