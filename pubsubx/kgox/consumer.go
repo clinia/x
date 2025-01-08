@@ -3,7 +3,6 @@ package kgox
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 
@@ -539,7 +538,6 @@ func (c *consumer) monitor(ctx context.Context) {
 				c.mu.Unlock()
 
 				c.wg.Done()
-				fmt.Println("Teardown done")
 
 				return
 			}
@@ -570,7 +568,11 @@ func (c *consumer) refreshLagState(ctx context.Context) error {
 	// update the current state
 	c.state.currentDescribedGroupLag = groupLags[c.group.ConsumerGroup(c.conf.Scope)]
 
-	// If all the lags are 0, reset all the last consumption times
+	// Imagine we have a healthTimeout of 2m, and a last read occured 1m59s ago when all topics were lag free.
+	// If there are messages being pushed to some of the topics at this time and the consumption takes more than 1s to fetch the messages, 
+	// the health endpoint would return not healthy.
+	// To fix this, the solution is  to reset all of the lastConsumptionTimes to the current time if all of the lags are zero at that time. 
+	// That way, the timeout would really start only when we are spotting a lag.
 	if c.allLagsZero() {
 		c.state.lastConsumptionTimePerTopic = make(map[string]time.Time, len(c.topics))
 	}
