@@ -44,7 +44,8 @@ type consumer struct {
 
 type state struct {
 	lastConsumptionTimePerTopic map[string]time.Time
-	totalLagPerTopic            kadm.GroupTopicsLag
+	previousDescribedGroupLag   kadm.DescribedGroupLag
+	currentDescribedGroupLag    kadm.DescribedGroupLag
 }
 
 var _ pubsubx.Subscriber = (*consumer)(nil)
@@ -75,7 +76,6 @@ func newConsumer(l *logrusx.Logger, kotelService *kotel.Kotel, config *pubsubx.C
 	if config.ConsumerGroupMonitoring.IsEnabled() {
 		cons.state = state{
 			lastConsumptionTimePerTopic: make(map[string]time.Time, len(topics)),
-			totalLagPerTopic:            make(kadm.GroupTopicsLag, len(topics)),
 		}
 	}
 
@@ -390,17 +390,45 @@ func (c *consumer) Health() error {
 		return nil
 	}
 
-	err := errorx.InternalErrorf("consumer group %s hanging", c.group.ConsumerGroup(c.conf.Scope))
+	if c.state.previousDescribedGroupLag.Group == "" || c.state.currentDescribedGroupLag.Group == "" {
+		return nil
+	}
+
+	err := errorx.InternalErrorf("consumer group %s is not healthy", c.group.ConsumerGroup(c.conf.Scope))
 
 	for topic, lastConsumptionTime := range c.state.lastConsumptionTimePerTopic {
 		timeElapsed := time.Since(lastConsumptionTime)
-		lag := c.state.totalLagPerTopic[topic].Lag
 
-		if timeElapsed > c.conf.ConsumerGroupMonitoring.HealthTimeout && lag > 0 {
-			err.WithDetails(errorx.InternalErrorf("topic '%s': no consumption for %s and lag is %d", topic, timeElapsed, lag))
+		// If last consumption time for at least one topic is less than the health timeout, return healthy
+		if timeElapsed < c.conf.ConsumerGroupMonitoring.HealthTimeout {
+			return nil
+		}
+
+		previousTopicLags := c.state.previousDescribedGroupLag.Lag[topic]
+		currentTopicLags := c.state.currentDescribedGroupLag.Lag[topic]
+
+		for i, currentPartitionLag := range currentTopicLags {
+			currentPartitionOffset := currentPartitionLag.Commit.At
+			previousPartitionOffset := previousTopicLags[i].Commit.At
+
+			// If offset is moving for at least one partition, return healthy
+			if currentPartitionOffset > previousPartitionOffset {
+				return nil
+			}
+
+			if currentPartitionLag.Lag > 0 {
+				// If we reach here, we have a case for unhealthy for that specific partition
+				err.WithDetails(errorx.InternalErrorf("topic '%s' partition %d: no consumption for %s, lag is %d, and offset %d is not moving", topic, currentPartitionLag.Partition, timeElapsed, currentPartitionLag.Lag, currentPartitionOffset))
+			}
+
 		}
 	}
 
+	// If no early returns, it means that:
+	// 1. All topics of the consumer group did not consume any messages for the last `HealthTimeout` duration
+	// 2. All the partitions of the topics of the consumer group have offsets that remain constant (not moving)
+	// 3. A lag still exists for at least one partition
+	// From the above, we can infer that the consumer group is unhealthy ("stuck")
 	if len(err.Details) > 0 {
 		return err
 	}
@@ -433,7 +461,28 @@ func (c *consumer) refreshLagState(ctx context.Context) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	c.state.totalLagPerTopic = groupLags[c.group.ConsumerGroup(c.conf.Scope)].Lag.TotalByTopic()
+	// copy the current state to the previous state
+	c.state.previousDescribedGroupLag = c.state.currentDescribedGroupLag
+	// update the current state 
+	c.state.currentDescribedGroupLag = groupLags[c.group.ConsumerGroup(c.conf.Scope)]
+
+	// If all the lags are 0, reset all the last consumption times
+	if c.allLagsZero() {
+		c.state.lastConsumptionTimePerTopic = make(map[string]time.Time, len(c.topics))
+	}
 
 	return nil
+}
+
+// allLagsZero checks if all the lags in the current described group lag are 0
+func (c *consumer) allLagsZero() bool {
+	for _, topicLags := range c.state.currentDescribedGroupLag.Lag {
+		for _, partitionLag := range topicLags {
+			if partitionLag.Lag > 0 {
+				return false
+			}
+		}
+	}
+
+	return true
 }

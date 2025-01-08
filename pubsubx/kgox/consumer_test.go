@@ -620,24 +620,29 @@ func TestConsumer_Monitoring(t *testing.T) {
 
 		msg := messagex.NewMessage([]byte("test"))
 
-		for i := 0; i < 1000; i++ {
+		for i := 0; i < 200; i++ {
 			sendMessage(t, ctx, wClient, testTopic, msg)
+			time.Sleep(1 * time.Millisecond)
 		}
 
 		var lastConsumptionTime time.Time
-		var lag kadm.TopicLag
-		var timeOk, lagOk bool
+		var lagPerPartition map[int32]kadm.GroupMemberLag
+		var timeExists, currentLagExists, previousLagExists bool
 
 		require.Eventually(t, func() bool {
 			consumer.mu.RLock()
-			lastConsumptionTime, timeOk = consumer.state.lastConsumptionTimePerTopic[testTopic.TopicName(config.Scope)]
-			lag, lagOk = consumer.state.totalLagPerTopic[testTopic.TopicName(config.Scope)]
+			lastConsumptionTime, timeExists = consumer.state.lastConsumptionTimePerTopic[testTopic.TopicName(config.Scope)]
+			lagPerPartition, previousLagExists = consumer.state.previousDescribedGroupLag.Lag[testTopic.TopicName(config.Scope)]
+			lagPerPartition, currentLagExists = consumer.state.currentDescribedGroupLag.Lag[testTopic.TopicName(config.Scope)]
+
 			consumer.mu.RUnlock()
-			return timeOk && lagOk
+			return timeExists && currentLagExists && previousLagExists
 		}, 10*time.Second, 100*time.Millisecond)
 
 		assert.True(t, !lastConsumptionTime.IsZero())
-		assert.True(t, lag.Lag >= 0)
+		for _, l := range lagPerPartition {
+			assert.True(t, l.Lag >= 0)
+		}
 	})
 }
 
@@ -671,14 +676,39 @@ func TestConsumer_Health(t *testing.T) {
 
 		// mock time elapsed and lag to trigger health to return an error
 		consumer.state.lastConsumptionTimePerTopic[testTopic.TopicName(config.Scope)] = time.Now().Add(-2 * time.Minute)
-		consumer.state.totalLagPerTopic[testTopic.TopicName(config.Scope)] = kadm.TopicLag{
-			Topic: testTopic.TopicName(config.Scope),
-			Lag:   int64(1000),
+		consumer.state.previousDescribedGroupLag = kadm.DescribedGroupLag{
+			Group: group,
+			Lag: map[string]map[int32]kadm.GroupMemberLag{
+				testTopic.TopicName(config.Scope): {
+					0: {
+						Lag: 1,
+						Commit: kadm.Offset{
+							At: 5,
+						},
+					},
+				},
+			},
+		}
+		consumer.state.currentDescribedGroupLag = kadm.DescribedGroupLag{
+			Group: group,
+			Lag: map[string]map[int32]kadm.GroupMemberLag{
+				testTopic.TopicName(config.Scope): {
+					0: {
+						Lag: 500,
+						Commit: kadm.Offset{
+							At: 5,
+						},
+					},
+				},
+			},
 		}
 
 		err = consumer.Health()
 		assert.Error(t, err)
 
-		assert.Contains(t, err.Error(), fmt.Sprintf("consumer group %s hanging", consumer.group.ConsumerGroup(consumer.conf.Scope)))
+		cliniaErr, _ := errorx.IsCliniaError(err)
+		assert.Contains(t, cliniaErr.Message, fmt.Sprintf("consumer group %s is not healthy", consumer.group.ConsumerGroup(consumer.conf.Scope)))
+		assert.Len(t, cliniaErr.Details, 1)
+		assert.Contains(t, cliniaErr.Details[0].Message, fmt.Sprintf("lag is 500, and offset 5 is not moving"))
 	})
 }
