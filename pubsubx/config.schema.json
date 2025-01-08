@@ -71,6 +71,11 @@
       "enabled": true,
       "healthTimeout": "1m",
       "refreshInterval": "1s"
+    },
+    "enableAutoCommit": {
+      "type": "boolean",
+      "description": "Enable auto-commit logic on records polling",
+      "default": true
     }
   }
 }

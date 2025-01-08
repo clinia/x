@@ -520,6 +520,7 @@ func (p *Provider) PubSubConfig() *pubsubx.Config {
 			p.DurationF("pubsub.consumerGroupMonitoring.healthTimeout", 5*time.Minute),
 			p.DurationF("pubsub.consumerGroupMonitoring.refreshInterval", 5*time.Second),
 		),
+		EnableAutoCommit: p.BoolF("pubsub.enableAutoCommit", false),
 	}
 }
 

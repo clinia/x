@@ -15,6 +15,10 @@ func (i IndexName) Elements() []string {
 }
 
 func (i IndexName) EngineName() string {
+	elems := i.Elements()
+	if len(elems) < 2 {
+		return ""
+	}
 	return i.Elements()[1]
 }
 
@@ -23,7 +27,7 @@ func (i IndexName) Name() string {
 	if len(elems) < 3 {
 		return ""
 	}
-	return i.Elements()[2]
+	return strings.Join(elems[2:], pathSeparator)
 }
 
 func (i IndexName) String() string {

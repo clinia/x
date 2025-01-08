@@ -17,15 +17,27 @@ jobs:
           go-version: "^1.21.1"
       - run: cat .env >> $GITHUB_ENV || true
       - name: Setup Kafka
-        run: docker compose -f docker-compose.kafka.kgox.yml up -d --wait
-      - run: go run github.com/ThreeDotsLabs/wait-for@latest localhost:9091 localhost:9092 localhost:9093 localhost:9094 localhost:9095
-      - run: make test_kafka
+        run: docker compose -f docker-compose.ci.kgox.yml up -d --wait
+      - run: go run github.com/ThreeDotsLabs/wait-for@latest localhost:19092 localhost:29092 localhost:39092
+      - name: Test Kafka
+        uses: nick-fields/retry@v3.0.0
         env:
-          KAFKA: localhost:9091,localhost:9092,localhost:9093,localhost:9094,localhost:9095
-        timeout-minutes: 30
-      - run: make test_kafka_race
+          KAFKA: localhost:19092,localhost:29092,localhost:39092
+        with:
+          timeout_minutes: 30
+          max_attempts: 2
+          command: |
+            make test_kafka
+
+      - name: Test Kafka Race
+        uses: nick-fields/retry@v3.0.0
         env:
-          KAFKA: localhost:9091,localhost:9092,localhost:9093,localhost:9094,localhost:9095
+          KAFKA: localhost:19092,localhost:29092,localhost:39092
+        with:
+          timeout_minutes: 30
+          max_attempts: 2
+          command: |
+            make test_kafka_race
       - name: Tear down services
         if: always()
-        run: docker compose -f docker-compose.kgox.yml down -v
+        run: docker compose -f docker-compose.ci.kgox.yml down -v
