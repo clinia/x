@@ -65,7 +65,7 @@ func getPubsubConfig(t *testing.T, retry bool, monitoring bool) *pubsubx.Config 
 			time.Duration(60*time.Second),
 			time.Duration(50*time.Millisecond),
 		),
-		EnableAutoCommit: true,
+		EnableAutoCommit: false,
 	}
 }
 
