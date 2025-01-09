@@ -233,22 +233,7 @@ func consumer_Subscribe_Handling_test(t *testing.T, eae bool) {
 		// This waits for the failed execution
 		wg.Wait()
 
-		// Here, even if the WaitForCommitOnCloseTimeout is set to a big value,
-		// we should return before that because the connection is closed
-		// Wrapping with a timeout to ensure the test doesn't hang if the above statement is not respected
-		consumer.opts.WaitForCommitOnCloseTimeout = 999 * time.Second
-		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-		t.Cleanup(cancel)
-		done := make(chan struct{})
-		go func() {
-			consumer.Close()
-			close(done)
-		}()
-		select {
-		case <-ctx.Done():
-			t.Fatalf("timed out waiting for the consumer to close")
-		case <-done:
-		}
+		consumer.Close()
 
 		// We reenable the proxies to make sure we can consume again with the new consumer
 		enableProxies()
@@ -345,7 +330,7 @@ func consumer_Subscribe_Concurrency_test(t *testing.T, eae bool) {
 	l := Logger()
 	config := getPubsubConfig(t, false)
 	pqh := getPoisonQueueHandler(t, l, config)
-	opts := &pubsubx.SubscriberOptions{MaxBatchSize: 10, EnableAsyncExecution: eae, RebalanceTimeout: 1 * time.Second, DialTimeout: 1 * time.Second, WaitForCommitOnCloseTimeout: 1 * time.Second}
+	opts := &pubsubx.SubscriberOptions{MaxBatchSize: 10, EnableAsyncExecution: eae, RebalanceTimeout: 1 * time.Second, DialTimeout: 1 * time.Second}
 
 	getWriteClient := func(t *testing.T) *kgo.Client {
 		t.Helper()

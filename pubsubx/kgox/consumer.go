@@ -32,7 +32,7 @@ type consumer struct {
 	erh          *eventRetryHandler
 	pqh          PoisonQueueHandler
 
-	committingOffsetsMu sync.Mutex
+	loopProcessingWg sync.WaitGroup
 
 	mu     sync.RWMutex
 	cancel context.CancelFunc
@@ -165,22 +165,8 @@ func (c *consumer) Close() error {
 
 	c.closed = true
 
-	if !c.conf.EnableAutoCommit {
-		// We will try to wait for the committing offsets to be done as to not lose the current progress.
-		// The wait is only relevant if there is currently a commit in progress (after a poll and handler has been executed).
-		done := make(chan struct{})
-		go func() {
-			c.committingOffsetsMu.Lock()
-			defer c.committingOffsetsMu.Unlock()
-			close(done)
-		}()
-
-		select {
-		case <-done:
-			c.l.Debugf("committing offsets done")
-		case <-time.After(c.opts.WaitForCommitOnCloseTimeout):
-		}
-	}
+	// We wait for the current loop to finish if there is ongoing work
+	c.loopProcessingWg.Wait()
 
 	if cancel := c.cancel; cancel != nil {
 		cancel()
@@ -298,66 +284,69 @@ func (c *consumer) start(ctx context.Context) {
 		default:
 		}
 
-		// Sync task that hang until it receive at least one record
-		// When records are pulled, metadata is also updated within the client
-		fetches := c.cl.PollRecords(ctx, int(c.opts.MaxBatchSize))
-		if errs := fetches.Errors(); len(errs) > 0 {
-			// All errors are retried internally when fetching, but non-retriable errors are
-			// returned from polls so that users can notice and take action.
-			// TODO: Handle errors
-			// If its a context canceled error, we should return
-			l := c.l.WithFields(
-				logrusx.NewLogFields(c.attributes(nil)...),
-			)
-			if lo.SomeBy(errs, func(err kgo.FetchError) bool { return errs[0].Err == context.Canceled }) {
-				l.Warnf("context canceled, stopping consumer")
+		func() {
+			// Sync task that hang until it receive at least one record
+			// When records are pulled, metadata is also updated within the client
+			fetches := c.cl.PollRecords(ctx, int(c.opts.MaxBatchSize))
+			// This signifies we are currently processing records
+			// If the context was cancelled here, this is a noop
+			c.loopProcessingWg.Add(1)
+			defer c.loopProcessingWg.Done()
+
+			if errs := fetches.Errors(); len(errs) > 0 {
+				// All errors are retried internally when fetching, but non-retriable errors are
+				// returned from polls so that users can notice and take action.
+				// TODO: Handle errors
+				// If its a context canceled error, we should return
+				l := c.l.WithFields(
+					logrusx.NewLogFields(c.attributes(nil)...),
+				)
+				if lo.SomeBy(errs, func(err kgo.FetchError) bool { return errs[0].Err == context.Canceled }) {
+					l.Warnf("context canceled, stopping consumer")
+					return
+				}
+
+				l.WithError(errors.Join(lo.Map(errs, func(err kgo.FetchError, i int) error { return err.Err })...)).Errorf("error while polling records, Stopping consumer")
 				return
 			}
 
-			l.WithError(errors.Join(lo.Map(errs, func(err kgo.FetchError, i int) error { return err.Err })...)).Errorf("error while polling records, Stopping consumer")
-			return
-		}
-		var wg errgroup.Group
-		if c.opts.MaxParallelAsyncExecution <= 0 {
-			wg.SetLimit(-1)
-		} else {
-			wg.SetLimit(int(c.opts.MaxParallelAsyncExecution))
-		}
-		fetches.EachTopic(func(tp kgo.FetchTopic) {
-			switch {
-			case c.opts.EnableAsyncExecution:
-				wg.Go(func() error {
-					if err := c.handleTopic(ctx, tp); err != nil {
-						switch err {
-						case pubsubx.AbortSubscribeError():
-							return err
-						default:
-							return nil
-						}
-					}
-					return nil
-				})
-			default:
-				handleTopicErrorHandler(c.handleTopic(ctx, tp))
+			var wg errgroup.Group
+			if c.opts.MaxParallelAsyncExecution <= 0 {
+				wg.SetLimit(-1)
+			} else {
+				wg.SetLimit(int(c.opts.MaxParallelAsyncExecution))
 			}
-		})
-
-		if c.opts.EnableAsyncExecution {
-			handleTopicErrorHandler(wg.Wait())
-		}
-		if !c.conf.EnableAutoCommit {
-			func() {
-				if c.committingOffsetsMu.TryLock() {
-					defer c.committingOffsetsMu.Unlock()
+			fetches.EachTopic(func(tp kgo.FetchTopic) {
+				switch {
+				case c.opts.EnableAsyncExecution:
+					wg.Go(func() error {
+						if err := c.handleTopic(ctx, tp); err != nil {
+							switch err {
+							case pubsubx.AbortSubscribeError():
+								return err
+							default:
+								return nil
+							}
+						}
+						return nil
+					})
+				default:
+					handleTopicErrorHandler(c.handleTopic(ctx, tp))
 				}
+			})
+
+			if c.opts.EnableAsyncExecution {
+				handleTopicErrorHandler(wg.Wait())
+			}
+			if !c.conf.EnableAutoCommit {
 				// If commiting the offsets fails, kill the loop by returning
 				if err := c.cl.CommitUncommittedOffsets(ctx); err != nil {
 					l.WithError(err).Errorf("failed to commit records")
 					return
 				}
-			}()
-		}
-		c.cl.AllowRebalance()
+			}
+			c.cl.AllowRebalance()
+		}()
 	}
 }
 
