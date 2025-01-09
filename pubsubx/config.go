@@ -109,14 +109,18 @@ type SubscriberOptions struct {
 	DialTimeout time.Duration
 	// Defaults to 60s. This should be big enough to allow enough time to process a batch.
 	RebalanceTimeout time.Duration
+	// Defaults to 1s. This setting is only relevant if the pubsub Config.EnableAutoCommit is set to false (manual commit).
+	// It dictates how long a call to Close() will wait for a commit that's in progress before closing the connection.
+	WaitForCommitOnCloseTimeout time.Duration
 }
 
 func NewDefaultSubscriberOptions() *SubscriberOptions {
 	return &SubscriberOptions{
-		MaxBatchSize:              100,
-		MaxTopicRetryCount:        3,
-		EnableAsyncExecution:      false,
-		MaxParallelAsyncExecution: -1,
+		MaxBatchSize:                100,
+		MaxTopicRetryCount:          3,
+		EnableAsyncExecution:        false,
+		MaxParallelAsyncExecution:   -1,
+		WaitForCommitOnCloseTimeout: 1 * time.Second,
 	}
 }
 
@@ -159,6 +163,24 @@ func WithMaxParalleAsyncExecution(max int16) SubscriberOption {
 		} else {
 			o.MaxParallelAsyncExecution = max
 		}
+	}
+}
+
+func WithDialTimeout(timeout time.Duration) SubscriberOption {
+	return func(o *SubscriberOptions) {
+		o.DialTimeout = timeout
+	}
+}
+
+func WithRebalanceTimeout(timeout time.Duration) SubscriberOption {
+	return func(o *SubscriberOptions) {
+		o.RebalanceTimeout = timeout
+	}
+}
+
+func WithWaitForCommitOnCloseTimeout(timeout time.Duration) SubscriberOption {
+	return func(o *SubscriberOptions) {
+		o.WaitForCommitOnCloseTimeout = timeout
 	}
 }
 

@@ -32,6 +32,8 @@ type consumer struct {
 	erh          *eventRetryHandler
 	pqh          PoisonQueueHandler
 
+	committingOffsetsWg sync.WaitGroup
+
 	mu     sync.RWMutex
 	cancel context.CancelFunc
 	closed bool
@@ -162,6 +164,22 @@ func (c *consumer) Close() error {
 	}
 
 	c.closed = true
+
+	if !c.conf.EnableAutoCommit {
+		// We will try to wait for the committing offsets to be done as to not lose the current progress.
+		// The wait is only relevant if there is currently a commit in progress (after a poll and handler has been executed).
+		done := make(chan struct{})
+		go func() {
+			c.committingOffsetsWg.Wait()
+			close(done)
+		}()
+
+		select {
+		case <-done:
+			c.l.Debugf("committing offsets done")
+		case <-time.After(c.opts.WaitForCommitOnCloseTimeout):
+		}
+	}
 
 	if cancel := c.cancel; cancel != nil {
 		cancel()
@@ -322,10 +340,13 @@ func (c *consumer) start(ctx context.Context) {
 				handleTopicErrorHandler(c.handleTopic(ctx, tp))
 			}
 		})
+
 		if c.opts.EnableAsyncExecution {
 			handleTopicErrorHandler(wg.Wait())
 		}
 		if !c.conf.EnableAutoCommit {
+			c.committingOffsetsWg.Add(1)
+			defer c.committingOffsetsWg.Done()
 			// If commiting the offsets fails, kill the loop by returning
 			if err := c.cl.CommitUncommittedOffsets(ctx); err != nil {
 				l.WithError(err).Errorf("failed to commit records")
@@ -343,7 +364,7 @@ func (c *consumer) handleRemoteRetryLogic(ctx context.Context, topic messagex.To
 		return
 	}
 	if !c.erh.canTopicRetry() && !c.pqh.CanUsePoisonQueue() {
-		l.Debugf("topic retry and poison queue are disable, not exeucting retry logic")
+		l.Debugf("topic retry and poison queue are disable, not executing retry logic")
 		return
 	}
 	retryableMessages, poisonQueueMessages, poisonQueueErrs := c.erh.parseRetryMessages(ctx, errs, msgs)
