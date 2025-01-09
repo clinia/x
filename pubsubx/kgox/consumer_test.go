@@ -13,8 +13,6 @@ import (
 	"testing"
 	"time"
 
-	toxiproxy "github.com/Shopify/toxiproxy/v2/client"
-
 	"github.com/clinia/x/errorx"
 	"github.com/clinia/x/logrusx"
 	"github.com/clinia/x/pubsubx"
@@ -40,6 +38,9 @@ func TestConsumer_Subscribe_Handling_async(t *testing.T) {
 
 func consumer_Subscribe_Handling_test(t *testing.T, eae bool) {
 	l := Logger()
+	tf := newProxyFixture(t)
+	tf.EnableAll()
+	t.Cleanup(tf.EnableAll)
 	config := getPubsubConfig(t, true)
 	opts := &pubsubx.SubscriberOptions{MaxBatchSize: 10, MaxTopicRetryCount: 3, EnableAsyncExecution: eae, RebalanceTimeout: 1 * time.Second, DialTimeout: 1 * time.Second}
 	pqh := getPoisonQueueHandler(t, l, config)
@@ -161,7 +162,6 @@ func consumer_Subscribe_Handling_test(t *testing.T, eae bool) {
 	})
 
 	t.Run("should not commit the records if the connection with the pubsub service fails", func(t *testing.T) {
-		// t.Skipf("Flaky?")
 		group, topics := getRandomGroupTopics(t, 1)
 		createTopic(t, config, topics[0])
 		cg := messagex.ConsumerGroup(group)
@@ -193,28 +193,6 @@ func consumer_Subscribe_Handling_test(t *testing.T, eae bool) {
 		}))
 		expectedMsg := messagex.NewMessage([]byte("test"))
 		expectedMsg2 := messagex.NewMessage([]byte("test2"))
-		cl := toxiproxy.NewClient("localhost:8474")
-		proxies := []*toxiproxy.Proxy{}
-		for i := range 3 {
-			proxy, err := cl.Proxy(fmt.Sprintf("redpanda_%d", i))
-			require.NoError(t, err)
-			proxies = append(proxies, proxy)
-		}
-		disableProxies := func() {
-			for _, proxy := range proxies {
-				proxy.Disable()
-			}
-			waitForClose <- struct{}{}
-		}
-
-		enableProxies := func() {
-			for _, proxy := range proxies {
-				proxy.Enable()
-			}
-		}
-		enableProxies()
-
-		t.Cleanup(enableProxies)
 
 		closeConsumer1 := func() {
 			cMu.Lock()
@@ -229,14 +207,16 @@ func consumer_Subscribe_Handling_test(t *testing.T, eae bool) {
 		wg.Add(1)
 		closeConsumer1()
 		sendMessage(t, ctx, wClient, topics[0], expectedMsg2)
-		disableProxies()
+		tf.DisableAll()
+		waitForClose <- struct{}{}
+
 		// This waits for the failed execution
 		wg.Wait()
 
 		consumer.Close()
 
 		// We reenable the proxies to make sure we can consume again with the new consumer
-		enableProxies()
+		tf.EnableAll()
 
 		ctx = context.Background()
 		consumer2, err := newConsumer(l, nil, config, cg, topics, opts, erh, pqh)
@@ -328,6 +308,9 @@ func TestConsumer_Subscribe_Concurrency_async(t *testing.T) {
 
 func consumer_Subscribe_Concurrency_test(t *testing.T, eae bool) {
 	l := Logger()
+	tf := newProxyFixture(t)
+	tf.EnableAll()
+	t.Cleanup(tf.EnableAll)
 	config := getPubsubConfig(t, false)
 	pqh := getPoisonQueueHandler(t, l, config)
 	opts := &pubsubx.SubscriberOptions{MaxBatchSize: 10, EnableAsyncExecution: eae, RebalanceTimeout: 1 * time.Second, DialTimeout: 1 * time.Second}

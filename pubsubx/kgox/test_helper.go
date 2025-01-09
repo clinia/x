@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	toxiproxy "github.com/Shopify/toxiproxy/v2/client"
 	"github.com/clinia/x/logrusx"
 	"github.com/clinia/x/pubsubx"
 	"github.com/clinia/x/pubsubx/messagex"
@@ -22,6 +23,35 @@ const (
 	defaultExpectedReceiveTimeout   = 30 * time.Second
 	defaultExpectedNoReceiveTimeout = 5 * time.Second
 )
+
+type proxyFixture struct {
+	cl      *toxiproxy.Client
+	proxies []*toxiproxy.Proxy
+}
+
+func newProxyFixture(t *testing.T) *proxyFixture {
+	cl := toxiproxy.NewClient("localhost:8474")
+	proxies := []*toxiproxy.Proxy{}
+	for i := range 3 {
+		proxy, err := cl.Proxy(fmt.Sprintf("redpanda_%d", i))
+		require.NoError(t, err)
+		proxies = append(proxies, proxy)
+	}
+
+	return &proxyFixture{cl: cl, proxies: proxies}
+}
+
+func (f *proxyFixture) EnableAll() {
+	for _, p := range f.proxies {
+		p.Enable()
+	}
+}
+
+func (f *proxyFixture) DisableAll() {
+	for _, p := range f.proxies {
+		p.Disable()
+	}
+}
 
 func getRandomGroupTopics(t *testing.T, count int) (Group string, Topics []messagex.Topic) {
 	t.Helper()
