@@ -3,6 +3,7 @@
   "$id": "clinia://meter-config",
   "type": "object",
   "description": "Configure distributed meter using OpenTelemetry",
+  "additionalProperties": false,
   "properties": {
     "provider": {
       "type": "string",

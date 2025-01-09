@@ -3,6 +3,7 @@
   "$id": "clinia://tracer-config",
   "type": "object",
   "description": "Configure distributed tracer using OpenTelemetry",
+  "additionalProperties": false,
   "properties": {
     "provider": {
       "type": "string",

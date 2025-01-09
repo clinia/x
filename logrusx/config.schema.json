@@ -4,6 +4,7 @@
   "title": "Log",
   "description": "Configure logging using the following options. Logs will always be sent to stdout and stderr.",
   "type": "object",
+  "additionalProperties": false,
   "properties": {
     "level": {
       "title": "Level",
