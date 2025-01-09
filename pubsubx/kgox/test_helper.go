@@ -22,6 +22,7 @@ import (
 const (
 	defaultExpectedReceiveTimeout   = 30 * time.Second
 	defaultExpectedNoReceiveTimeout = 5 * time.Second
+	defaultAssertTimeout            = 10 * time.Second
 )
 
 type proxyFixture struct {

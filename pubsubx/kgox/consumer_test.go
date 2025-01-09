@@ -96,7 +96,7 @@ func consumer_Subscribe_Handling_test(t *testing.T, eae bool) {
 		expectedMsg := messagex.NewMessage([]byte("test"))
 		sendMessage(t, ctx, wClient, topics[0], expectedMsg)
 
-		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		ctx, cancel := context.WithTimeout(ctx, defaultAssertTimeout)
 		t.Cleanup(cancel)
 		actual := make([]string, 0, 3)
 	loop:
@@ -142,7 +142,7 @@ func consumer_Subscribe_Handling_test(t *testing.T, eae bool) {
 		expectedMsg := messagex.NewMessage([]byte("test"))
 		sendMessage(t, ctx, wClient, topics[0], expectedMsg)
 
-		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		ctx, cancel := context.WithTimeout(ctx, defaultExpectedNoReceiveTimeout)
 		t.Cleanup(cancel)
 		actual := make([]string, 0, 3)
 	loop:
@@ -166,8 +166,6 @@ func consumer_Subscribe_Handling_test(t *testing.T, eae bool) {
 		createTopic(t, config, topics[0])
 		cg := messagex.ConsumerGroup(group)
 		erh := getEventRetryHandler(t, l, config, cg, nil)
-		opts.DialTimeout = 1 * time.Second
-		opts.RebalanceTimeout = 1 * time.Second
 		consumer, err := newConsumer(l, nil, config, cg, topics, opts, erh, pqh)
 		require.NoError(t, err)
 		wClient := getWriteClient(t)
@@ -235,7 +233,7 @@ func consumer_Subscribe_Handling_test(t *testing.T, eae bool) {
 		})
 		require.NoError(t, err)
 		select {
-		case <-time.After(5 * time.Second):
+		case <-time.After(defaultAssertTimeout):
 			t.Fail()
 		case msg := <-receivedMsg:
 			require.Equal(t, "test2", msg)
@@ -566,7 +564,7 @@ func consumer_Subscribe_Concurrency_test(t *testing.T, eae bool) {
 				assert.Equal(c, expected[i], counter[i].Load(),
 					fmt.Sprintf("topic '%s' did not receive the expected msg count", topic))
 			}
-		}, 5*time.Second, 250*time.Millisecond)
+		}, defaultAssertTimeout, 250*time.Millisecond)
 
 		for i := range len(topics) {
 			expectedMsg := messagex.NewMessage([]byte("test" + strconv.Itoa(i)))
@@ -577,6 +575,7 @@ func consumer_Subscribe_Concurrency_test(t *testing.T, eae bool) {
 		}
 
 		// This will wait until the consumer closed after receiving the AbortSubscribeError
+		t.Logf("waiting for consumer to close")
 		c.wg.Wait()
 
 		assert.Equal(t, expected[len(expected)/2]+4, counter[len(counter)/2].Load())
@@ -694,7 +693,7 @@ func consumer_Subscribe_Concurrency_test(t *testing.T, eae bool) {
 					containsStackTrace := strings.Contains(str, "consumer_test.go:")
 					assert.True(t, containsPanic, "expected panic message to be logged")
 					assert.True(t, containsStackTrace, "expected stack trace to be logged")
-				}, 3*time.Second, 100*time.Millisecond)
+				}, defaultAssertTimeout, 100*time.Millisecond)
 			}
 		}
 
@@ -702,7 +701,7 @@ func consumer_Subscribe_Concurrency_test(t *testing.T, eae bool) {
 		assert.EventuallyWithT(t, func(t *assert.CollectT) {
 			expectErr := consumer.Health()
 			assert.Error(t, expectErr)
-		}, 3*time.Second, 100*time.Millisecond)
+		}, defaultAssertTimeout, 100*time.Millisecond)
 	})
 }
 
