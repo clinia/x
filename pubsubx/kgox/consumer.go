@@ -32,7 +32,7 @@ type consumer struct {
 	erh          *eventRetryHandler
 	pqh          PoisonQueueHandler
 
-	committingOffsetsWg sync.WaitGroup
+	committingOffsetsMu sync.Mutex
 
 	mu     sync.RWMutex
 	cancel context.CancelFunc
@@ -170,7 +170,8 @@ func (c *consumer) Close() error {
 		// The wait is only relevant if there is currently a commit in progress (after a poll and handler has been executed).
 		done := make(chan struct{})
 		go func() {
-			c.committingOffsetsWg.Wait()
+			c.committingOffsetsMu.Lock()
+			defer c.committingOffsetsMu.Unlock()
 			close(done)
 		}()
 
@@ -345,13 +346,16 @@ func (c *consumer) start(ctx context.Context) {
 			handleTopicErrorHandler(wg.Wait())
 		}
 		if !c.conf.EnableAutoCommit {
-			c.committingOffsetsWg.Add(1)
-			defer c.committingOffsetsWg.Done()
-			// If commiting the offsets fails, kill the loop by returning
-			if err := c.cl.CommitUncommittedOffsets(ctx); err != nil {
-				l.WithError(err).Errorf("failed to commit records")
-				return
-			}
+			func() {
+				if c.committingOffsetsMu.TryLock() {
+					defer c.committingOffsetsMu.Unlock()
+				}
+				// If commiting the offsets fails, kill the loop by returning
+				if err := c.cl.CommitUncommittedOffsets(ctx); err != nil {
+					l.WithError(err).Errorf("failed to commit records")
+					return
+				}
+			}()
 		}
 		c.cl.AllowRebalance()
 	}
