@@ -157,6 +157,43 @@
           }
         }
       }
+    },
+    "span_limits": {
+      "type": "object",
+      "description": "Span limits configurations",
+      "additionalProperties": false,
+      "properties": {
+        "attribute_count_limit": {
+          "type": "integer",
+          "description": "Specifies the limit for the number of attributes per span.",
+          "default": 128
+        },
+        "attribute_per_link_count_limit": {
+          "type": "integer",
+          "description": "Specifies the limit for the number of attributes per link.",
+          "default": -1
+        },
+        "attribute_value_length_limit": {
+          "type": "integer",
+          "description": "Specifies the limit for the length of attribute values.",
+          "default": 8192
+        },
+        "attribute_per_event_count_limit": {
+          "type": "integer",
+          "description": "Specifies the limit for the number of attributes per event.",
+          "default": 10
+        },
+        "event_count_limit": {
+          "type": "integer",
+          "description": "Specifies the limit for the number of events per span.",
+          "default": -1
+        },
+        "link_count_limit": {
+          "type": "integer",
+          "description": "Specifies the limit for the number of links per span.",
+          "default": -1
+        }
+      }
     }
   }
 }
