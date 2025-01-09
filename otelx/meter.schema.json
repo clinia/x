@@ -5,6 +5,20 @@
   "description": "Configure distributed meter using OpenTelemetry",
   "additionalProperties": false,
   "properties": {
+    "service_name": {
+      "type": "string",
+      "description": "Specifies the service name to use on the meter.",
+      "examples": [
+        "Clinia Service"
+      ]
+    },
+    "name": {
+      "type": "string",
+      "description": "Specifies the name of the meter.",
+      "examples": [
+        "clinia_service_meter"
+      ]
+    },
     "provider": {
       "type": "string",
       "description": "Set this to the meter backend you wish to use. Supports OTEL.",
