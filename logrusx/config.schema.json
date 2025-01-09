@@ -31,6 +31,12 @@
         "text"
       ]
     },
+    "write_to_file": {
+      "type": "string",
+      "title": "Write to file",
+      "description": "If set, will write logs to the given file.",
+      "default": ""
+    },
     "leak_sensitive_values": {
       "type": "boolean",
       "title": "Leak Sensitive Log Values",
