@@ -140,6 +140,14 @@ func (c *consumer) bootstrapClient(ctx context.Context) error {
 		kgo.ConsumeTopics(scopedTopics...),
 	}
 
+	if c.opts.DialTimeout > 0 {
+		kopts = append(kopts, kgo.DialTimeout(c.opts.DialTimeout))
+	}
+
+	if c.opts.RebalanceTimeout > 0 {
+		kopts = append(kopts, kgo.RebalanceTimeout(c.opts.RebalanceTimeout))
+	}
+
 	if c.kotelService != nil {
 		kopts = append(kopts, kgo.WithHooks(c.kotelService.Hooks()...))
 	}

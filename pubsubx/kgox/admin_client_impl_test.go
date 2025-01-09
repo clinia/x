@@ -265,14 +265,14 @@ func TestKadminClient_DeleteGroup(t *testing.T) {
 		retryTopic := topics[0].GenerateRetryTopic(cGroup)
 		_, err := kadmCl.CreateTopics(ctx, 1, 1, map[string]*string{}, topics[0].TopicName(config.Scope))
 		assert.NoError(t, err)
-		defer func() {
+		t.Cleanup(func() {
 			kadmCl.DeleteTopic(context.Background(), topics[0].TopicName(config.Scope))
-		}()
+		})
 		_, err = kadmCl.CreateTopics(ctx, 1, 1, map[string]*string{}, retryTopic.TopicName(config.Scope))
 		assert.NoError(t, err)
-		defer func() {
+		t.Cleanup(func() {
 			kadmCl.DeleteTopic(context.Background(), retryTopic.TopicName(config.Scope))
-		}()
+		})
 		groupClient, err := kgo.NewClient(
 			kgo.SeedBrokers(config.Providers.Kafka.Brokers...),
 			kgo.ConsumerGroup(cGroup.ConsumerGroup(config.Scope)),
@@ -286,6 +286,7 @@ func TestKadminClient_DeleteGroup(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Contains(t, startTopics.TopicsList().Topics(), retryTopic.TopicName(config.Scope))
 		assert.NoError(t, err)
+		// TODO: test with a eventually (polling)
 		startGroups, err := kadmCl.ListGroups(ctx)
 		assert.NoError(t, err)
 		assert.Contains(t, startGroups.Groups(), cGroup.ConsumerGroup(config.Scope))
