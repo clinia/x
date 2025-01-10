@@ -4,7 +4,7 @@ services:
       - prevent-default-start
 
   redpanda-0:
-    image: oci.clinia.dev/rp/redpandadata/redpanda:v24.2.5
+    image: redpandadata/redpanda:v24.2.5
     command:
       - redpanda
       - start
@@ -42,7 +42,7 @@ services:
       - --smp 1
       - --default-log-level=info
       - --seeds redpanda-0:33145
-    image: oci.clinia.dev/rp/redpandadata/redpanda:v24.2.5
+    image: redpandadata/redpanda:v24.2.5
     container_name: redpanda-1
     ports:
       - 28081:28081
@@ -67,7 +67,7 @@ services:
       - --smp 1
       - --default-log-level=info
       - --seeds redpanda-0:33145
-    image: oci.clinia.dev/rp/redpandadata/redpanda:v24.2.5
+    image: redpandadata/redpanda:v24.2.5
     container_name: redpanda-2
     ports:
       - 38081:38081

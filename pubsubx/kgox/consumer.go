@@ -32,6 +32,8 @@ type consumer struct {
 	erh          *eventRetryHandler
 	pqh          PoisonQueueHandler
 
+	loopProcessingWg sync.WaitGroup
+
 	mu     sync.RWMutex
 	cancel context.CancelFunc
 	closed bool
@@ -163,6 +165,9 @@ func (c *consumer) Close() error {
 
 	c.closed = true
 
+	// We wait for the current loop to finish if there is ongoing work
+	c.loopProcessingWg.Wait()
+
 	if cancel := c.cancel; cancel != nil {
 		cancel()
 	}
@@ -252,25 +257,6 @@ func (c *consumer) handleTopic(ctx context.Context, tp kgo.FetchTopic) error {
 
 func (c *consumer) start(ctx context.Context) {
 	l := c.l.WithContext(ctx)
-	handleTopicErrorHandler := func(err error) {
-		switch err {
-		case nil:
-			return
-		case pubsubx.AbortSubscribeError():
-			l.Infof("aborting consumer")
-			c.mu.RLock()
-			defer c.mu.RUnlock()
-			// This is required since the context is cancelled by the backoff
-			if c.cancel != nil {
-				l.WithError(err).Infof("cancelled consumer")
-				c.cancel()
-			} else {
-				l.WithError(err).Warnf("abort requested but no cancel function found, this should not happen")
-			}
-		default:
-			l.WithError(err).Errorf("non abort error, not doing anything")
-		}
-	}
 
 	for {
 		select {
@@ -279,35 +265,44 @@ func (c *consumer) start(ctx context.Context) {
 		default:
 		}
 
-		// Sync task that hang until it receive at least one record
-		// When records are pulled, metadata is also updated within the client
-		fetches := c.cl.PollRecords(ctx, int(c.opts.MaxBatchSize))
-		if errs := fetches.Errors(); len(errs) > 0 {
-			// All errors are retried internally when fetching, but non-retriable errors are
-			// returned from polls so that users can notice and take action.
-			// TODO: Handle errors
-			// If its a context canceled error, we should return
-			l := c.l.WithFields(
-				logrusx.NewLogFields(c.attributes(nil)...),
-			)
-			if lo.SomeBy(errs, func(err kgo.FetchError) bool { return errs[0].Err == context.Canceled }) {
-				l.Warnf("context canceled, stopping consumer")
+		workLoop := func() (shouldBreak bool) {
+			// Sync task that hang until it receive at least one record
+			// When records are pulled, metadata is also updated within the client
+			fetches := c.cl.PollRecords(ctx, int(c.opts.MaxBatchSize))
+			// This signifies we are currently processing records
+			// If the context was cancelled here, this is a noop
+			c.loopProcessingWg.Add(1)
+			defer c.loopProcessingWg.Done()
+			defer c.cl.AllowRebalance()
+
+			if errs := fetches.Errors(); len(errs) > 0 {
+				// All errors are retried internally when fetching, but non-retriable errors are
+				// returned from polls so that users can notice and take action.
+				// TODO: Handle errors
+				// If its a context canceled error, we should return
+				l := c.l.WithFields(
+					logrusx.NewLogFields(c.attributes(nil)...),
+				)
+				shouldBreak = true
+				if lo.SomeBy(errs, func(err kgo.FetchError) bool { return errs[0].Err == context.Canceled }) {
+					l.Warnf("context canceled, stopping consumer")
+					return
+				}
+
+				l.WithError(errors.Join(lo.Map(errs, func(err kgo.FetchError, i int) error { return err.Err })...)).Errorf("error while polling records, Stopping consumer")
 				return
 			}
 
-			l.WithError(errors.Join(lo.Map(errs, func(err kgo.FetchError, i int) error { return err.Err })...)).Errorf("error while polling records, Stopping consumer")
-			return
-		}
-		var wg errgroup.Group
-		if c.opts.MaxParallelAsyncExecution <= 0 {
-			wg.SetLimit(-1)
-		} else {
-			wg.SetLimit(int(c.opts.MaxParallelAsyncExecution))
-		}
-		fetches.EachTopic(func(tp kgo.FetchTopic) {
-			switch {
-			case c.opts.EnableAsyncExecution:
-				wg.Go(func() error {
+			var wg errgroup.Group
+			if c.opts.MaxParallelAsyncExecution <= 0 {
+				wg.SetLimit(-1)
+			} else {
+				wg.SetLimit(int(c.opts.MaxParallelAsyncExecution))
+			}
+
+			var abortErr error
+			fetches.EachTopic(func(tp kgo.FetchTopic) {
+				processTopic := func() error {
 					if err := c.handleTopic(ctx, tp); err != nil {
 						switch err {
 						case pubsubx.AbortSubscribeError():
@@ -317,22 +312,46 @@ func (c *consumer) start(ctx context.Context) {
 						}
 					}
 					return nil
-				})
-			default:
-				handleTopicErrorHandler(c.handleTopic(ctx, tp))
+				}
+
+				switch {
+				case c.opts.EnableAsyncExecution:
+					wg.Go(processTopic)
+				default:
+					if abortErr != nil {
+						// we will return all subsequent topics to break out of the processing ASAP
+						l.WithField("topic", tp.Topic).Warnf("skipping topic due to previous error")
+						return
+					}
+					abortErr = processTopic()
+				}
+			})
+
+			if c.opts.EnableAsyncExecution {
+				abortErr = wg.Wait()
 			}
-		})
-		if c.opts.EnableAsyncExecution {
-			handleTopicErrorHandler(wg.Wait())
-		}
-		if !c.conf.EnableAutoCommit {
-			// If commiting the offsets fails, kill the loop by returning
-			if err := c.cl.CommitUncommittedOffsets(ctx); err != nil {
-				l.WithError(err).Errorf("failed to commit records")
+
+			if abortErr != nil {
+				shouldBreak = true
 				return
 			}
+
+			if !c.conf.EnableAutoCommit {
+				// If commiting the offsets fails, kill the loop by returning
+				if err := c.cl.CommitUncommittedOffsets(ctx); err != nil {
+					l.WithError(err).Errorf("failed to commit records")
+					shouldBreak = true
+					return
+				}
+			}
+
+			return false
 		}
-		c.cl.AllowRebalance()
+
+		if shouldBreak := workLoop(); shouldBreak {
+			// We stop the consumer if we the workLoop returns true
+			return
+		}
 	}
 }
 
@@ -343,7 +362,7 @@ func (c *consumer) handleRemoteRetryLogic(ctx context.Context, topic messagex.To
 		return
 	}
 	if !c.erh.canTopicRetry() && !c.pqh.CanUsePoisonQueue() {
-		l.Debugf("topic retry and poison queue are disable, not exeucting retry logic")
+		l.Debugf("topic retry and poison queue are disable, not executing retry logic")
 		return
 	}
 	retryableMessages, poisonQueueMessages, poisonQueueErrs := c.erh.parseRetryMessages(ctx, errs, msgs)
@@ -423,6 +442,9 @@ func (c *consumer) Subscribe(ctx context.Context, topicHandlers pubsubx.Handlers
 
 			// Teardown
 			c.mu.Lock()
+			if c.cancel != nil {
+				c.cancel()
+			}
 			c.cancel = nil
 			c.mu.Unlock()
 

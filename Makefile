@@ -8,7 +8,7 @@ test_kafka:
 
 .PHONY: test_kafka_race
 test_kafka_race:
-	go test ./pubsubx/kgox/... -short -race
+	go test -v ./pubsubx/kgox/... -short -race
 
 .PHONY: lint
 lint:
