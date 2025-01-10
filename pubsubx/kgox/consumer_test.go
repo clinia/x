@@ -752,7 +752,6 @@ func (c *concurrentBuffer) String() string {
 
 func TestConsumer_Monitoring(t *testing.T) {
 	l := logrusx.New("test_monitoring", "")
-	// test
 	config := getPubsubConfig(t, true, true)
 	opts := &pubsubx.SubscriberOptions{MaxBatchSize: 10, MaxTopicRetryCount: 3}
 	pqh := getPoisonQueueHandler(t, l, config)
