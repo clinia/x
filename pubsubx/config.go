@@ -188,6 +188,18 @@ func WithMaxParalleAsyncExecution(max int16) SubscriberOption {
 	}
 }
 
+func WithDialTimeout(timeout time.Duration) SubscriberOption {
+	return func(o *SubscriberOptions) {
+		o.DialTimeout = timeout
+	}
+}
+
+func WithRebalanceTimeout(timeout time.Duration) SubscriberOption {
+	return func(o *SubscriberOptions) {
+		o.RebalanceTimeout = timeout
+	}
+}
+
 //go:embed config.schema.json
 var ConfigSchema string
 

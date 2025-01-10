@@ -13,8 +13,6 @@ import (
 	"testing"
 	"time"
 
-	toxiproxy "github.com/Shopify/toxiproxy/v2/client"
-
 	"github.com/clinia/x/errorx"
 	"github.com/clinia/x/logrusx"
 	"github.com/clinia/x/pubsubx"
@@ -41,6 +39,9 @@ func TestConsumer_Subscribe_Handling_async(t *testing.T) {
 
 func consumer_Subscribe_Handling_test(t *testing.T, eae bool) {
 	l := Logger()
+	tf := newProxyFixture(t)
+	tf.EnableAll()
+	t.Cleanup(tf.EnableAll)
 	config := getPubsubConfig(t, true, true)
 	opts := &pubsubx.SubscriberOptions{MaxBatchSize: 10, MaxTopicRetryCount: 3, EnableAsyncExecution: eae, RebalanceTimeout: 1 * time.Second, DialTimeout: 1 * time.Second}
 	pqh := getPoisonQueueHandler(t, l, config)
@@ -74,20 +75,17 @@ func consumer_Subscribe_Handling_test(t *testing.T, eae bool) {
 		if err != nil {
 			t.Fatalf("failed to create consumer: %v", err)
 		}
+		t.Cleanup(func() { consumer.Close() })
 		wClient := getWriteClient(t)
 
 		ctx := context.Background()
-		headerResult := map[string]*atomic.Int32{
-			"0": {},
-			"1": {},
-			"2": {},
-		}
+		recv := make(chan string, 3)
 
 		topicHandlers := pubsubx.Handlers{
 			topics[0]: func(ctx context.Context, msgs []*messagex.Message) ([]error, error) {
 				errs := make([]error, len(msgs))
 				for i, msg := range msgs {
-					headerResult[msg.Metadata[messagex.RetryCountHeaderKey]].Add(1)
+					recv <- msg.Metadata[messagex.RetryCountHeaderKey]
 					errs[i] = errorx.NewRetryableError(errors.New("Retry Me"))
 				}
 				return errs, nil
@@ -99,11 +97,20 @@ func consumer_Subscribe_Handling_test(t *testing.T, eae bool) {
 		expectedMsg := messagex.NewMessage([]byte("test"))
 		sendMessage(t, ctx, wClient, topics[0], expectedMsg)
 
-		assert.EventuallyWithT(t, func(c *assert.CollectT) {
-			assert.Equal(c, int32(1), headerResult["0"].Load())
-			assert.Equal(c, int32(1), headerResult["1"].Load())
-			assert.Equal(c, int32(1), headerResult["2"].Load())
-		}, 5*time.Second, 250*time.Millisecond)
+		ctx, cancel := context.WithTimeout(ctx, defaultAssertTimeout)
+		t.Cleanup(cancel)
+		actual := make([]string, 0, 3)
+	loop:
+		for range cap(recv) {
+			select {
+			case <-ctx.Done():
+				break loop
+			case headerVal := <-recv:
+				actual = append(actual, headerVal)
+			}
+		}
+
+		require.Equal(t, []string{"0", "1", "2"}, actual)
 	})
 
 	t.Run("should not push back messages on non retryable error", func(t *testing.T) {
@@ -115,6 +122,7 @@ func consumer_Subscribe_Handling_test(t *testing.T, eae bool) {
 		if err != nil {
 			t.Fatalf("failed to create consumer: %v", err)
 		}
+		t.Cleanup(func() { consumer.Close() })
 		wClient := getWriteClient(t)
 
 		ctx := context.Background()
@@ -135,7 +143,7 @@ func consumer_Subscribe_Handling_test(t *testing.T, eae bool) {
 		expectedMsg := messagex.NewMessage([]byte("test"))
 		sendMessage(t, ctx, wClient, topics[0], expectedMsg)
 
-		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		ctx, cancel := context.WithTimeout(ctx, defaultExpectedNoReceiveTimeout)
 		t.Cleanup(cancel)
 		actual := make([]string, 0, 3)
 	loop:
@@ -159,8 +167,6 @@ func consumer_Subscribe_Handling_test(t *testing.T, eae bool) {
 		createTopic(t, config, topics[0])
 		cg := messagex.ConsumerGroup(group)
 		erh := getEventRetryHandler(t, l, config, cg, nil)
-		opts.DialTimeout = 1 * time.Second
-		opts.RebalanceTimeout = 1 * time.Second
 		consumer, err := newConsumer(l, nil, config, cg, topics, opts, erh, pqh)
 		require.NoError(t, err)
 		wClient := getWriteClient(t)
@@ -186,28 +192,6 @@ func consumer_Subscribe_Handling_test(t *testing.T, eae bool) {
 		}))
 		expectedMsg := messagex.NewMessage([]byte("test"))
 		expectedMsg2 := messagex.NewMessage([]byte("test2"))
-		cl := toxiproxy.NewClient("localhost:8474")
-		proxies := []*toxiproxy.Proxy{}
-		for i := range 3 {
-			proxy, err := cl.Proxy(fmt.Sprintf("redpanda_%d", i))
-			require.NoError(t, err)
-			proxies = append(proxies, proxy)
-		}
-		disableProxies := func() {
-			for _, proxy := range proxies {
-				proxy.Disable()
-			}
-			waitForClose <- struct{}{}
-		}
-
-		enableProxies := func() {
-			for _, proxy := range proxies {
-				proxy.Enable()
-			}
-		}
-		enableProxies()
-
-		t.Cleanup(enableProxies)
 
 		closeConsumer1 := func() {
 			cMu.Lock()
@@ -222,18 +206,21 @@ func consumer_Subscribe_Handling_test(t *testing.T, eae bool) {
 		wg.Add(1)
 		closeConsumer1()
 		sendMessage(t, ctx, wClient, topics[0], expectedMsg2)
-		disableProxies()
+		tf.DisableAll()
+		waitForClose <- struct{}{}
+
 		// This waits for the failed execution
 		wg.Wait()
 
-		// Add some sleep time to make sure the consumer has time to cancel it's execution
-		consumer.wg.Wait()
 		consumer.Close()
-		enableProxies()
+
+		// We reenable the proxies to make sure we can consume again with the new consumer
+		tf.EnableAll()
 
 		ctx = context.Background()
 		consumer2, err := newConsumer(l, nil, config, cg, topics, opts, erh, pqh)
 		require.NoError(t, err)
+		t.Cleanup(func() { consumer2.Close() })
 
 		receivedMsg := make(chan string, 1)
 		err = consumer2.Subscribe(ctx, pubsubx.Handlers{
@@ -247,7 +234,7 @@ func consumer_Subscribe_Handling_test(t *testing.T, eae bool) {
 		})
 		require.NoError(t, err)
 		select {
-		case <-time.After(5 * time.Second):
+		case <-time.After(defaultAssertTimeout):
 			t.Fail()
 		case msg := <-receivedMsg:
 			require.Equal(t, "test2", msg)
@@ -264,6 +251,7 @@ func consumer_Subscribe_Handling_test(t *testing.T, eae bool) {
 		if err != nil {
 			t.Fatalf("failed to create consumer: %v", err)
 		}
+		t.Cleanup(func() { consumer.Close() })
 		wClient := getWriteClient(t)
 		ctx := context.Background()
 
@@ -319,9 +307,12 @@ func TestConsumer_Subscribe_Concurrency_async(t *testing.T) {
 
 func consumer_Subscribe_Concurrency_test(t *testing.T, eae bool) {
 	l := Logger()
+	tf := newProxyFixture(t)
+	tf.EnableAll()
+	t.Cleanup(tf.EnableAll)
 	config := getPubsubConfig(t, false, true)
 	pqh := getPoisonQueueHandler(t, l, config)
-	opts := &pubsubx.SubscriberOptions{MaxBatchSize: 10, EnableAsyncExecution: eae}
+	opts := &pubsubx.SubscriberOptions{MaxBatchSize: 10, EnableAsyncExecution: eae, RebalanceTimeout: 1 * time.Second, DialTimeout: 1 * time.Second}
 
 	getWriteClient := func(t *testing.T) *kgo.Client {
 		t.Helper()
@@ -351,9 +342,7 @@ func consumer_Subscribe_Concurrency_test(t *testing.T, eae bool) {
 		if err != nil {
 			t.Fatalf("failed to create consumer: %v", err)
 		}
-		t.Cleanup(func() {
-			consumer.Close()
-		})
+		t.Cleanup(func() { consumer.Close() })
 
 		noopHandler := func(ctx context.Context, msgs []*messagex.Message) ([]error, error) {
 			return nil, nil
@@ -386,6 +375,7 @@ func consumer_Subscribe_Concurrency_test(t *testing.T, eae bool) {
 		if err != nil {
 			t.Fatalf("failed to create consumer: %v", err)
 		}
+		t.Cleanup(func() { consumer.Close() })
 
 		ctx := context.Background()
 		topicHandlers := pubsubx.Handlers{
@@ -471,8 +461,6 @@ func consumer_Subscribe_Concurrency_test(t *testing.T, eae bool) {
 			assert.Equal(t, expectedMsg, msg)
 		}
 
-		time.Sleep(1 * time.Second)
-
 		// Close the consumer
 		err = consumer.Close()
 		require.NoError(t, err)
@@ -501,8 +489,6 @@ func consumer_Subscribe_Concurrency_test(t *testing.T, eae bool) {
 			assert.Equal(t, expectedMsg2, msg)
 		}
 
-		time.Sleep(1 * time.Second)
-
 		// Close the consumer
 		err = consumer.Close()
 		require.NoError(t, err)
@@ -512,9 +498,7 @@ func consumer_Subscribe_Concurrency_test(t *testing.T, eae bool) {
 		acg := messagex.ConsumerGroup(anotherGroup)
 		aerh := getEventRetryHandler(t, l, config, acg, nil)
 		anotherConsumer, err := newConsumer(l, nil, config, acg, topics, opts, aerh, pqh)
-		t.Cleanup(func() {
-			anotherConsumer.Close()
-		})
+		t.Cleanup(func() { anotherConsumer.Close() })
 		require.NoError(t, err)
 
 		anotherReceivedMsgs := make(chan *messagex.Message, 10)
@@ -568,14 +552,12 @@ func consumer_Subscribe_Concurrency_test(t *testing.T, eae bool) {
 			expectedMsg := messagex.NewMessage([]byte("test" + strconv.Itoa(i)))
 			sendMessage(t, ctx, wClient, topics[i%len(topics)], expectedMsg)
 		}
-		// Give time to all the message to be available in event queue service
-		time.Sleep(2 * time.Second)
 		cg := messagex.ConsumerGroup(group)
 		erh := getEventRetryHandler(t, l, config, cg, nil)
 		c, err := newConsumer(l, nil, config, cg, topics, opts, erh, pqh)
 		require.NoError(t, err)
 		require.NoError(t, c.Subscribe(ctx, hs))
-		defer c.Close()
+		t.Cleanup(func() { c.Close() })
 
 		expected := []int32{10, 10, 10}
 		assert.EventuallyWithT(t, func(c *assert.CollectT) {
@@ -583,7 +565,7 @@ func consumer_Subscribe_Concurrency_test(t *testing.T, eae bool) {
 				assert.Equal(c, expected[i], counter[i].Load(),
 					fmt.Sprintf("topic '%s' did not receive the expected msg count", topic))
 			}
-		}, 5*time.Second, 250*time.Millisecond)
+		}, defaultAssertTimeout, 250*time.Millisecond)
 
 		for i := range len(topics) {
 			expectedMsg := messagex.NewMessage([]byte("test" + strconv.Itoa(i)))
@@ -594,6 +576,7 @@ func consumer_Subscribe_Concurrency_test(t *testing.T, eae bool) {
 		}
 
 		// This will wait until the consumer closed after receiving the AbortSubscribeError
+		t.Logf("waiting for consumer to close")
 		c.wg.Wait()
 
 		assert.Equal(t, expected[len(expected)/2]+4, counter[len(counter)/2].Load())
@@ -616,9 +599,7 @@ func consumer_Subscribe_Concurrency_test(t *testing.T, eae bool) {
 		if err != nil {
 			t.Fatalf("failed to create consumer: %v", err)
 		}
-		t.Cleanup(func() {
-			consumer.Close()
-		})
+		t.Cleanup(func() { consumer.Close() })
 
 		ctx := context.Background()
 		shouldFail := make(chan bool)
@@ -713,7 +694,7 @@ func consumer_Subscribe_Concurrency_test(t *testing.T, eae bool) {
 					containsStackTrace := strings.Contains(str, "consumer_test.go:")
 					assert.True(t, containsPanic, "expected panic message to be logged")
 					assert.True(t, containsStackTrace, "expected stack trace to be logged")
-				}, 3*time.Second, 100*time.Millisecond)
+				}, defaultAssertTimeout, 100*time.Millisecond)
 			}
 		}
 
@@ -721,7 +702,7 @@ func consumer_Subscribe_Concurrency_test(t *testing.T, eae bool) {
 		assert.EventuallyWithT(t, func(t *assert.CollectT) {
 			expectErr := consumer.Health()
 			assert.Error(t, expectErr)
-		}, 3*time.Second, 100*time.Millisecond)
+		}, defaultAssertTimeout, 100*time.Millisecond)
 	})
 }
 
@@ -756,6 +737,11 @@ func TestConsumer_Monitoring(t *testing.T) {
 	opts := &pubsubx.SubscriberOptions{MaxBatchSize: 10, MaxTopicRetryCount: 3}
 	pqh := getPoisonQueueHandler(t, l, config)
 
+	tf := newProxyFixture(t)
+	tf.EnableAll()
+	tf.RemoveLatencyToxics()
+	t.Cleanup(tf.EnableAll)
+
 	sendMessage := func(t *testing.T, ctx context.Context, wc *kgo.Client, topic messagex.Topic, msg *messagex.Message) {
 		t.Helper()
 		rec, err := defaultMarshaler.Marshal(ctx, msg, topic.TopicName(config.Scope))
@@ -763,49 +749,9 @@ func TestConsumer_Monitoring(t *testing.T) {
 		wc.ProduceSync(context.Background(), rec)
 	}
 
-	cl := toxiproxy.NewClient("localhost:8474")
-
-	proxies := []*toxiproxy.Proxy{}
-	for i := range 3 {
-		proxy, err := cl.Proxy(fmt.Sprintf("redpanda_%d", i))
-		require.NoError(t, err)
-		proxies = append(proxies, proxy)
-	}
-
-	addToxics := func() {
-		for _, proxy := range proxies {
-			// Add a latency toxic to the proxy
-			_, err := proxy.AddToxic("latency_toxic", "latency", "upstream", 1, toxiproxy.Attributes{
-				"latency": config.ConsumerGroupMonitoring.HealthTimeout.Milliseconds(),
-			})
-			require.NoError(t, err)
-		}
-	}
-
-	removeToxics := func() {
-		for _, proxy := range proxies {
-			proxy.RemoveToxic("latency_toxic")
-		}
-	}
-
-	disableProxies := func() {
-		for _, proxy := range proxies {
-			proxy.Disable()
-		}
-	}
-
-	enableProxies := func() {
-		for _, proxy := range proxies {
-			proxy.Enable()
-		}
-	}
-
-	enableProxies()
-	removeToxics()
-
 	group, topics := getRandomGroupTopics(t, 1)
 
-	// Producer does not pass through proxies
+	// Producer should not pass through proxies
 	testTopic := topics[0]
 	wClient, err := kgo.NewClient(
 		kgo.SeedBrokers("localhost:19992", "localhost:29992", "localhost:39992"),
@@ -822,7 +768,7 @@ func TestConsumer_Monitoring(t *testing.T) {
 	consumer, err := newConsumer(l, nil, config, cg, topics, opts, erh, pqh)
 	require.NoError(t, err)
 
-	// Consumer admin client does not passes through proxies
+	// Consumer admin client should not passes through proxies
 	adm, err := kgo.NewClient(
 		kgo.SeedBrokers("localhost:19992", "localhost:29992", "localhost:39992"),
 	)
@@ -903,9 +849,9 @@ func TestConsumer_Monitoring(t *testing.T) {
 			sendMessage(t, ctx, wClient, testTopic, msg)
 		}
 
-		addToxics()
+		tf.AddLatencyToxics(1000)
 		fmt.Println("---------------------- Applying toxic")
-		t.Cleanup(removeToxics)
+		t.Cleanup(tf.RemoveLatencyToxics)
 		time.Sleep(config.ConsumerGroupMonitoring.HealthTimeout)
 		for i := 0; i < 50; i++ {
 			fmt.Println("Sent message", i)
@@ -932,10 +878,9 @@ func TestConsumer_Monitoring(t *testing.T) {
 			fmt.Println("Sent message", i)
 			sendMessage(t, ctx, wClient, testTopic, msg)
 		}
-
-		disableProxies()
 		fmt.Println("---------------------- Disabling proxies")
-		t.Cleanup(removeToxics)
+		tf.DisableAll()
+		t.Cleanup(tf.EnableAll)
 		time.Sleep(config.ConsumerGroupMonitoring.HealthTimeout)
 		for i := 0; i < 50; i++ {
 			fmt.Println("Sent message", i)
