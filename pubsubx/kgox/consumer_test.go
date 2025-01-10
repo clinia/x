@@ -756,30 +756,93 @@ func TestConsumer_Monitoring(t *testing.T) {
 	opts := &pubsubx.SubscriberOptions{MaxBatchSize: 10, MaxTopicRetryCount: 3}
 	pqh := getPoisonQueueHandler(t, l, config)
 
-	getWriteClient := func(t *testing.T) *kgo.Client {
-		t.Helper()
-		wc, err := kgo.NewClient(
-			kgo.SeedBrokers(config.Providers.Kafka.Brokers...),
-		)
-		require.NoError(t, err)
-		t.Cleanup(wc.Close)
-		return wc
-	}
-
 	sendMessage := func(t *testing.T, ctx context.Context, wc *kgo.Client, topic messagex.Topic, msg *messagex.Message) {
 		t.Helper()
-
 		rec, err := defaultMarshaler.Marshal(ctx, msg, topic.TopicName(config.Scope))
 		require.NoError(t, err)
-
-		r := wc.ProduceSync(context.Background(), rec)
-		require.NoError(t, r.FirstErr())
+		wc.ProduceSync(context.Background(), rec)
 	}
 
-	t.Run("should refresh consumer group state with lag and last consumption time per topic", func(t *testing.T) {
+	cl := toxiproxy.NewClient("localhost:8474")
+
+	proxies := []*toxiproxy.Proxy{}
+	for i := range 3 {
+		proxy, err := cl.Proxy(fmt.Sprintf("redpanda_%d", i))
+		require.NoError(t, err)
+		proxies = append(proxies, proxy)
+	}
+
+	addToxics := func() {
+		for _, proxy := range proxies {
+			// Add a latency toxic to the proxy
+			_, err := proxy.AddToxic("latency_toxic", "latency", "upstream", 1, toxiproxy.Attributes{
+				"latency": config.ConsumerGroupMonitoring.HealthTimeout.Milliseconds(),
+			})
+			require.NoError(t, err)
+		}
+	}
+
+	removeToxics := func() {
+		for _, proxy := range proxies {
+			proxy.RemoveToxic("latency_toxic")
+		}
+	}
+
+	disableProxies := func() {
+		for _, proxy := range proxies {
+			proxy.Disable()
+		}
+	}
+
+	enableProxies := func() {
+		for _, proxy := range proxies {
+			proxy.Enable()
+		}
+	}
+	
+	enableProxies()
+	removeToxics()
+
+	group, topics := getRandomGroupTopics(t, 1)
+
+	// Producer does not pass through proxies
+	testTopic := topics[0]
+	wClient, err := kgo.NewClient(
+		kgo.SeedBrokers("localhost:19992", "localhost:29992", "localhost:39992"),
+	)
+
+	require.NoError(t, err)
+	t.Cleanup(wClient.Close)
+
+	createTopic(t, config, testTopic)
+
+	// Consumer uses the proxies
+	cg := messagex.ConsumerGroup(group)
+	erh := getEventRetryHandler(t, l, config, cg, nil)
+	consumer, err := newConsumer(l, nil, config, cg, topics, opts, erh, pqh)
+	require.NoError(t, err)
+
+	// Consumer admin client does not passes through proxies
+	adm, err := kgo.NewClient(
+		kgo.SeedBrokers("localhost:19992", "localhost:29992", "localhost:39992"),
+	)
+
+	consumer.adminClient = kadm.NewClient(adm)
+
+	ctx := context.Background()
+	receivedMsgs := make(chan *messagex.Message, 1000)
+	topicHandlers := pubsubx.Handlers{
+		testTopic: func(ctx context.Context, msgs []*messagex.Message) ([]error, error) {
+			for _, msg := range msgs {
+				receivedMsgs <- msg
+			}
+			return nil, nil
+		},
+	}
+
+	t.Run("should eventually refresh lag state", func(t *testing.T) {
 		group, topics := getRandomGroupTopics(t, 1)
 		testTopic := topics[0]
-		wClient := getWriteClient(t)
 		createTopic(t, config, testTopic)
 
 		receivedMsgs := make(chan *messagex.Message, 10)
@@ -827,6 +890,67 @@ func TestConsumer_Monitoring(t *testing.T) {
 		for _, l := range lagPerPartition {
 			assert.True(t, l.Lag >= 0)
 		}
+	})
+
+	t.Run("should refresh consumer group state and return unhealthy on proxy toxic (consumer only)", func(t *testing.T) {
+		err = consumer.Subscribe(ctx, topicHandlers)
+		require.NoError(t, err)
+
+		msg := messagex.NewMessage([]byte("test"))
+
+		for i := 0; i < 50; i++ {
+			fmt.Println("Sent message", i)
+			sendMessage(t, ctx, wClient, testTopic, msg)
+		}
+
+		addToxics()
+		fmt.Println("---------------------- Applying toxic")
+		t.Cleanup(removeToxics)
+		time.Sleep(config.ConsumerGroupMonitoring.HealthTimeout)
+		for i := 0; i < 50; i++ {
+			fmt.Println("Sent message", i)
+			// WHY ARE WE SLOING DOWN HERE? PRODUCER SHOULD NO BE AFFECTED WITH PROXY TOXICS SINCE NOT ON THE PROXY PORTS
+			sendMessage(t, ctx, wClient, testTopic, msg)
+		}
+
+		time.Sleep(config.ConsumerGroupMonitoring.HealthTimeout + 1*time.Second)
+
+		// The consumer group should be unhealthy
+		err = consumer.Health()
+		fmt.Println("Error", err)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "is not healthy")
+	})
+
+	t.Run("should refresh consumer group state and return unhealthy on proxy disabled (consumer only) ", func(t *testing.T) {
+		err = consumer.Subscribe(ctx, topicHandlers)
+		require.NoError(t, err)
+
+		msg := messagex.NewMessage([]byte("test"))
+
+		for i := 0; i < 50; i++ {
+			fmt.Println("Sent message", i)
+			sendMessage(t, ctx, wClient, testTopic, msg)
+		}
+
+		disableProxies()
+		fmt.Println("---------------------- Disabling proxies")
+		t.Cleanup(removeToxics)
+		time.Sleep(config.ConsumerGroupMonitoring.HealthTimeout)
+		for i := 0; i < 50; i++ {
+			fmt.Println("Sent message", i)
+			// WHY ARE WE SLOING DOWN HERE? PRODUCER SHOULD NO BE AFFECTED WITH PROXY TOXICS SINCE NOT ON THE PROXY PORTS
+			// COULD NOT SIMPLY DISABLE THE PROY< BECAUSE WE HAD ERROR: error while polling records, Stopping consumer
+			sendMessage(t, ctx, wClient, testTopic, msg)
+		}
+
+		time.Sleep(config.ConsumerGroupMonitoring.HealthTimeout + 1*time.Second)
+
+		// The consumer group should be unhealthy
+		err = consumer.Health()
+		fmt.Println("Error", err)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "is not healthy")
 	})
 }
 

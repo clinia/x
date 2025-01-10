@@ -62,8 +62,8 @@ func getPubsubConfig(t *testing.T, retry bool, monitoring bool) *pubsubx.Config 
 		),
 		ConsumerGroupMonitoring: pubsubx.NewConsumerGroupMonitoringConfig(
 			monitoring,
-			time.Duration(60*time.Second),
-			time.Duration(50*time.Millisecond),
+			time.Duration(1*time.Second),
+			time.Duration(10*time.Millisecond),
 		),
 		EnableAutoCommit: false,
 	}
