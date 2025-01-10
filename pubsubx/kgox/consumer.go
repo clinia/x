@@ -265,7 +265,7 @@ func (c *consumer) start(ctx context.Context) {
 		default:
 		}
 
-		func() {
+		workLoop := func() (shouldBreak bool) {
 			// Sync task that hang until it receive at least one record
 			// When records are pulled, metadata is also updated within the client
 			fetches := c.cl.PollRecords(ctx, int(c.opts.MaxBatchSize))
@@ -283,6 +283,7 @@ func (c *consumer) start(ctx context.Context) {
 				l := c.l.WithFields(
 					logrusx.NewLogFields(c.attributes(nil)...),
 				)
+				shouldBreak = true
 				if lo.SomeBy(errs, func(err kgo.FetchError) bool { return errs[0].Err == context.Canceled }) {
 					l.Warnf("context canceled, stopping consumer")
 					return
@@ -331,6 +332,7 @@ func (c *consumer) start(ctx context.Context) {
 			}
 
 			if abortErr != nil {
+				shouldBreak = true
 				return
 			}
 
@@ -338,10 +340,18 @@ func (c *consumer) start(ctx context.Context) {
 				// If commiting the offsets fails, kill the loop by returning
 				if err := c.cl.CommitUncommittedOffsets(ctx); err != nil {
 					l.WithError(err).Errorf("failed to commit records")
+					shouldBreak = true
 					return
 				}
 			}
-		}()
+
+			return false
+		}
+
+		if shouldBreak := workLoop(); shouldBreak {
+			// We stop the consumer if we the workLoop returns true
+			return
+		}
 	}
 }
 
