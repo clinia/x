@@ -2,17 +2,19 @@
     "$schema": "http://json-schema.org/draft-07/schema#",
     "$id": "clinia://triton-config",
     "type": "object",
-    "additionalProperties": false,
     "description": "Configure Triton Client",
+    "additionalProperties": false,
     "properties": {
         "host": {
             "type": "string",
             "description": "The host of the Triton server",
-            "examples": ["localhost:8000"]
+            "examples": [
+                "localhost:8000"
+            ]
         },
         "insecure": {
             "type": "boolean",
             "description": "Will use HTTP if set to true; defaults to HTTPS."
         }
     }
-  }
+}

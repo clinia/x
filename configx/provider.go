@@ -31,6 +31,7 @@ import (
 	"github.com/spf13/pflag"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/ory/jsonschema/v3"
@@ -481,6 +482,14 @@ func (p *Provider) TracerConfig(serviceName string, attrs ...attribute.KeyValue)
 			Stdout: otelx.StdoutConfig{
 				Pretty: p.Bool("tracer.providers.stdout.pretty"),
 			},
+		},
+		SpanLimits: &sdktrace.SpanLimits{
+			AttributeCountLimit:         p.IntF("tracer.span_limits.attribute_count_limit", 128),
+			AttributePerLinkCountLimit:  p.IntF("tracer.span_limits.attribute_per_link_count_limit", -1),
+			AttributeValueLengthLimit:   p.IntF("tracer.span_limits.attribute_value_length_limit", 8192),
+			AttributePerEventCountLimit: p.IntF("tracer.span_limits.attribute_per_event_count_limit", 10),
+			EventCountLimit:             p.IntF("tracer.span_limits.event_count_limit", -1),
+			LinkCountLimit:              p.IntF("tracer.span_limits.link_count_limit", -1),
 		},
 	}
 }
