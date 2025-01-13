@@ -22,12 +22,13 @@ func kgoLogLevelToLogrusLogLevel(l kgo.LogLevel) logrus.Level {
 		return logrus.ErrorLevel
 	case kgo.LogLevelNone:
 		return logrus.PanicLevel
+	default:
+		return logrus.InfoLevel
 	}
-	return logrus.InfoLevel
 }
 
-func (cl *pubsubLogger) Level() kgo.LogLevel {
-	switch cl.l.Entry.Level {
+func logrusLogLevelToKgoLogLevel(l logrus.Level) kgo.LogLevel {
+	switch l {
 	case logrus.TraceLevel, logrus.DebugLevel:
 		return kgo.LogLevelDebug
 	case logrus.InfoLevel:
@@ -36,10 +37,15 @@ func (cl *pubsubLogger) Level() kgo.LogLevel {
 		return kgo.LogLevelWarn
 	case logrus.ErrorLevel:
 		return kgo.LogLevelError
-	case logrus.FatalLevel:
+	case logrus.FatalLevel, logrus.PanicLevel:
 		return kgo.LogLevelNone
+	default:
+		return kgo.LogLevelInfo
 	}
-	return kgo.LogLevelInfo
+}
+
+func (cl *pubsubLogger) Level() kgo.LogLevel {
+	return logrusLogLevelToKgoLogLevel(cl.l.Logrus().GetLevel())
 }
 
 func (cl *pubsubLogger) Log(level kgo.LogLevel, msg string, keyvals ...any) {
