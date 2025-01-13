@@ -123,6 +123,7 @@ func (c *consumer) bootstrapClient(ctx context.Context) error {
 		kgo.ConsumerGroup(c.group.ConsumerGroup(c.conf.Scope)),
 		kgo.SeedBrokers(c.conf.Providers.Kafka.Brokers...),
 		kgo.ConsumeTopics(scopedTopics...),
+		kgo.WithLogger(&pubsubLogger{l: c.l}),
 	}
 
 	if c.opts.DialTimeout > 0 {
