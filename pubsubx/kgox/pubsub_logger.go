@@ -50,12 +50,14 @@ func (cl *pubsubLogger) Level() kgo.LogLevel {
 
 func (cl *pubsubLogger) Log(level kgo.LogLevel, msg string, keyvals ...any) {
 	fields := make(logrus.Fields)
+	// By design, the keyvals slice should always be a pair length as each key comes
+	// with a subsequent entry that is a val
 	if len(keyvals)%2 != 0 {
 		cl.l.Errorf("failed to evaluate keyvals : %v", keyvals)
 	} else {
 		for i := range keyvals {
 			if i%2 == 0 {
-				fields[keyvals[i].(string)] = keyvals[i+1]
+				fields["pubsub."+keyvals[i].(string)] = keyvals[i+1]
 			}
 		}
 	}
