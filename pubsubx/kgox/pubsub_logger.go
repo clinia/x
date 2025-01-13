@@ -59,5 +59,5 @@ func (cl *pubsubLogger) Log(level kgo.LogLevel, msg string, keyvals ...any) {
 			}
 		}
 	}
-	cl.l.WithFields(fields).Logf(kgoLogLevelToLogrusLogLevel(level), msg)
+	cl.l.WithFields(fields).Logf(kgoLogLevelToLogrusLogLevel(level), "%s", msg)
 }
