@@ -75,7 +75,7 @@ func NewPubSub(l *logrusx.Logger, config *pubsubx.Config, opts *pubsubx.PubSubOp
 		return nil, errorx.InternalErrorf("failed to create kafka client: %v", err)
 	}
 
-	if config.PoisonQueue.Enabled {
+	if config.PoisonQueue.IsEnabled() {
 		poisonQueueTopic := messagex.TopicFromName(config.PoisonQueue.TopicName)
 		adminClient := kadm.NewClient(wc)
 		var replicationFactor int16 = math.MaxInt16

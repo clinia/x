@@ -19,6 +19,7 @@ import (
 	"github.com/clinia/x/pubsubx/messagex"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kgo"
 )
 
@@ -41,7 +42,7 @@ func consumer_Subscribe_Handling_test(t *testing.T, eae bool) {
 	tf := newProxyFixture(t)
 	tf.EnableAll()
 	t.Cleanup(tf.EnableAll)
-	config := getPubsubConfig(t, true)
+	config := getPubsubConfig(t, true, true)
 	opts := &pubsubx.SubscriberOptions{MaxBatchSize: 10, MaxTopicRetryCount: 3, EnableAsyncExecution: eae, RebalanceTimeout: 1 * time.Second, DialTimeout: 1 * time.Second}
 	pqh := getPoisonQueueHandler(t, l, config)
 
@@ -309,7 +310,7 @@ func consumer_Subscribe_Concurrency_test(t *testing.T, eae bool) {
 	tf := newProxyFixture(t)
 	tf.EnableAll()
 	t.Cleanup(tf.EnableAll)
-	config := getPubsubConfig(t, false)
+	config := getPubsubConfig(t, false, true)
 	pqh := getPoisonQueueHandler(t, l, config)
 	opts := &pubsubx.SubscriberOptions{MaxBatchSize: 10, EnableAsyncExecution: eae, RebalanceTimeout: 1 * time.Second, DialTimeout: 1 * time.Second}
 
@@ -728,4 +729,205 @@ func (c *concurrentBuffer) String() string {
 	c.m.RLock()
 	defer c.m.RUnlock()
 	return c.b.String()
+}
+
+type mockedPoller struct{}
+
+func (m mockedPoller) PollRecords(ctx context.Context, batchSize int) kgo.Fetches {
+	time.Sleep(1 * time.Minute)
+	return nil
+}
+
+func TestConsumer_Monitoring(t *testing.T) {
+	l := logrusx.New("test_monitoring", "")
+	config := getPubsubConfig(t, true, true)
+	opts := &pubsubx.SubscriberOptions{MaxBatchSize: 10, MaxTopicRetryCount: 3}
+	pqh := getPoisonQueueHandler(t, l, config)
+
+	sendMessage := func(t *testing.T, ctx context.Context, wc *kgo.Client, topic messagex.Topic, msg *messagex.Message) {
+		t.Helper()
+		rec, err := defaultMarshaler.Marshal(ctx, msg, topic.TopicName(config.Scope))
+		require.NoError(t, err)
+		wc.ProduceSync(context.Background(), rec)
+	}
+
+	group, topics := getRandomGroupTopics(t, 1)
+
+	// Producer should not pass through proxies
+	testTopic := topics[0]
+	wClient, err := kgo.NewClient(
+		kgo.SeedBrokers("localhost:19992", "localhost:29992", "localhost:39992"),
+	)
+
+	require.NoError(t, err)
+	t.Cleanup(wClient.Close)
+
+	createTopic(t, config, testTopic)
+
+	// Consumer uses the proxies
+	cg := messagex.ConsumerGroup(group)
+	erh := getEventRetryHandler(t, l, config, cg, nil)
+	consumer, err := newConsumer(l, nil, config, cg, topics, opts, erh, pqh)
+	require.NoError(t, err)
+
+	// Consumer admin client should not passes through proxies
+	adm, err := kgo.NewClient(
+		kgo.SeedBrokers("localhost:19992", "localhost:29992", "localhost:39992"),
+	)
+
+	consumer.adminClient = kadm.NewClient(adm)
+
+	ctx := context.Background()
+	receivedMsgs := make(chan *messagex.Message, 1000)
+	topicHandlers := pubsubx.Handlers{
+		testTopic: func(ctx context.Context, msgs []*messagex.Message) ([]error, error) {
+			for _, msg := range msgs {
+				receivedMsgs <- msg
+			}
+			return nil, nil
+		},
+	}
+
+	t.Run("should eventually refresh lag state", func(t *testing.T) {
+		group, topics := getRandomGroupTopics(t, 1)
+		testTopic := topics[0]
+		createTopic(t, config, testTopic)
+
+		receivedMsgs := make(chan *messagex.Message, 10)
+		cg := messagex.ConsumerGroup(group)
+		erh := getEventRetryHandler(t, l, config, cg, nil)
+
+		consumer, err := newConsumer(l, nil, config, cg, topics, opts, erh, pqh)
+		require.NoError(t, err)
+
+		ctx := context.Background()
+		topicHandlers := pubsubx.Handlers{
+			testTopic: func(ctx context.Context, msgs []*messagex.Message) ([]error, error) {
+				for _, msg := range msgs {
+					receivedMsgs <- msg
+				}
+				return nil, nil
+			},
+		}
+
+		err = consumer.Subscribe(ctx, topicHandlers)
+		require.NoError(t, err)
+
+		msg := messagex.NewMessage([]byte("test"))
+
+		for i := 0; i < 200; i++ {
+			sendMessage(t, ctx, wClient, testTopic, msg)
+			time.Sleep(1 * time.Millisecond)
+		}
+
+		var lastConsumptionTime time.Time
+		var lagPerPartition map[int32]kadm.GroupMemberLag
+		var timeExists, currentLagExists, previousLagExists bool
+
+		require.Eventually(t, func() bool {
+			consumer.mu.RLock()
+			lastConsumptionTime, timeExists = consumer.state.lastConsumptionTimePerTopic[testTopic.TopicName(config.Scope)]
+			lagPerPartition, previousLagExists = consumer.state.previousDescribedGroupLag.Lag[testTopic.TopicName(config.Scope)]
+			lagPerPartition, currentLagExists = consumer.state.currentDescribedGroupLag.Lag[testTopic.TopicName(config.Scope)]
+
+			consumer.mu.RUnlock()
+			return timeExists && currentLagExists && previousLagExists
+		}, 10*time.Second, 100*time.Millisecond)
+
+		assert.True(t, !lastConsumptionTime.IsZero())
+		for _, l := range lagPerPartition {
+			assert.True(t, l.Lag >= 0)
+		}
+	})
+
+	t.Run("should monitor and health should return not healthy when poll records is stuck", func(t *testing.T) {
+		err = consumer.Subscribe(ctx, topicHandlers)
+		require.NoError(t, err)
+
+		msg := messagex.NewMessage([]byte("test"))
+
+		for i := 0; i < 100; i++ {
+			sendMessage(t, ctx, wClient, testTopic, msg)
+		}
+
+		consumer.poller = mockedPoller{}
+
+		for i := 0; i < 100; i++ {
+			sendMessage(t, ctx, wClient, testTopic, msg)
+		}
+
+		time.Sleep(config.ConsumerGroupMonitoring.HealthTimeout + 1*time.Second)
+
+		// The consumer group should be unhealthy
+		err = consumer.Health()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "is not healthy")
+	})
+}
+
+func TestConsumer_Health(t *testing.T) {
+	l := logrusx.New("test_timeout", "")
+	config := getPubsubConfig(t, true, true)
+	opts := &pubsubx.SubscriberOptions{MaxBatchSize: 10, MaxTopicRetryCount: 3}
+	pqh := getPoisonQueueHandler(t, l, config)
+
+	t.Run("should return an error if consumer group is stuck", func(t *testing.T) {
+		group, topics := getRandomGroupTopics(t, 1)
+		testTopic := topics[0]
+
+		createTopic(t, config, testTopic)
+
+		cg := messagex.ConsumerGroup(group)
+		erh := getEventRetryHandler(t, l, config, cg, nil)
+
+		consumer, err := newConsumer(l, nil, config, cg, topics, opts, erh, pqh)
+		require.NoError(t, err)
+
+		ctx := context.Background()
+		topicHandlers := pubsubx.Handlers{
+			testTopic: func(ctx context.Context, msgs []*messagex.Message) ([]error, error) {
+				return nil, nil
+			},
+		}
+
+		err = consumer.Subscribe(ctx, topicHandlers)
+		require.NoError(t, err)
+
+		// mock time elapsed and lag to trigger health to return an error
+		consumer.state.lastConsumptionTimePerTopic[testTopic.TopicName(config.Scope)] = time.Now().Add(-2 * time.Minute)
+		consumer.state.previousDescribedGroupLag = kadm.DescribedGroupLag{
+			Group: group,
+			Lag: map[string]map[int32]kadm.GroupMemberLag{
+				testTopic.TopicName(config.Scope): {
+					0: {
+						Lag: 1,
+						Commit: kadm.Offset{
+							At: 5,
+						},
+					},
+				},
+			},
+		}
+		consumer.state.currentDescribedGroupLag = kadm.DescribedGroupLag{
+			Group: group,
+			Lag: map[string]map[int32]kadm.GroupMemberLag{
+				testTopic.TopicName(config.Scope): {
+					0: {
+						Lag: 500,
+						Commit: kadm.Offset{
+							At: 5,
+						},
+					},
+				},
+			},
+		}
+
+		err = consumer.Health()
+		assert.Error(t, err)
+
+		cliniaErr, _ := errorx.IsCliniaError(err)
+		assert.Contains(t, cliniaErr.Message, fmt.Sprintf("consumer group %s is not healthy", consumer.group.ConsumerGroup(consumer.conf.Scope)))
+		assert.Len(t, cliniaErr.Details, 1)
+		assert.Contains(t, cliniaErr.Details[0].Message, fmt.Sprintf("lag is 500, and offset 5 is not moving"))
+	})
 }
