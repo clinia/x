@@ -731,16 +731,18 @@ func (c *concurrentBuffer) String() string {
 	return c.b.String()
 }
 
+type mockedPoller struct{}
+
+func (m mockedPoller) PollRecords(ctx context.Context, batchSize int) kgo.Fetches {
+	time.Sleep(1 * time.Minute)
+	return nil
+}
+
 func TestConsumer_Monitoring(t *testing.T) {
 	l := logrusx.New("test_monitoring", "")
 	config := getPubsubConfig(t, true, true)
 	opts := &pubsubx.SubscriberOptions{MaxBatchSize: 10, MaxTopicRetryCount: 3}
 	pqh := getPoisonQueueHandler(t, l, config)
-
-	tf := newProxyFixture(t)
-	tf.EnableAll()
-	tf.RemoveLatencyToxics()
-	t.Cleanup(tf.EnableAll)
 
 	sendMessage := func(t *testing.T, ctx context.Context, wc *kgo.Client, topic messagex.Topic, msg *messagex.Message) {
 		t.Helper()
@@ -838,24 +840,19 @@ func TestConsumer_Monitoring(t *testing.T) {
 		}
 	})
 
-	t.Run("should refresh consumer group state and return unhealthy on proxy toxic (consumer only)", func(t *testing.T) {
+	t.Run("should monitor and health should return not healthy when poll records is stuck", func(t *testing.T) {
 		err = consumer.Subscribe(ctx, topicHandlers)
 		require.NoError(t, err)
 
 		msg := messagex.NewMessage([]byte("test"))
 
-		for i := 0; i < 50; i++ {
-			fmt.Println("Sent message", i)
+		for i := 0; i < 100; i++ {
 			sendMessage(t, ctx, wClient, testTopic, msg)
 		}
 
-		tf.AddLatencyToxics(1000)
-		fmt.Println("---------------------- Applying toxic")
-		t.Cleanup(tf.RemoveLatencyToxics)
-		time.Sleep(config.ConsumerGroupMonitoring.HealthTimeout)
-		for i := 0; i < 50; i++ {
-			fmt.Println("Sent message", i)
-			// WHY ARE WE SLOING DOWN HERE? PRODUCER SHOULD NO BE AFFECTED WITH PROXY TOXICS SINCE NOT ON THE PROXY PORTS
+		consumer.poller = mockedPoller{}
+
+		for i := 0; i < 100; i++ {
 			sendMessage(t, ctx, wClient, testTopic, msg)
 		}
 
@@ -863,37 +860,6 @@ func TestConsumer_Monitoring(t *testing.T) {
 
 		// The consumer group should be unhealthy
 		err = consumer.Health()
-		fmt.Println("Error", err)
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "is not healthy")
-	})
-
-	t.Run("should refresh consumer group state and return unhealthy on proxy disabled (consumer only) ", func(t *testing.T) {
-		err = consumer.Subscribe(ctx, topicHandlers)
-		require.NoError(t, err)
-
-		msg := messagex.NewMessage([]byte("test"))
-
-		for i := 0; i < 50; i++ {
-			fmt.Println("Sent message", i)
-			sendMessage(t, ctx, wClient, testTopic, msg)
-		}
-		fmt.Println("---------------------- Disabling proxies")
-		tf.DisableAll()
-		t.Cleanup(tf.EnableAll)
-		time.Sleep(config.ConsumerGroupMonitoring.HealthTimeout)
-		for i := 0; i < 50; i++ {
-			fmt.Println("Sent message", i)
-			// WHY ARE WE SLOING DOWN HERE? PRODUCER SHOULD NO BE AFFECTED WITH PROXY TOXICS SINCE NOT ON THE PROXY PORTS
-			// COULD NOT SIMPLY DISABLE THE PROY< BECAUSE WE HAD ERROR: error while polling records, Stopping consumer
-			sendMessage(t, ctx, wClient, testTopic, msg)
-		}
-
-		time.Sleep(config.ConsumerGroupMonitoring.HealthTimeout + 1*time.Second)
-
-		// The consumer group should be unhealthy
-		err = consumer.Health()
-		fmt.Println("Error", err)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "is not healthy")
 	})

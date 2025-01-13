@@ -3,7 +3,6 @@ package kgox
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 
@@ -44,6 +43,24 @@ type consumer struct {
 	state state
 
 	adminClient *kadm.Client
+
+	poller Poller
+}
+
+type Poller interface {
+	PollRecords(ctx context.Context, maxBatchSize int) kgo.Fetches
+}
+
+type poller struct {
+	client *kgo.Client
+}
+
+func NewPoller(client *kgo.Client) Poller {
+	return &poller{client: client}
+}
+
+func (p *poller) PollRecords(ctx context.Context, maxBatchSize int) kgo.Fetches {
+	return p.client.PollRecords(ctx, maxBatchSize)
 }
 
 type state struct {
@@ -105,6 +122,8 @@ func newConsumer(l *logrusx.Logger, kotelService *kotel.Kotel, config *pubsubx.C
 	}
 
 	cons.adminClient = kadm.NewClient(cons.cl)
+
+	cons.poller = NewPoller(cons.cl)
 
 	return cons, nil
 }
@@ -294,7 +313,7 @@ func (c *consumer) start(ctx context.Context) {
 		workLoop := func() (shouldBreak bool) {
 			// Sync task that hang until it receive at least one record
 			// When records are pulled, metadata is also updated within the client
-			fetches := c.cl.PollRecords(ctx, int(c.opts.MaxBatchSize))
+			fetches := c.poller.PollRecords(ctx, int(c.opts.MaxBatchSize))
 			// This signifies we are currently processing records
 			// If the context was cancelled here, this is a noop
 			c.loopProcessingWg.Add(1)
@@ -567,30 +586,25 @@ func (c *consumer) monitor(ctx context.Context) {
 
 // refreshLagState fetches the lag with retry mechanism from the admin client and updates the state
 func (c *consumer) refreshLagState(ctx context.Context) {
-	fmt.Println("Calling refresh")
-	bc := backoff.NewExponentialBackOff()
-	bc.MaxElapsedTime = 3 * time.Second
-
 	var groupLags map[string]kadm.DescribedGroupLag
 	var err error
 
-	// TODO adjust retry here
-	// Counter ?
-	groupLags, err = c.adminClient.Lag(ctx, c.group.ConsumerGroup(c.conf.Scope))
-	retryErr := backoff.Retry(func() error {
+	// retry 3 times
+	for i := 0; i < 3; i++ {
 		groupLags, err = c.adminClient.Lag(ctx, c.group.ConsumerGroup(c.conf.Scope))
-		return err
-	}, bc)
+		if err == nil {
+			break
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
-
-	if retryErr != nil {
-		c.state.adminClientErr = retryErr
+	if err != nil {
+		c.state.adminClientErr = err
 		return
 	}
 
-	fmt.Println("Refreshed lag: ", groupLags[c.group.ConsumerGroup(c.conf.Scope)].Lag.Total())
 	// copy the current state to the previous state
 	c.state.previousDescribedGroupLag = c.state.currentDescribedGroupLag
 	// update the current state
