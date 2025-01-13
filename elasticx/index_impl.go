@@ -9,6 +9,7 @@ import (
 
 	"github.com/clinia/x/errorx"
 	"github.com/elastic/go-elasticsearch/v8"
+	"github.com/elastic/go-elasticsearch/v8/typedapi/indices/putmapping"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/result"
 	"github.com/samber/lo"
@@ -17,6 +18,7 @@ import (
 
 const (
 	elasticStrictDynamicMappingErrorType = "strict_dynamic_mapping_exception"
+	elasticIllegalArgumentErrorType      = "illegal_argument_exception"
 )
 
 type index struct {
@@ -63,6 +65,22 @@ func (i *index) Remove(ctx context.Context) error {
 	return nil
 }
 
+// UpdateMappings updates the index mappings.
+// Properties can only be added to the mappings, existing fields cannot be changed.
+func (i *index) UpdateMappings(ctx context.Context, mappings *types.TypeMapping) error {
+	request := &putmapping.Request{
+		Dynamic:    mappings.Dynamic,
+		Properties: mappings.Properties,
+	}
+
+	_, err := i.es.Indices.PutMapping(i.indexName().String()).Request(request).Do(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (i *index) DocumentExists(ctx context.Context, id string) (bool, error) {
 	return i.es.Exists(i.indexName().String(), id).Do(ctx)
 }
@@ -76,7 +94,7 @@ func (i *index) ReadDocument(ctx context.Context, id string, result interface{})
 		return nil, err
 	}
 
-	if res.Found == false {
+	if !res.Found {
 		return nil, errorx.NotFoundErrorf("document with key '%s' does not exist", id)
 	}
 

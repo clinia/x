@@ -19,6 +19,9 @@ type Index interface {
 	// If the index does not exists, a NotFoundError is returned.
 	Remove(ctx context.Context) error
 
+	// UpdateMappings updates the index mappings.
+	UpdateMappings(ctx context.Context, mappings *types.TypeMapping) error
+
 	// All document functions
 	IndexDocuments
 }
