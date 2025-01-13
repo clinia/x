@@ -8,6 +8,7 @@ import (
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/dynamicmapping"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/refresh"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -33,6 +34,274 @@ func TestIndexRemove(t *testing.T) {
 		exists, err := f.es.Indices.Exists(NewIndexName(enginesIndexName, engine.Name(), index.Info().Name).String()).Do(ctx)
 		assert.NoError(t, err)
 		assert.False(t, exists)
+	})
+
+	t.Cleanup(func() {
+		err := engine.Remove(ctx)
+		assert.NoError(t, err)
+	})
+}
+
+func TestIndexUpdateMappings(t *testing.T) {
+	t.Parallel()
+
+	f := newTestFixture(t)
+	ctx := f.ctx
+
+	engine := f.setupEngine(t, "test-index-update-mappings")
+
+	t.Run("should update an index", func(t *testing.T) {
+		name := "index-1"
+		index, err := engine.CreateIndex(ctx, name, &CreateIndexOptions{
+			Aliases: map[string]types.Alias{
+				"test": {},
+			},
+			Mappings: &types.TypeMapping{
+				Dynamic: &dynamicmapping.Strict,
+				Properties: map[string]types.Property{
+					"id": types.NewKeywordProperty(),
+					"p1": types.NewKeywordProperty(),
+					"object": types.NestedProperty{
+						Dynamic: &dynamicmapping.Strict,
+						Properties: map[string]types.Property{
+							"p1": types.NewKeywordProperty(),
+						},
+					},
+				},
+			},
+		})
+
+		assert.NoError(t, err)
+		assert.Equal(t, index.Info().Name, name)
+
+		// Assert the index exists via es
+		esIndexName := NewIndexName(enginesIndexName, engine.Name(), name).String()
+		esIndices, err := f.es.Indices.Get(esIndexName).Do(ctx)
+		assert.NoError(t, err)
+		assert.Len(t, esIndices, 1)
+
+		esindex := esIndices[esIndexName]
+
+		assertx.Equal(t, types.IndexState{
+			Aliases: map[string]types.Alias{
+				NewIndexName(enginesIndexName, engine.Name(), "test").String(): {},
+			},
+			Mappings: &types.TypeMapping{
+				Dynamic: &dynamicmapping.Strict,
+				Properties: map[string]types.Property{
+					"id": &types.KeywordProperty{
+						Type:       "keyword",
+						Fields:     map[string]types.Property{},
+						Meta:       map[string]string{},
+						Properties: map[string]types.Property{},
+					},
+					"p1": &types.KeywordProperty{
+						Type:       "keyword",
+						Fields:     map[string]types.Property{},
+						Meta:       map[string]string{},
+						Properties: map[string]types.Property{},
+					},
+					"object": &types.NestedProperty{
+						Type:    "nested",
+						Dynamic: &dynamicmapping.Strict,
+						Fields:  map[string]types.Property{},
+						Meta:    map[string]string{},
+						Properties: map[string]types.Property{
+							"p1": &types.KeywordProperty{
+								Type:       "keyword",
+								Fields:     map[string]types.Property{},
+								Meta:       map[string]string{},
+								Properties: map[string]types.Property{},
+							},
+						},
+					},
+				},
+			},
+		}, esindex,
+			cmpopts.IgnoreFields(types.IndexState{}, "Settings"),
+		)
+
+		// update index mapping
+		err = index.UpdateMappings(ctx, &types.TypeMapping{
+			Dynamic: &dynamicmapping.Strict,
+			Properties: map[string]types.Property{
+				"id": types.NewKeywordProperty(),
+				"object": types.NestedProperty{
+					Dynamic: &dynamicmapping.Strict,
+					Properties: map[string]types.Property{
+						"p1":  types.NewKeywordProperty(),
+						"new": types.NewKeywordProperty(),
+					},
+				},
+				"new": types.NewKeywordProperty(),
+				"newObject": types.NestedProperty{
+					Dynamic: &dynamicmapping.Strict,
+					Properties: map[string]types.Property{
+						"p1": types.NewKeywordProperty(),
+					},
+				},
+			},
+		})
+
+		assert.NoError(t, err)
+
+		// Assert the index exists via es
+		esIndices, err = f.es.Indices.Get(esIndexName).Do(ctx)
+		assert.NoError(t, err)
+		assert.Len(t, esIndices, 1)
+
+		esindex = esIndices[esIndexName]
+
+		assertx.Equal(t, types.IndexState{
+			Aliases: map[string]types.Alias{
+				NewIndexName(enginesIndexName, engine.Name(), "test").String(): {},
+			},
+			Mappings: &types.TypeMapping{
+				Dynamic: &dynamicmapping.Strict,
+				Properties: map[string]types.Property{
+					"id": &types.KeywordProperty{
+						Type:       "keyword",
+						Fields:     map[string]types.Property{},
+						Meta:       map[string]string{},
+						Properties: map[string]types.Property{},
+					},
+					"p1": &types.KeywordProperty{
+						Type:       "keyword",
+						Fields:     map[string]types.Property{},
+						Meta:       map[string]string{},
+						Properties: map[string]types.Property{},
+					},
+					"object": &types.NestedProperty{
+						Type:    "nested",
+						Dynamic: &dynamicmapping.Strict,
+						Fields:  map[string]types.Property{},
+						Meta:    map[string]string{},
+						Properties: map[string]types.Property{
+							"p1": &types.KeywordProperty{
+								Type:       "keyword",
+								Fields:     map[string]types.Property{},
+								Meta:       map[string]string{},
+								Properties: map[string]types.Property{},
+							},
+							"new": &types.KeywordProperty{
+								Type:       "keyword",
+								Fields:     map[string]types.Property{},
+								Meta:       map[string]string{},
+								Properties: map[string]types.Property{},
+							},
+						},
+					},
+					"new": &types.KeywordProperty{
+						Type:       "keyword",
+						Fields:     map[string]types.Property{},
+						Meta:       map[string]string{},
+						Properties: map[string]types.Property{},
+					},
+					"newObject": &types.NestedProperty{
+						Type:    "nested",
+						Dynamic: &dynamicmapping.Strict,
+						Fields:  map[string]types.Property{},
+						Meta:    map[string]string{},
+						Properties: map[string]types.Property{
+							"p1": &types.KeywordProperty{
+								Type:       "keyword",
+								Fields:     map[string]types.Property{},
+								Meta:       map[string]string{},
+								Properties: map[string]types.Property{},
+							},
+						},
+					},
+				},
+			},
+		}, esindex,
+			cmpopts.IgnoreFields(types.IndexState{}, "Settings"),
+		)
+	})
+
+	t.Run("should fail to update an existing property", func(t *testing.T) {
+		name := "index-2"
+		index, err := engine.CreateIndex(ctx, name, &CreateIndexOptions{
+			Aliases: map[string]types.Alias{
+				"test": {},
+			},
+			Mappings: &types.TypeMapping{
+				Dynamic: &dynamicmapping.Strict,
+				Properties: map[string]types.Property{
+					"p1": types.NewKeywordProperty(),
+				},
+			},
+		})
+
+		assert.NoError(t, err)
+		assert.Equal(t, index.Info().Name, name)
+
+		// Assert the index exists via es
+		esIndexName := NewIndexName(enginesIndexName, engine.Name(), name).String()
+		esIndices, err := f.es.Indices.Get(esIndexName).Do(ctx)
+		assert.NoError(t, err)
+		assert.Len(t, esIndices, 1)
+
+		esindex := esIndices[esIndexName]
+
+		assertx.Equal(t, types.IndexState{
+			Aliases: map[string]types.Alias{
+				NewIndexName(enginesIndexName, engine.Name(), "test").String(): {},
+			},
+			Mappings: &types.TypeMapping{
+				Dynamic: &dynamicmapping.Strict,
+				Properties: map[string]types.Property{
+					"p1": &types.KeywordProperty{
+						Type:       "keyword",
+						Fields:     map[string]types.Property{},
+						Meta:       map[string]string{},
+						Properties: map[string]types.Property{},
+					},
+				},
+			},
+		}, esindex,
+			cmpopts.IgnoreFields(types.IndexState{}, "Settings"),
+		)
+
+		// update index mapping
+		err = index.UpdateMappings(ctx, &types.TypeMapping{
+			Dynamic: &dynamicmapping.Strict,
+			Properties: map[string]types.Property{
+				"p1": types.NestedProperty{
+					Dynamic: &dynamicmapping.Strict,
+					Properties: map[string]types.Property{
+						"new": types.NewKeywordProperty(),
+					},
+				},
+			},
+		})
+
+		assert.EqualError(t, err, "status: 400, failed: [illegal_argument_exception], reason: can't merge a non-nested mapping [p1] with a nested mapping")
+
+		// Assert the index exists via es
+		esIndices, err = f.es.Indices.Get(esIndexName).Do(ctx)
+		assert.NoError(t, err)
+		assert.Len(t, esIndices, 1)
+
+		esindex = esIndices[esIndexName]
+
+		assertx.Equal(t, types.IndexState{
+			Aliases: map[string]types.Alias{
+				NewIndexName(enginesIndexName, engine.Name(), "test").String(): {},
+			},
+			Mappings: &types.TypeMapping{
+				Dynamic: &dynamicmapping.Strict,
+				Properties: map[string]types.Property{
+					"p1": &types.KeywordProperty{
+						Type:       "keyword",
+						Fields:     map[string]types.Property{},
+						Meta:       map[string]string{},
+						Properties: map[string]types.Property{},
+					},
+				},
+			},
+		}, esindex,
+			cmpopts.IgnoreFields(types.IndexState{}, "Settings"),
+		)
 	})
 
 	t.Cleanup(func() {
