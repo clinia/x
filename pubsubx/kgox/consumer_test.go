@@ -13,11 +13,13 @@ import (
 	"time"
 
 	"github.com/clinia/x/errorx"
+	"github.com/clinia/x/logrusx"
 	"github.com/clinia/x/pubsubx"
 	"github.com/clinia/x/pubsubx/messagex"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/twmb/franz-go/pkg/kgo"
+	"github.com/twmb/franz-go/plugin/kotel"
 )
 
 func TestConsumer_Subscribe_Handling(t *testing.T) {
@@ -26,6 +28,191 @@ func TestConsumer_Subscribe_Handling(t *testing.T) {
 
 func TestConsumer_Subscribe_Handling_async(t *testing.T) {
 	consumer_Subscribe_Handling_test(t, true)
+}
+
+func TestConsumerLifecycle(t *testing.T) {
+	const kafkaTimeouts = 5 * time.Second
+	const msgFailureTimeout = kafkaTimeouts * 3
+	l := getLogger()
+	tf := newProxyFixture(t)
+	tf.EnableAll()
+	t.Cleanup(tf.EnableAll)
+	config := getPubsubConfig(t, false)
+	opts := &pubsubx.SubscriberOptions{MaxBatchSize: 10, MaxTopicRetryCount: 3, EnableAsyncExecution: false, RebalanceTimeout: kafkaTimeouts, DialTimeout: kafkaTimeouts}
+	pqh := getPoisonQueueHandler(t, l, config)
+	getWriteClient := func(t *testing.T) *kgo.Client {
+		t.Helper()
+		wc, err := kgo.NewClient(
+			kgo.SeedBrokers(config.Providers.Kafka.Brokers...),
+			kgo.WithLogger(&pubsubLogger{l: l}),
+		)
+		require.NoError(t, err)
+		t.Cleanup(wc.Close)
+		return wc
+	}
+	sendMessage := func(t *testing.T, ctx context.Context, wc *kgo.Client, topic messagex.Topic, msg *messagex.Message) {
+		t.Helper()
+
+		rec, err := defaultMarshaler.Marshal(ctx, msg, topic.TopicName(config.Scope))
+		require.NoError(t, err)
+
+		r := wc.ProduceSync(context.Background(), rec)
+		require.NoError(t, r.FirstErr())
+	}
+
+	t.Run("should gracefully cleanup consumer on network failure and allow resubscribing", func(t *testing.T) {
+		wc := getWriteClient(t)
+		group, topics := getRandomGroupTopics(t, 1)
+		createTopic(t, config, topics[0])
+		cg := messagex.ConsumerGroup(group)
+		erh := getEventRetryHandler(t, l, config, cg, nil)
+		c, err := newConsumer(l, nil, config, cg, topics, opts, erh, pqh)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			c.Close()
+		})
+		subCtx := context.Background()
+		msgBuf := make(chan *messagex.Message)
+		handler := func(ctx context.Context, msgs []*messagex.Message) ([]error, error) {
+			for _, msg := range msgs {
+				msgBuf <- msg
+			}
+			return nil, nil
+		}
+		err = c.Subscribe(subCtx, pubsubx.Handlers{
+			topics[0]: handler,
+		})
+		require.NoError(t, err, "no error on first Subscribe")
+		assert.NoError(t, c.Health())
+		sendMessage(t, context.Background(), wc, topics[0], messagex.NewMessage([]byte("test_msg_1")))
+		ticker := time.After(15 * time.Second)
+		select {
+		case <-ticker:
+			t.Fatal("failed to receive first message in first subscriber")
+		case <-msgBuf:
+		}
+		tf.DisableAll()
+		t.Cleanup(tf.EnableAll)
+		c.wg.Wait()
+		require.Error(t, c.Health())
+		subCtx = context.Background()
+		tf.EnableAll()
+		err = c.Subscribe(subCtx, pubsubx.Handlers{
+			topics[0]: handler,
+		})
+		require.NoError(t, err, "no error on second Subscribe")
+		assert.NoError(t, c.Health())
+		sendMessage(t, context.Background(), wc, topics[0], messagex.NewMessage([]byte("test_msg_2")))
+		select {
+		case <-time.After(msgFailureTimeout):
+			t.Fatal("failed to receive first message in second subscriber")
+		case <-msgBuf:
+		}
+	})
+
+	t.Run("test failing scenario with Close", func(t *testing.T) {
+		wc := getWriteClient(t)
+		group, topics := getRandomGroupTopics(t, 1)
+		createTopic(t, config, topics[0])
+		cg := messagex.ConsumerGroup(group)
+		erh := getEventRetryHandler(t, l, config, cg, nil)
+		c, err := newConsumer(l, nil, config, cg, topics, opts, erh, pqh)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			c.Close()
+		})
+		subCtx := context.Background()
+		msgBuf := make(chan *messagex.Message)
+		handler := func(ctx context.Context, msgs []*messagex.Message) ([]error, error) {
+			for _, msg := range msgs {
+				msgBuf <- msg
+			}
+			return nil, nil
+		}
+		err = c.Subscribe(subCtx, pubsubx.Handlers{
+			topics[0]: handler,
+		})
+		require.NoError(t, err, "no error on first Subscribe")
+		assert.NoError(t, c.Health())
+		sendMessage(t, context.Background(), wc, topics[0], messagex.NewMessage([]byte("test_msg_1")))
+		ticker := time.After(15 * time.Second)
+		select {
+		case <-ticker:
+			t.Fatal("failed to receive first message in first subscriber")
+		case <-msgBuf:
+		}
+		c.loopProcessingWg.Wait()
+		tf.DisableAll()
+		t.Cleanup(tf.EnableAll)
+		c.wg.Wait()
+
+		c.Close()
+		require.Error(t, c.Health())
+		subCtx = context.Background()
+		tf.EnableAll()
+		start := time.Now()
+		err = c.Subscribe(subCtx, pubsubx.Handlers{
+			topics[0]: handler,
+		})
+		require.NoError(t, err, "no error on second Subscribe")
+		assert.NoError(t, c.Health())
+		sendMessage(t, context.Background(), wc, topics[0], messagex.NewMessage([]byte("test_msg_2")))
+		select {
+		case <-time.After(msgFailureTimeout):
+			t.Fatal("failed to receive first message in second subscriber")
+		case <-msgBuf:
+			t.Logf("received message after %s", time.Since(start))
+		}
+	})
+
+	t.Run("should allow to close a subscribe and reuse the subscriber", func(t *testing.T) {
+		wc := getWriteClient(t)
+		group, topics := getRandomGroupTopics(t, 1)
+		createTopic(t, config, topics[0])
+		cg := messagex.ConsumerGroup(group)
+		erh := getEventRetryHandler(t, l, config, cg, nil)
+		c, err := newConsumer(l, nil, config, cg, topics, opts, erh, pqh)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			c.Close()
+		})
+		subCtx := context.Background()
+		msgBuf := make(chan *messagex.Message)
+		handler := func(ctx context.Context, msgs []*messagex.Message) ([]error, error) {
+			for _, msg := range msgs {
+				msgBuf <- msg
+			}
+			return nil, nil
+		}
+		err = c.Subscribe(subCtx, pubsubx.Handlers{
+			topics[0]: handler,
+		})
+		require.NoError(t, err, "no error on first Subscribe")
+		assert.NoError(t, c.Health())
+		sendMessage(t, context.Background(), wc, topics[0], messagex.NewMessage([]byte("test_msg_1")))
+		ticker := time.After(15 * time.Second)
+		select {
+		case <-ticker:
+			t.Fatal("failed to receive first message in first subscriber")
+		case <-msgBuf:
+		}
+		c.Close()
+		require.Error(t, c.Health())
+		subCtx = context.Background()
+		start := time.Now()
+		err = c.Subscribe(subCtx, pubsubx.Handlers{
+			topics[0]: handler,
+		})
+		require.NoError(t, err, "no error on second Subscribe")
+		assert.NoError(t, c.Health())
+		sendMessage(t, context.Background(), wc, topics[0], messagex.NewMessage([]byte("test_msg_2")))
+		select {
+		case <-time.After(msgFailureTimeout):
+			t.Fatal("failed to receive first message in second subscriber")
+		case <-msgBuf:
+			t.Logf("received message after %s", time.Since(start))
+		}
+	})
 }
 
 func consumer_Subscribe_Handling_test(t *testing.T, eae bool) {
@@ -720,4 +907,42 @@ func (c *concurrentBuffer) String() string {
 	c.m.RLock()
 	defer c.m.RUnlock()
 	return c.b.String()
+}
+
+func Test_consumer_Subscribe(t *testing.T) {
+	tests := []struct {
+		name string // description of this test case
+		// Named input parameters for receiver constructor.
+		l            *logrusx.Logger
+		kotelService *kotel.Kotel
+		config       *pubsubx.Config
+		group        messagex.ConsumerGroup
+		topics       []messagex.Topic
+		opts         *pubsubx.SubscriberOptions
+		erh          *eventRetryHandler
+		pqh          PoisonQueueHandler
+		// Named input parameters for target function.
+		topicHandlers pubsubx.Handlers
+		wantErr       bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, err := newConsumer(tt.l, tt.kotelService, tt.config, tt.group, tt.topics, tt.opts, tt.erh, tt.pqh)
+			if err != nil {
+				t.Fatalf("could not construct receiver type: %v", err)
+			}
+			gotErr := c.Subscribe(context.Background(), tt.topicHandlers)
+			if gotErr != nil {
+				if !tt.wantErr {
+					t.Errorf("Subscribe() failed: %v", gotErr)
+				}
+				return
+			}
+			if tt.wantErr {
+				t.Fatal("Subscribe() succeeded unexpectedly")
+			}
+		})
+	}
 }
