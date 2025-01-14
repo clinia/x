@@ -50,7 +50,7 @@ func TestIndexUpdateMappings(t *testing.T) {
 
 	engine := f.setupEngine(t, "test-index-update-mappings")
 
-	t.Run("should update an index", func(t *testing.T) {
+	t.Run("should update an index: new fields are added, fields can be redefined with the same values, ommited fields are not deleted", func(t *testing.T) {
 		name := "index-1"
 		index, err := engine.CreateIndex(ctx, name, &CreateIndexOptions{
 			Aliases: map[string]types.Alias{
