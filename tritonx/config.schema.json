@@ -3,6 +3,7 @@
     "$id": "clinia://triton-config",
     "type": "object",
     "description": "Configure Triton Client",
+    "additionalProperties": false,
     "properties": {
         "host": {
             "type": "string",

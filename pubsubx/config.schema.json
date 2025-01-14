@@ -3,6 +3,7 @@
   "$id": "clinia://pubsub-config",
   "type": "object",
   "description": "Configure Pub sub using the following options",
+  "additionalProperties": false,
   "properties": {
     "scope": {
       "type": "string",
