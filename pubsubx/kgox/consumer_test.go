@@ -13,13 +13,14 @@ import (
 	"time"
 
 	"github.com/clinia/x/errorx"
-	"github.com/clinia/x/logrusx"
+
 	"github.com/clinia/x/pubsubx"
 	"github.com/clinia/x/pubsubx/messagex"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/twmb/franz-go/pkg/kgo"
-	"github.com/twmb/franz-go/plugin/kotel"
+
+	"go.uber.org/goleak"
 )
 
 func TestConsumer_Subscribe_Handling(t *testing.T) {
@@ -39,7 +40,10 @@ func TestConsumerLifecycle(t *testing.T) {
 	t.Cleanup(tf.EnableAll)
 	config := getPubsubConfig(t, false)
 	opts := &pubsubx.SubscriberOptions{MaxBatchSize: 10, MaxTopicRetryCount: 3, EnableAsyncExecution: false, RebalanceTimeout: kafkaTimeouts, DialTimeout: kafkaTimeouts}
-	pqh := getPoisonQueueHandler(t, l, config)
+	pubSub, err := NewPubSub(l, config, nil)
+	require.NoError(t, err)
+	pqh := pubSub.PoisonQueueHandler().(*poisonQueueHandler)
+	defer pubSub.Close()
 	getWriteClient := func(t *testing.T) *kgo.Client {
 		t.Helper()
 		wc, err := kgo.NewClient(
@@ -61,16 +65,17 @@ func TestConsumerLifecycle(t *testing.T) {
 	}
 
 	t.Run("should gracefully cleanup consumer on network failure and allow resubscribing", func(t *testing.T) {
+		glopt := goleak.IgnoreCurrent()
+		defer goleak.VerifyNone(t, glopt)
 		wc := getWriteClient(t)
+		defer wc.Close()
 		group, topics := getRandomGroupTopics(t, 1)
 		createTopic(t, config, topics[0])
 		cg := messagex.ConsumerGroup(group)
-		erh := getEventRetryHandler(t, l, config, cg, nil)
+		erh := pubSub.eventRetryHandler(cg, nil)
 		c, err := newConsumer(l, nil, config, cg, topics, opts, erh, pqh)
 		require.NoError(t, err)
-		t.Cleanup(func() {
-			c.Close()
-		})
+		defer c.Close()
 		subCtx := context.Background()
 		msgBuf := make(chan *messagex.Message)
 		handler := func(ctx context.Context, msgs []*messagex.Message) ([]error, error) {
@@ -92,7 +97,7 @@ func TestConsumerLifecycle(t *testing.T) {
 		case <-msgBuf:
 		}
 		tf.DisableAll()
-		t.Cleanup(tf.EnableAll)
+		defer tf.EnableAll()
 		c.wg.Wait()
 		require.Error(t, c.Health())
 		subCtx = context.Background()
@@ -110,17 +115,18 @@ func TestConsumerLifecycle(t *testing.T) {
 		}
 	})
 
-	t.Run("test failing scenario with Close", func(t *testing.T) {
+	t.Run("should gracefully cleanup consumer on network failure while closing and allow resubscribing", func(t *testing.T) {
+		glopt := goleak.IgnoreCurrent()
+		defer goleak.VerifyNone(t, glopt)
 		wc := getWriteClient(t)
+		defer wc.Close()
 		group, topics := getRandomGroupTopics(t, 1)
 		createTopic(t, config, topics[0])
 		cg := messagex.ConsumerGroup(group)
-		erh := getEventRetryHandler(t, l, config, cg, nil)
+		erh := pubSub.eventRetryHandler(cg, nil)
 		c, err := newConsumer(l, nil, config, cg, topics, opts, erh, pqh)
 		require.NoError(t, err)
-		t.Cleanup(func() {
-			c.Close()
-		})
+		defer c.Close()
 		subCtx := context.Background()
 		msgBuf := make(chan *messagex.Message)
 		handler := func(ctx context.Context, msgs []*messagex.Message) ([]error, error) {
@@ -166,16 +172,17 @@ func TestConsumerLifecycle(t *testing.T) {
 	})
 
 	t.Run("should allow to close a subscribe and reuse the subscriber", func(t *testing.T) {
+		glopt := goleak.IgnoreCurrent()
+		defer goleak.VerifyNone(t, glopt)
 		wc := getWriteClient(t)
+		defer wc.Close()
 		group, topics := getRandomGroupTopics(t, 1)
 		createTopic(t, config, topics[0])
 		cg := messagex.ConsumerGroup(group)
-		erh := getEventRetryHandler(t, l, config, cg, nil)
+		erh := pubSub.eventRetryHandler(cg, nil)
 		c, err := newConsumer(l, nil, config, cg, topics, opts, erh, pqh)
 		require.NoError(t, err)
-		t.Cleanup(func() {
-			c.Close()
-		})
+		defer c.Close()
 		subCtx := context.Background()
 		msgBuf := make(chan *messagex.Message)
 		handler := func(ctx context.Context, msgs []*messagex.Message) ([]error, error) {
@@ -907,42 +914,4 @@ func (c *concurrentBuffer) String() string {
 	c.m.RLock()
 	defer c.m.RUnlock()
 	return c.b.String()
-}
-
-func Test_consumer_Subscribe(t *testing.T) {
-	tests := []struct {
-		name string // description of this test case
-		// Named input parameters for receiver constructor.
-		l            *logrusx.Logger
-		kotelService *kotel.Kotel
-		config       *pubsubx.Config
-		group        messagex.ConsumerGroup
-		topics       []messagex.Topic
-		opts         *pubsubx.SubscriberOptions
-		erh          *eventRetryHandler
-		pqh          PoisonQueueHandler
-		// Named input parameters for target function.
-		topicHandlers pubsubx.Handlers
-		wantErr       bool
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			c, err := newConsumer(tt.l, tt.kotelService, tt.config, tt.group, tt.topics, tt.opts, tt.erh, tt.pqh)
-			if err != nil {
-				t.Fatalf("could not construct receiver type: %v", err)
-			}
-			gotErr := c.Subscribe(context.Background(), tt.topicHandlers)
-			if gotErr != nil {
-				if !tt.wantErr {
-					t.Errorf("Subscribe() failed: %v", gotErr)
-				}
-				return
-			}
-			if tt.wantErr {
-				t.Fatal("Subscribe() succeeded unexpectedly")
-			}
-		})
-	}
 }
