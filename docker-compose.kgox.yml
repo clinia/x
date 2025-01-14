@@ -83,8 +83,6 @@ services:
     network_mode: host
     volumes:
       - ./toxiproxy.json:/toxiconfig.json
-    ports:
-      - 8474:8474
   redpanda-console:
     image: redpandadata/console:v2.7.2
     entrypoint: /bin/sh
