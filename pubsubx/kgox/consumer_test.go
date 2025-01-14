@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"strconv"
 	"strings"
 	"sync"
@@ -14,19 +13,12 @@ import (
 	"time"
 
 	"github.com/clinia/x/errorx"
-	"github.com/clinia/x/logrusx"
 	"github.com/clinia/x/pubsubx"
 	"github.com/clinia/x/pubsubx/messagex"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/twmb/franz-go/pkg/kgo"
 )
-
-func Logger() *logrusx.Logger {
-	l := logrusx.New("Clinia x", "testing")
-	l.Entry.Logger.SetOutput(io.Discard)
-	return l
-}
 
 func TestConsumer_Subscribe_Handling(t *testing.T) {
 	consumer_Subscribe_Handling_test(t, false)
@@ -37,7 +29,7 @@ func TestConsumer_Subscribe_Handling_async(t *testing.T) {
 }
 
 func consumer_Subscribe_Handling_test(t *testing.T, eae bool) {
-	l := Logger()
+	l := getLogger()
 	tf := newProxyFixture(t)
 	tf.EnableAll()
 	t.Cleanup(tf.EnableAll)
@@ -305,7 +297,7 @@ func TestConsumer_Subscribe_Concurrency_async(t *testing.T) {
 }
 
 func consumer_Subscribe_Concurrency_test(t *testing.T, eae bool) {
-	l := Logger()
+	l := getLogger()
 	tf := newProxyFixture(t)
 	tf.EnableAll()
 	t.Cleanup(tf.EnableAll)

@@ -1,6 +1,8 @@
 package kgox
 
 import (
+	"fmt"
+
 	"github.com/clinia/x/logrusx"
 	"github.com/sirupsen/logrus"
 	"github.com/twmb/franz-go/pkg/kgo"
@@ -12,6 +14,8 @@ type pubsubLogger struct {
 
 func kgoLogLevelToLogrusLogLevel(l kgo.LogLevel) logrus.Level {
 	switch l {
+	case kgo.LogLevelNone:
+		return logrus.TraceLevel
 	case kgo.LogLevelDebug:
 		return logrus.DebugLevel
 	case kgo.LogLevelInfo:
@@ -20,8 +24,6 @@ func kgoLogLevelToLogrusLogLevel(l kgo.LogLevel) logrus.Level {
 		return logrus.WarnLevel
 	case kgo.LogLevelError:
 		return logrus.ErrorLevel
-	case kgo.LogLevelNone:
-		return logrus.PanicLevel
 	default:
 		return logrus.InfoLevel
 	}
@@ -35,10 +37,8 @@ func logrusLogLevelToKgoLogLevel(l logrus.Level) kgo.LogLevel {
 		return kgo.LogLevelInfo
 	case logrus.WarnLevel:
 		return kgo.LogLevelWarn
-	case logrus.ErrorLevel:
+	case logrus.ErrorLevel, logrus.FatalLevel, logrus.PanicLevel:
 		return kgo.LogLevelError
-	case logrus.FatalLevel, logrus.PanicLevel:
-		return kgo.LogLevelNone
 	default:
 		return kgo.LogLevelInfo
 	}
@@ -49,17 +49,26 @@ func (cl *pubsubLogger) Level() kgo.LogLevel {
 }
 
 func (cl *pubsubLogger) Log(level kgo.LogLevel, msg string, keyvals ...any) {
-	fields := make(logrus.Fields)
+	defer func() {
+		if r := recover(); r != nil {
+			cl.l.Errorf("pubsub logger panic : %v", r)
+		}
+	}()
+	fields := make(logrus.Fields, len(keyvals)/2)
 	// By design, the keyvals slice should always be a pair length as each key comes
 	// with a subsequent entry that is a val
 	if len(keyvals)%2 != 0 {
-		cl.l.Errorf("failed to evaluate keyvals : %v", keyvals)
-	} else {
-		for i := range keyvals {
-			if i%2 == 0 {
-				fields["pubsub."+keyvals[i].(string)] = keyvals[i+1]
+		cl.l.Errorf("failed to evaluate keyvals as the vals count is odd (%d)", len(keyvals))
+	} else if len(keyvals) > 0 {
+		for i := 0; i < len(keyvals)-1; i += 2 {
+			if key, ok := keyvals[i].(string); ok {
+				fk := fmt.Sprintf("pubsub.%s", key)
+				fields[fk] = keyvals[i+1]
+			} else {
+				cl.l.Errorf("key is not a string type for kgo keyval pair, unable to add field key : %v", keyvals[i])
 			}
 		}
 	}
-	cl.l.WithFields(fields).Logf(kgoLogLevelToLogrusLogLevel(level), "%s", msg)
+	lev := kgoLogLevelToLogrusLogLevel(level)
+	cl.l.WithFields(fields).Logf(lev, "%s", msg)
 }
