@@ -83,8 +83,10 @@ services:
     network_mode: host
     volumes:
       - ./toxiproxy.json:/toxiconfig.json
+    ports:
+      - 8474:8474
   redpanda-console:
-    image: oci.clinia.dev/rp/redpandadata/console:v2.7.2
+    image: redpandadata/console:v2.7.2
     entrypoint: /bin/sh
     command: -c 'echo "$$CONSOLE_CONFIG_FILE" > /tmp/config.yml; /app/console'
     environment:
