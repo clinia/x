@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/clinia/x/logrusx"
 	"github.com/clinia/x/pubsubx/messagex"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
@@ -12,7 +11,7 @@ import (
 )
 
 func TestGenerateRetryTopics(t *testing.T) {
-	l := logrusx.New("test", "")
+	l := getLogger()
 	config := getPubsubConfig(t, true)
 
 	t.Run("should create retry topic for the topic list", func(t *testing.T) {
