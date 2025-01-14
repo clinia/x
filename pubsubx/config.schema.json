@@ -2,8 +2,8 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "clinia://pubsub-config",
   "type": "object",
-  "additionalProperties": false,
   "description": "Configure Pub sub using the following options",
+  "additionalProperties": false,
   "properties": {
     "scope": {
       "type": "string",
