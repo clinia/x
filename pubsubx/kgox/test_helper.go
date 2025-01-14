@@ -54,6 +54,21 @@ func (f *proxyFixture) DisableAll() {
 	}
 }
 
+func (f *proxyFixture) AddLatencyToxics(ms int64) {
+	for _, proxy := range f.proxies {
+		// Add a latency toxic to the proxy
+		proxy.AddToxic("latency_toxic", "latency", "upstream", 1, toxiproxy.Attributes{
+			"latency": ms,
+		})
+	}
+}
+
+func (f *proxyFixture) RemoveLatencyToxics() {
+	for _, proxy := range f.proxies {
+		proxy.RemoveToxic("latency_toxic")
+	}
+}
+
 func getRandomGroupTopics(t *testing.T, count int) (Group string, Topics []messagex.Topic) {
 	t.Helper()
 	name := strings.ReplaceAll(t.Name(), "/", "-")
@@ -69,7 +84,7 @@ func getRandomGroupTopics(t *testing.T, count int) (Group string, Topics []messa
 	return
 }
 
-func getPubsubConfig(t *testing.T, retry bool) *pubsubx.Config {
+func getPubsubConfig(t *testing.T, retry bool, monitoring bool) *pubsubx.Config {
 	t.Helper()
 
 	kafkaURLs := []string{"localhost:19092", "localhost:29092", "localhost:39092"}
@@ -87,19 +102,24 @@ func getPubsubConfig(t *testing.T, retry bool) *pubsubx.Config {
 			},
 		},
 		TopicRetry: retry,
-		PoisonQueue: pubsubx.PoisonQueueConfig{
-			TopicName: "poison-queue",
-			Enabled:   false,
-		},
+		PoisonQueue: pubsubx.NewPoisonQueueConfig(
+			false,
+			"poison-queue",
+		),
+		ConsumerGroupMonitoring: pubsubx.NewConsumerGroupMonitoringConfig(
+			monitoring,
+			time.Duration(1*time.Second),
+			time.Duration(200*time.Millisecond),
+		),
 		EnableAutoCommit: false,
 	}
 }
 
-func getPubSubConfigWithCustomPoisonQueue(t *testing.T, retry bool, customPoisonQueue string) *pubsubx.Config {
+func getPubSubConfigWithCustomPoisonQueue(t *testing.T, retry bool, customPoisonQueue string, monitoring bool) *pubsubx.Config {
 	t.Helper()
-	config := getPubsubConfig(t, retry)
-	config.PoisonQueue.TopicName = customPoisonQueue
-	config.PoisonQueue.Enabled = true
+	config := getPubsubConfig(t, retry, monitoring)
+	config.PoisonQueue = pubsubx.NewPoisonQueueConfig(true, customPoisonQueue)
+
 	return config
 }
 

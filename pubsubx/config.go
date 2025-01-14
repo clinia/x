@@ -14,12 +14,13 @@ import (
 )
 
 type Config struct {
-	PoisonQueue      PoisonQueueConfig `json:"poisonQueue"`
-	Scope            string            `json:"scope"`
-	Provider         string            `json:"provider"`
-	Providers        ProvidersConfig   `json:"providers"`
-	TopicRetry       bool              `json:"topicRetry"`
-	EnableAutoCommit bool              `json:"enableAutoCommit"`
+	PoisonQueue             PoisonQueueConfig             `json:"poisonQueue"`
+	Scope                   string                        `json:"scope"`
+	Provider                string                        `json:"provider"`
+	Providers               ProvidersConfig               `json:"providers"`
+	TopicRetry              bool                          `json:"topicRetry"`
+	ConsumerGroupMonitoring ConsumerGroupMonitoringConfig `json:"consumerGroup"`
+	EnableAutoCommit        bool                          `json:"enableAutoCommit"`
 }
 
 type ProvidersConfig struct {
@@ -42,12 +43,37 @@ type PubSubOptions struct {
 }
 
 type PoisonQueueConfig struct {
-	Enabled   bool   `json:"enabled"`
+	enabled   bool
 	TopicName string `json:"topicName"`
 }
 
+func NewPoisonQueueConfig(enabled bool, topicName string) PoisonQueueConfig {
+	return PoisonQueueConfig{
+		enabled:   enabled,
+		TopicName: topicName,
+	}
+}
+
 func (pqc PoisonQueueConfig) IsEnabled() bool {
-	return pqc.Enabled && pqc.TopicName != ""
+	return pqc.enabled && pqc.TopicName != ""
+}
+
+type ConsumerGroupMonitoringConfig struct {
+	enabled         bool
+	HealthTimeout   time.Duration `json:"healthTimeout"`
+	RefreshInterval time.Duration `json:"refreshInterval"`
+}
+
+func NewConsumerGroupMonitoringConfig(enabled bool, healthTimeout time.Duration, refreshInterval time.Duration) ConsumerGroupMonitoringConfig {
+	return ConsumerGroupMonitoringConfig{
+		enabled:         enabled,
+		HealthTimeout:   healthTimeout,
+		RefreshInterval: refreshInterval,
+	}
+}
+
+func (cgm ConsumerGroupMonitoringConfig) IsEnabled() bool {
+	return cgm.enabled && cgm.HealthTimeout > 0 && cgm.RefreshInterval > 0
 }
 
 type PubSubOption func(*PubSubOptions)

@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -34,11 +35,16 @@ func TestConfigSchema(t *testing.T) {
 					Brokers: []string{"localhost:9092"},
 				},
 			},
-			PoisonQueue: PoisonQueueConfig{
-				Enabled:   true,
-				TopicName: "poison-queue",
-			},
+			PoisonQueue: NewPoisonQueueConfig(
+				true,
+				"poison-queue",
+			),
 			TopicRetry: true,
+			ConsumerGroupMonitoring: NewConsumerGroupMonitoringConfig(
+				true,
+				time.Duration(10*time.Minute),
+				time.Duration(1*time.Minute),
+			),
 		}
 
 		rawConfig, err := sjson.Set("{}", "pubsubx", &conf)

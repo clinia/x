@@ -13,6 +13,7 @@ import (
 	"github.com/clinia/x/pubsubx/messagex"
 	"github.com/clinia/x/tracex"
 	"github.com/samber/lo"
+	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/plugin/kotel"
 	"go.opentelemetry.io/otel/attribute"
@@ -38,6 +39,35 @@ type consumer struct {
 	cancel context.CancelFunc
 	closed bool
 	wg     sync.WaitGroup
+
+	state state
+
+	adminClient *kadm.Client
+
+	poller Poller
+}
+
+type Poller interface {
+	PollRecords(ctx context.Context, maxBatchSize int) kgo.Fetches
+}
+
+type poller struct {
+	client *kgo.Client
+}
+
+func NewPoller(client *kgo.Client) Poller {
+	return &poller{client: client}
+}
+
+func (p *poller) PollRecords(ctx context.Context, maxBatchSize int) kgo.Fetches {
+	return p.client.PollRecords(ctx, maxBatchSize)
+}
+
+type state struct {
+	lastConsumptionTimePerTopic map[string]time.Time
+	adminClientErr              error
+	previousDescribedGroupLag   kadm.DescribedGroupLag
+	currentDescribedGroupLag    kadm.DescribedGroupLag
 }
 
 // TODO: Add the ability to handle repartition and cancel specific topic handling if the parition is revoked
@@ -84,6 +114,16 @@ func newConsumer(l *logrusx.Logger, kotelService *kotel.Kotel, config *pubsubx.C
 	if err := cons.bootstrapClient(context.Background()); err != nil {
 		return nil, err
 	}
+
+	if config.ConsumerGroupMonitoring.IsEnabled() {
+		cons.state = state{
+			lastConsumptionTimePerTopic: make(map[string]time.Time, len(topics)),
+		}
+	}
+
+	cons.adminClient = kadm.NewClient(cons.cl)
+
+	cons.poller = NewPoller(cons.cl)
 
 	return cons, nil
 }
@@ -151,6 +191,7 @@ func (c *consumer) bootstrapClient(ctx context.Context) error {
 	}
 
 	c.cl = client
+
 	return nil
 }
 
@@ -258,6 +299,10 @@ func (c *consumer) handleTopic(ctx context.Context, tp kgo.FetchTopic) error {
 func (c *consumer) start(ctx context.Context) {
 	l := c.l.WithContext(ctx)
 
+	if c.conf.ConsumerGroupMonitoring.IsEnabled() {
+		go c.monitor(ctx)
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -268,7 +313,7 @@ func (c *consumer) start(ctx context.Context) {
 		workLoop := func() (shouldBreak bool) {
 			// Sync task that hang until it receive at least one record
 			// When records are pulled, metadata is also updated within the client
-			fetches := c.cl.PollRecords(ctx, int(c.opts.MaxBatchSize))
+			fetches := c.poller.PollRecords(ctx, int(c.opts.MaxBatchSize))
 			// This signifies we are currently processing records
 			// If the context was cancelled here, this is a noop
 			c.loopProcessingWg.Add(1)
@@ -302,6 +347,13 @@ func (c *consumer) start(ctx context.Context) {
 
 			var abortErr error
 			fetches.EachTopic(func(tp kgo.FetchTopic) {
+				if c.conf.ConsumerGroupMonitoring.IsEnabled() {
+					defer func() {
+						c.mu.Lock()
+						c.state.lastConsumptionTimePerTopic[tp.Topic] = time.Now()
+						c.mu.Unlock()
+					}()
+				}
 				processTopic := func() error {
 					if err := c.handleTopic(ctx, tp); err != nil {
 						switch err {
@@ -442,9 +494,6 @@ func (c *consumer) Subscribe(ctx context.Context, topicHandlers pubsubx.Handlers
 
 			// Teardown
 			c.mu.Lock()
-			if c.cancel != nil {
-				c.cancel()
-			}
 			c.cancel = nil
 			c.mu.Unlock()
 
@@ -461,9 +510,127 @@ func (c *consumer) Subscribe(ctx context.Context, topicHandlers pubsubx.Handlers
 func (c *consumer) Health() error {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
+
+	if c.state.adminClientErr != nil {
+		return c.state.adminClientErr
+	}
+
 	if c.cancel == nil {
 		return errorx.InternalErrorf("not subscribed to topics")
 	}
 
+	err := errorx.InternalErrorf("consumer group %s is not healthy", c.group.ConsumerGroup(c.conf.Scope))
+
+	if !c.conf.ConsumerGroupMonitoring.IsEnabled() {
+		return nil
+	}
+
+	if c.state.previousDescribedGroupLag.Group == "" || c.state.currentDescribedGroupLag.Group == "" {
+		return nil
+	}
+
+	for topic, lastConsumptionTime := range c.state.lastConsumptionTimePerTopic {
+		timeElapsed := time.Since(lastConsumptionTime)
+
+		// If last consumption time for at least one topic is less than the health timeout, return healthy
+		if timeElapsed < c.conf.ConsumerGroupMonitoring.HealthTimeout {
+			return nil
+		}
+
+		previousTopicLags := c.state.previousDescribedGroupLag.Lag[topic]
+		currentTopicLags := c.state.currentDescribedGroupLag.Lag[topic]
+
+		for i, currentPartitionLag := range currentTopicLags {
+			currentPartitionOffset := currentPartitionLag.Commit.At
+			previousPartitionOffset := previousTopicLags[i].Commit.At
+
+			// If offset is moving for at least one partition, return healthy
+			if currentPartitionOffset > previousPartitionOffset {
+				return nil
+			}
+
+			if currentPartitionLag.Lag > 0 {
+				// If we reach here, we have a case for unhealthy for that specific partition
+				err.WithDetails(errorx.InternalErrorf("topic '%s' partition %d: no consumption for %s, lag is %d, and offset %d is not moving", topic, currentPartitionLag.Partition, timeElapsed, currentPartitionLag.Lag, currentPartitionOffset))
+			}
+
+		}
+	}
+
+	// If no early returns, it means that:
+	// 1. All topics of the consumer group did not consume any messages for the last `HealthTimeout` duration
+	// 2. All the partitions of the topics of the consumer group have offsets that remain constant (not moving)
+	// 3. A lag still exists for at least one partition
+	// From the above, we can infer that the consumer group is unhealthy ("stuck")
+	if len(err.Details) > 0 {
+		return err
+	}
+
 	return nil
+}
+
+// monitor refreshes the lag state of the consumer group at the interval set in the config
+func (c *consumer) monitor(ctx context.Context) {
+	ticker := time.NewTicker(c.conf.ConsumerGroupMonitoring.RefreshInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			c.refreshLagState(ctx)
+		}
+	}
+}
+
+// refreshLagState fetches the lag with retry mechanism from the admin client and updates the state
+func (c *consumer) refreshLagState(ctx context.Context) {
+	var groupLags map[string]kadm.DescribedGroupLag
+	var err error
+
+	// retry 3 times
+	for i := 0; i < 3; i++ {
+		groupLags, err = c.adminClient.Lag(ctx, c.group.ConsumerGroup(c.conf.Scope))
+		if err == nil {
+			break
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if err != nil {
+		c.state.adminClientErr = err
+		return
+	}
+
+	// copy the current state to the previous state
+	c.state.previousDescribedGroupLag = c.state.currentDescribedGroupLag
+	// update the current state
+	c.state.currentDescribedGroupLag = groupLags[c.group.ConsumerGroup(c.conf.Scope)]
+
+	// Imagine we have a healthTimeout of 2m, and a last read occured 1m59s ago when all topics were lag free.
+	// If there are messages being pushed to some of the topics at this time and the consumption takes more than 1s to fetch the messages,
+	// the health endpoint would return not healthy.
+	// To fix this, the solution is to reset all of the lastConsumptionTimes to the current time if all of the lags are zero at that time.
+	// That way, the timeout would really start only when we are spotting a lag.
+	if c.allLagsZero() {
+		c.state.lastConsumptionTimePerTopic = make(map[string]time.Time, len(c.topics))
+	}
+
+	return
+}
+
+// allLagsZero checks if all the lags in the current described group lag are 0
+func (c *consumer) allLagsZero() bool {
+	for _, topicLags := range c.state.currentDescribedGroupLag.Lag {
+		for _, partitionLag := range topicLags {
+			if partitionLag.Lag > 0 {
+				return false
+			}
+		}
+	}
+
+	return true
 }

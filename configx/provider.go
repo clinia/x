@@ -520,11 +520,16 @@ func (p *Provider) PubSubConfig() *pubsubx.Config {
 			},
 		},
 		TopicRetry: p.BoolF("pubsub.topicRetry", false),
-		PoisonQueue: pubsubx.PoisonQueueConfig{
-			Enabled:   p.BoolF("pubsub.poisonQueue.enabled", false),
-			TopicName: p.StringF("pubsub.poisonQueue.topicName", "poison-queue"),
-		},
-		EnableAutoCommit: p.BoolF("pubsub.enableAutoCommit", true),
+		PoisonQueue: pubsubx.NewPoisonQueueConfig(
+			p.BoolF("pubsub.poisonQueue.enabled", false),
+			p.StringF("pubsub.poisonQueue.topicName", "poison-queue"),
+		),
+		ConsumerGroupMonitoring: pubsubx.NewConsumerGroupMonitoringConfig(
+			p.BoolF("pubsub.consumerGroupMonitoring.enabled", false),
+			p.DurationF("pubsub.consumerGroupMonitoring.healthTimeout", 5*time.Minute),
+			p.DurationF("pubsub.consumerGroupMonitoring.refreshInterval", 5*time.Second),
+		),
+		EnableAutoCommit: p.BoolF("pubsub.enableAutoCommit", false),
 	}
 }
 
