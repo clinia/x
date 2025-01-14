@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/clinia/x/logrusx"
 	"github.com/clinia/x/pubsubx/messagex"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,8 +16,7 @@ import (
 )
 
 func TestPublishMessagesToPoisonQueue(t *testing.T) {
-	l := logrusx.New("test", "")
-
+	l := getLogger()
 	t.Run("should not do anything if the messages list is empty", func(t *testing.T) {
 		config := getPubSubConfigWithCustomPoisonQueue(t, true, "pq-test-1")
 		pqTopic := messagex.TopicFromName(config.PoisonQueue.TopicName).TopicName(config.Scope)
@@ -390,7 +388,7 @@ func TestPublishMessagesToPoisonQueue(t *testing.T) {
 }
 
 func TestConsumeQueue(t *testing.T) {
-	l := logrusx.New("test", "v0")
+	l := getLogger()
 	t.Run("should consume queue up to the current event", func(t *testing.T) {
 		config := getPubSubConfigWithCustomPoisonQueue(t, true, "pq-test-consume-1")
 		pqTopic := messagex.TopicFromName(config.PoisonQueue.TopicName).TopicName(config.Scope)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"testing"
@@ -151,4 +152,10 @@ func getPoisonQueueHandler(t *testing.T, l *logrusx.Logger, conf *pubsubx.Config
 	require.NoError(t, err)
 
 	return pubSub.PoisonQueueHandler().(*poisonQueueHandler)
+}
+
+func getLogger() *logrusx.Logger {
+	l := logrusx.New("Clinia x", "testing")
+	l.Entry.Logger.SetOutput(io.Discard)
+	return l
 }

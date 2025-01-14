@@ -84,7 +84,7 @@ services:
     volumes:
       - ./toxiproxy.json:/toxiconfig.json
   redpanda-console:
-    image: oci.clinia.dev/rp/redpandadata/console:v2.7.2
+    image: redpandadata/console:v2.7.2
     entrypoint: /bin/sh
     command: -c 'echo "$$CONSOLE_CONFIG_FILE" > /tmp/config.yml; /app/console'
     environment:
