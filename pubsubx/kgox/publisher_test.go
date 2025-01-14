@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/clinia/x/logrusx"
 	"github.com/clinia/x/pubsubx"
 	"github.com/clinia/x/pubsubx/messagex"
 	"github.com/stretchr/testify/assert"
@@ -15,7 +14,7 @@ import (
 )
 
 func TestPublisher(t *testing.T) {
-	l := logrusx.New("test", "")
+	l := getLogger()
 	config := getPubsubConfig(t, false)
 
 	receivedMessages := func(t *testing.T, group string, topic messagex.Topic) <-chan *messagex.Message {
