@@ -36,6 +36,7 @@ func (erh *eventRetryHandler) generateRetryTopics(ctx context.Context, topics ..
 		l.WithError(err).Errorf("failed to generate admin client on retry topic creation")
 		return []messagex.Topic{}, []error{}, err
 	}
+	defer pbac.Close()
 
 	scopedRetryTopics := lo.Map(retryTopics, func(retryTopic messagex.Topic, _ int) string {
 		return retryTopic.TopicName(erh.conf.Scope)

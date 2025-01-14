@@ -105,12 +105,16 @@ func getPubSubConfigWithCustomPoisonQueue(t *testing.T, retry bool, customPoison
 }
 
 func createTopic(t *testing.T, conf *pubsubx.Config, topic messagex.Topic) {
-	client, err := kgo.NewClient(kgo.SeedBrokers(conf.Providers.Kafka.Brokers...))
-	require.NoError(t, err)
+	getAdmCl := func() *kadm.Client {
+		client, err := kgo.NewClient(kgo.SeedBrokers(conf.Providers.Kafka.Brokers...))
+		require.NoError(t, err)
 
-	admCl := kadm.NewClient(client)
+		return kadm.NewClient(client)
+	}
 	deleteTopic := func() error {
 		// Delete the topic
+		admCl := getAdmCl()
+		defer admCl.Close()
 		res, err := admCl.DeleteTopics(context.Background(), topic.TopicName(conf.Scope))
 		return errors.Join(err, res.Error())
 	}
@@ -118,6 +122,8 @@ func createTopic(t *testing.T, conf *pubsubx.Config, topic messagex.Topic) {
 	// Ensure the topic is deleted
 	deleteTopic()
 
+	admCl := getAdmCl()
+	defer admCl.Close()
 	// Create the topic
 	res, err := admCl.CreateTopics(context.Background(), 1, 1, map[string]*string{}, topic.TopicName(conf.Scope))
 	require.NoError(t, err, "failed to create topic '%s'", topic.TopicName(conf.Scope))
