@@ -16,29 +16,38 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/plugin/kotel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
 	"golang.org/x/sync/errgroup"
 )
 
-type consumer struct {
-	l            *logrusx.Logger
-	cl           *kgo.Client
-	conf         *pubsubx.Config
-	group        messagex.ConsumerGroup
-	topics       []messagex.Topic
-	opts         *pubsubx.SubscriberOptions
-	handlers     map[messagex.Topic]handlerExecutor
-	kotelService *kotel.Kotel
-	erh          *eventRetryHandler
-	pqh          PoisonQueueHandler
+type (
+	consumer struct {
+		l            *logrusx.Logger
+		cl           *kgo.Client
+		conf         *pubsubx.Config
+		group        messagex.ConsumerGroup
+		topics       []messagex.Topic
+		opts         *pubsubx.SubscriberOptions
+		handlers     map[messagex.Topic]handlerExecutor
+		kotelService *kotel.Kotel
+		meter        metric.Meter
+		erh          *eventRetryHandler
+		pqh          PoisonQueueHandler
 
-	loopProcessingWg sync.WaitGroup
+		loopProcessingWg sync.WaitGroup
 
-	mu     sync.RWMutex
-	cancel context.CancelFunc
-	closed bool
-	wg     sync.WaitGroup
-}
+		mu     sync.RWMutex
+		cancel context.CancelFunc
+		closed bool
+		wg     sync.WaitGroup
+		*consumerMetric
+	}
+	consumerMetric struct {
+		recordSize            metric.Int64Histogram
+		recordProcessingCount metric.Int64Gauge
+	}
+)
 
 // TODO: Add the ability to handle repartition and cancel specific topic handling if the parition is revoked
 // TODO: Add gauge metric to record the current count of records that are being processed
@@ -70,7 +79,22 @@ const (
 	maxRetryCount    = 3
 )
 
-func newConsumer(l *logrusx.Logger, kotelService *kotel.Kotel, config *pubsubx.Config, group messagex.ConsumerGroup, topics []messagex.Topic, opts *pubsubx.SubscriberOptions, erh *eventRetryHandler, pqh PoisonQueueHandler) (*consumer, error) {
+func newConsumerMetric(m metric.Meter) (*consumerMetric, error) {
+	rs, err := m.Int64Histogram("recordSize", metric.WithUnit("byte"))
+	if err != nil {
+		return nil, err
+	}
+	rpc, err := m.Int64Gauge("recordProcessingCount")
+	if err != nil {
+		return nil, err
+	}
+	return &consumerMetric{
+		recordSize:            rs,
+		recordProcessingCount: rpc,
+	}, nil
+}
+
+func newConsumer(ctx context.Context, l *logrusx.Logger, kotelService *kotel.Kotel, config *pubsubx.Config, group messagex.ConsumerGroup, topics []messagex.Topic, opts *pubsubx.SubscriberOptions, erh *eventRetryHandler, pqh PoisonQueueHandler, m metric.Meter) (*consumer, error) {
 	if l == nil {
 		return nil, errorx.FailedPreconditionErrorf("logger is required")
 	}
@@ -79,9 +103,14 @@ func newConsumer(l *logrusx.Logger, kotelService *kotel.Kotel, config *pubsubx.C
 		opts = pubsubx.NewDefaultSubscriberOptions()
 	}
 
-	cons := &consumer{l: l, kotelService: kotelService, group: group, conf: config, topics: topics, opts: opts, erh: erh, pqh: pqh}
+	cm, err := newConsumerMetric(m)
+	if err != nil {
+		l.WithContext(ctx).WithError(err).Errorf("failed to create consumer metrics, not recording any library metrics")
+	}
 
-	if err := cons.bootstrapClient(context.Background()); err != nil {
+	cons := &consumer{l: l, kotelService: kotelService, group: group, conf: config, topics: topics, opts: opts, erh: erh, pqh: pqh, consumerMetric: cm}
+
+	if err := cons.bootstrapClient(ctx); err != nil {
 		return nil, err
 	}
 
@@ -212,7 +241,19 @@ func (c *consumer) handleTopic(ctx context.Context, tp kgo.FetchTopic) error {
 		l.Errorf("no handler for topic")
 		return errorx.InternalErrorf("no handler for topic")
 	}
-	msgs := c.convertRecordsToMessages(tp.Records())
+	records := tp.Records()
+	go func() {
+		if c.consumerMetric != nil {
+			mtc := metric.WithAttributes(attribute.String("topic", tp.Topic))
+			c.recordProcessingCount.Record(ctx, int64(len(records)), mtc)
+			for _, r := range records {
+				if r != nil {
+					c.recordSize.Record(ctx, int64(len(r.Value)), mtc)
+				}
+			}
+		}
+	}()
+	msgs := c.convertRecordsToMessages(records)
 
 	bc := backoff.NewExponentialBackOff()
 	bc.MaxElapsedTime = maxElapsedTime

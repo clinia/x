@@ -9,6 +9,8 @@ import (
 
 	"github.com/clinia/x/pointerx"
 	"github.com/clinia/x/pubsubx"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/metric/noop"
 
 	"github.com/clinia/x/errorx"
 	"github.com/clinia/x/logrusx"
@@ -26,6 +28,7 @@ type PubSub struct {
 	kotelService                    *kotel.Kotel
 	writeClient                     *kgo.Client
 	l                               *logrusx.Logger
+	mp                              metric.MeterProvider
 
 	mu        sync.RWMutex
 	consumers map[messagex.ConsumerGroup]*consumer
@@ -58,7 +61,9 @@ func NewPubSub(l *logrusx.Logger, config *pubsubx.Config, opts *pubsubx.PubSubOp
 	// Setup kotel
 	var kotelService *kotel.Kotel
 	defaultCreateTopicConfigEntries := map[string]*string{}
+	var mp metric.MeterProvider
 	if opts != nil {
+		mp = opts.MeterProvider
 		kotelService = newKotel(opts.TracerProvider, opts.Propagator, opts.MeterProvider)
 		kopts = append(kopts, kgo.WithHooks(kotelService.Hooks()...))
 
@@ -69,6 +74,10 @@ func NewPubSub(l *logrusx.Logger, config *pubsubx.Config, opts *pubsubx.PubSubOp
 		if opts.RetentionMs != nil {
 			defaultCreateTopicConfigEntries["retention.ms"] = pointerx.Ptr(fmt.Sprintf("%d", *opts.RetentionMs))
 		}
+	}
+	if mp == nil {
+		l.Warnf("no meter provider was defined in pubsub options, using noop")
+		mp = noop.NewMeterProvider()
 	}
 
 	wc, err := kgo.NewClient(kopts...)
@@ -93,6 +102,7 @@ func NewPubSub(l *logrusx.Logger, config *pubsubx.Config, opts *pubsubx.PubSubOp
 	return &PubSub{
 		l:                               l,
 		conf:                            config,
+		mp:                              mp,
 		kotelService:                    kotelService,
 		kopts:                           kopts,
 		defaultCreateTopicConfigEntries: defaultCreateTopicConfigEntries,
@@ -145,7 +155,11 @@ func (p *PubSub) Subscriber(group string, topics []messagex.Topic, opts ...pubsu
 		opt(o)
 	}
 
-	cs, err := newConsumer(p.l, p.kotelService, p.conf, consumerGroup, topics, o, p.eventRetryHandler(consumerGroup, o), p.PoisonQueueHandler())
+	var m metric.Meter
+	if p.mp != nil {
+		m = p.mp.Meter("pubsubx_consumer")
+	}
+	cs, err := newConsumer(context.Background(), p.l, p.kotelService, p.conf, consumerGroup, topics, o, p.eventRetryHandler(consumerGroup, o), p.PoisonQueueHandler(), m)
 	if err != nil {
 		p.l.Errorf("failed to create consumer: %v", err)
 		return nil, errorx.InternalErrorf("failed to create consumer: %v", err)
