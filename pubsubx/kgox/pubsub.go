@@ -55,6 +55,7 @@ func NewPubSub(l *logrusx.Logger, config *pubsubx.Config, opts *pubsubx.PubSubOp
 
 	kopts := []kgo.Opt{
 		kgo.SeedBrokers(config.Providers.Kafka.Brokers...),
+		kgo.WithLogger(&pubsubLogger{l: l}),
 	}
 
 	// Setup kotel

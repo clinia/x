@@ -4,7 +4,7 @@ services:
       - prevent-default-start
 
   redpanda-0:
-    image: oci.clinia.dev/rp/redpandadata/redpanda:v24.2.5
+    image: redpandadata/redpanda:v24.2.5
     command:
       - redpanda
       - start
@@ -23,8 +23,9 @@ services:
     ports:
       - 18081:18081
       - 18082:18082
-      - 19092:19092
       - 19644:9644
+      # Reachable for the proxy that's on the host
+      - 19992:19092
 
   redpanda-1:
     command:
@@ -41,13 +42,14 @@ services:
       - --smp 1
       - --default-log-level=info
       - --seeds redpanda-0:33145
-    image: oci.clinia.dev/rp/redpandadata/redpanda:v24.2.5
+    image: redpandadata/redpanda:v24.2.5
     container_name: redpanda-1
     ports:
       - 28081:28081
       - 28082:28082
-      - 29092:29092
       - 29644:9644
+      # Reachable for the proxy that's on the host
+      - 29992:29092
     depends_on:
       - redpanda-0
   redpanda-2:
@@ -65,17 +67,24 @@ services:
       - --smp 1
       - --default-log-level=info
       - --seeds redpanda-0:33145
-    image: oci.clinia.dev/rp/redpandadata/redpanda:v24.2.5
+    image: redpandadata/redpanda:v24.2.5
     container_name: redpanda-2
     ports:
       - 38081:38081
       - 38082:38082
-      - 39092:39092
       - 39644:9644
+      # Reachable for the proxy that's on the host
+      - 39992:39092
     depends_on:
       - redpanda-0
+  toxiproxy:
+    image: ghcr.io/shopify/toxiproxy
+    command: -host=0.0.0.0 --config /toxiconfig.json
+    network_mode: host
+    volumes:
+      - ./toxiproxy.json:/toxiconfig.json
   redpanda-console:
-    image: oci.clinia.dev/rp/redpandadata/console:v2.7.2
+    image: redpandadata/console:v2.7.2
     entrypoint: /bin/sh
     command: -c 'echo "$$CONSOLE_CONFIG_FILE" > /tmp/config.yml; /app/console'
     environment:
@@ -96,3 +105,5 @@ services:
       - 8081:8081
     depends_on:
       - redpanda-0
+      - redpanda-1
+      - redpanda-2

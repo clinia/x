@@ -5,6 +5,7 @@ import (
 	_ "embed"
 	"io"
 	"math"
+	"time"
 
 	"github.com/clinia/x/pointerx"
 	"go.opentelemetry.io/otel/metric"
@@ -104,6 +105,10 @@ type SubscriberOptions struct {
 	// Define the number of maximum topic handler that can run in parallel
 	// on record processing
 	MaxParallelAsyncExecution int16
+	// Timeouts
+	DialTimeout time.Duration
+	// Defaults to 60s. This should be big enough to allow enough time to process a batch.
+	RebalanceTimeout time.Duration
 }
 
 func NewDefaultSubscriberOptions() *SubscriberOptions {
@@ -154,6 +159,18 @@ func WithMaxParalleAsyncExecution(max int16) SubscriberOption {
 		} else {
 			o.MaxParallelAsyncExecution = max
 		}
+	}
+}
+
+func WithDialTimeout(timeout time.Duration) SubscriberOption {
+	return func(o *SubscriberOptions) {
+		o.DialTimeout = timeout
+	}
+}
+
+func WithRebalanceTimeout(timeout time.Duration) SubscriberOption {
+	return func(o *SubscriberOptions) {
+		o.RebalanceTimeout = timeout
 	}
 }
 
