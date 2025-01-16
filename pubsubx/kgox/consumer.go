@@ -39,7 +39,6 @@ type (
 
 		mu     sync.RWMutex
 		cancel context.CancelFunc
-		closed bool
 		wg     sync.WaitGroup
 		*consumerMetric
 	}
@@ -109,10 +108,6 @@ func newConsumer(ctx context.Context, l *logrusx.Logger, kotelService *kotel.Kot
 	}
 
 	cons := &consumer{l: l, kotelService: kotelService, group: group, conf: config, topics: topics, opts: opts, erh: erh, pqh: pqh, consumerMetric: cm}
-
-	if err := cons.bootstrapClient(ctx); err != nil {
-		return nil, err
-	}
 
 	return cons, nil
 }
@@ -186,28 +181,24 @@ func (c *consumer) bootstrapClient(ctx context.Context) error {
 
 // Close implements pubsubx.Subscriber.
 func (c *consumer) Close() error {
-	c.mu.Lock()
-	if c.closed && c.cancel == nil {
-		c.mu.Unlock()
+	c.mu.RLock()
+	cancel := c.cancel
+	if c.cl == nil && cancel == nil {
 		// Already closed
+		c.mu.RUnlock()
 		return nil
 	}
-
-	c.closed = true
+	c.mu.RUnlock()
 
 	// We wait for the current loop to finish if there is ongoing work
 	c.loopProcessingWg.Wait()
 
-	if cancel := c.cancel; cancel != nil {
+	if cancel != nil {
 		cancel()
 	}
-	c.mu.Unlock()
 
-	// Wait for the consumer to be done
+	// Wait for the consumer to be exited
 	c.wg.Wait()
-
-	// Close the client
-	c.cl.Close()
 
 	return nil
 }
@@ -436,6 +427,13 @@ func (c *consumer) publishPoisonQueueMessages(ctx context.Context, topic message
 
 // Subscribe implements pubsubx.Subscriber.
 func (c *consumer) Subscribe(ctx context.Context, topicHandlers pubsubx.Handlers) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.cl != nil || c.cancel != nil {
+		return errorx.InternalErrorf("already subscribed, close the subscriber first")
+	}
+
 	handlers := make(map[messagex.Topic]handlerExecutor)
 	for _, topic := range c.topics {
 		handler, ok := topicHandlers[topic]
@@ -451,27 +449,11 @@ func (c *consumer) Subscribe(ctx context.Context, topicHandlers pubsubx.Handlers
 		}
 	}
 
-	c.mu.RLock()
-	if c.closed {
-		// This means that we have closed the consumer in between calls
-		// Make sure we wait for the consumer to be done (and thus cancel to be reset)
-		c.wg.Wait()
-
-		// We can create a new client
-		if err := c.bootstrapClient(ctx); err != nil {
-			c.mu.RUnlock()
-			return err
-		}
+	if err := c.bootstrapClient(ctx); err != nil {
+		return err
 	}
-	c.mu.RUnlock()
 
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.cancel != nil {
-		return errorx.InternalErrorf("already subscribed to topics")
-	}
 	ctx, cancel := context.WithCancel(ctx)
-
 	c.handlers = handlers
 	c.cancel = cancel
 
@@ -488,6 +470,10 @@ func (c *consumer) Subscribe(ctx context.Context, topicHandlers pubsubx.Handlers
 				c.cancel()
 			}
 			c.cancel = nil
+			if c.cl != nil {
+				c.cl.Close()
+			}
+			c.cl = nil
 			c.mu.Unlock()
 
 			c.wg.Done()
