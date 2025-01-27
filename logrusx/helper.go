@@ -221,9 +221,6 @@ func (l *Logger) WithError(err error) *Logger {
 	}
 
 	ctx := map[string]interface{}{"message": err.Error()}
-	if cErr, ok := err.(errorx.CliniaError); ok {
-		ctx = cliniaErrorCtx(cErr)
-	}
 
 	// if l.Entry.Logger.IsLevelEnabled(logrus.DebugLevel) {
 	// 	if e, ok := err.(errorsx.StackTracer); ok {
@@ -250,6 +247,16 @@ func (l *Logger) WithError(err error) *Logger {
 	// if c := errorsx.DebugCarrier(nil); errors.As(err, &c) {
 	// 	ctx["debug"] = c.Debug()
 	// }
+
+	// add the error details if it's a Clinia error with details
+	if cErr, ok := err.(errorx.CliniaError); ok && len(cErr.Details) > 0 {
+		details := make([]map[string]interface{}, 0, len(cErr.Details))
+		for _, detail := range cErr.Details {
+			details = append(details, cliniaErrorCtx(detail))
+		}
+
+		return l.WithField("error", ctx).WithField("error_details", details)
+	}
 
 	return l.WithField("error", ctx)
 }
