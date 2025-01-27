@@ -269,5 +269,4 @@ func cliniaErrorCtx(err errorx.CliniaError) map[string]interface{} {
 	ctx["details"] = details
 
 	return ctx
-
 }
