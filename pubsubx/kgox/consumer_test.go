@@ -20,6 +20,7 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 	"go.opentelemetry.io/otel/metric/noop"
 	"go.uber.org/goleak"
+	"golang.org/x/exp/rand"
 )
 
 func TestConsumer_Subscribe_Handling(t *testing.T) {
@@ -220,6 +221,191 @@ func TestConsumerLifecycle(t *testing.T) {
 			t.Logf("received message after %s", time.Since(start))
 		}
 	})
+
+	t.Run("should be able to close safely when consumer thread is faster than close", func(t *testing.T) {
+		glopt := goleak.IgnoreCurrent()
+		defer goleak.VerifyNone(t, glopt)
+		wc := getWriteClient(t)
+		defer wc.Close()
+		group, topics := getRandomGroupTopics(t, 1)
+		createTopic(t, config, topics[0])
+		cg := messagex.ConsumerGroup(group)
+		erh := pubSub.eventRetryHandler(cg, nil)
+		c, err := newConsumer(context.Background(), l, nil, config, cg, topics, opts, erh, pqh, m)
+		require.NoError(t, err)
+		defer c.Close()
+		subCtx := context.Background()
+		msgBuf := make(chan *messagex.Message)
+		handler := func(ctx context.Context, msgs []*messagex.Message) ([]error, error) {
+			for _, msg := range msgs {
+				msgBuf <- msg
+			}
+			return nil, nil
+		}
+		// We send 1k messages
+		for i := 0; i < 1000; i++ {
+			sendMessage(t, context.Background(), wc, topics[0], messagex.NewMessage([]byte("test_msg_"+strconv.Itoa(i))))
+		}
+		rdy := make(chan struct{})
+		tCtx, cancel := context.WithTimeout(context.Background(), time.Second*20)
+		defer cancel()
+		wg := sync.WaitGroup{}
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			<-rdy
+			for {
+				select {
+				case <-tCtx.Done():
+					return
+				default:
+					// All good, non-blocking loop
+				}
+
+				if err := c.Health(); err == nil {
+					// Still healthy
+					continue
+				}
+
+				err = c.Subscribe(subCtx, pubsubx.Handlers{
+					topics[0]: handler,
+				})
+				require.NoError(t, err, "no error on first Subscribe")
+			}
+		}()
+		go func() {
+			defer wg.Done()
+			<-rdy
+			// Just to ensure we have the consumer subscribing before we close it
+			<-time.After(1 * time.Microsecond)
+			for {
+				select {
+				case <-tCtx.Done():
+					return
+				default:
+					// All good, non-blocking loop
+				}
+				c.Close()
+			}
+		}()
+
+		// Start the race
+		close(rdy)
+		wg.Wait()
+		// err = c.Subscribe(subCtx, pubsubx.Handlers{
+		// 	topics[0]: handler,
+		// })
+		// require.NoError(t, err, "no error on first Subscribe")
+		// assert.NoError(t, c.Health())
+		// sendMessage(t, context.Background(), wc, topics[0], messagex.NewMessage([]byte("test_msg_1")))
+		// ticker := time.After(15 * time.Second)
+		// select {
+		// case <-ticker:
+		// 	t.Fatal("failed to receive first message in first subscriber")
+		// case <-msgBuf:
+		// }
+		// c.loopProcessingWg.Wait()
+		// c.Close()
+		// require.Error(t, c.Health())
+	})
+	t.Run("should be able to close safely when consumer thread is faster than close with messages read", func(t *testing.T) {
+		glopt := goleak.IgnoreCurrent()
+		defer goleak.VerifyNone(t, glopt)
+		wc := getWriteClient(t)
+		defer wc.Close()
+		group, topics := getRandomGroupTopics(t, 1)
+		createTopic(t, config, topics[0])
+		cg := messagex.ConsumerGroup(group)
+		erh := pubSub.eventRetryHandler(cg, nil)
+		c, err := newConsumer(context.Background(), l, nil, config, cg, topics, opts, erh, pqh, m)
+		require.NoError(t, err)
+		defer c.Close()
+		subCtx := context.Background()
+		msgBuf := make(chan *messagex.Message)
+		handler := func(ctx context.Context, msgs []*messagex.Message) ([]error, error) {
+			// time.After(1 * time.Second)
+			<-time.After(time.Duration(rand.Intn(1000)) * time.Millisecond)
+			for _, msg := range msgs {
+				msgBuf <- msg
+			}
+			return nil, nil
+		}
+		// We send 1k messages
+		for i := 0; i < 1000; i++ {
+			sendMessage(t, context.Background(), wc, topics[0], messagex.NewMessage([]byte("test_msg_"+strconv.Itoa(i))))
+		}
+		rdy := make(chan struct{})
+		tCtx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+		defer cancel()
+		wg := sync.WaitGroup{}
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			<-rdy
+			for {
+				select {
+				case <-tCtx.Done():
+					return
+				default:
+					// All good, non-blocking loop
+				}
+
+				if err := c.Health(); err == nil {
+					// Still healthy
+					continue
+				}
+
+				err = c.Subscribe(subCtx, pubsubx.Handlers{
+					topics[0]: handler,
+				})
+				require.NoError(t, err, "no error on first Subscribe")
+			}
+		}()
+		go func() {
+			defer wg.Done()
+			<-rdy
+			// Just to ensure we have the consumer subscribing before we close it
+			<-time.After(1 * time.Microsecond)
+			for {
+				select {
+				case <-tCtx.Done():
+					return
+				default:
+					// All good, non-blocking loop
+				}
+				<-time.After(time.Duration(rand.Intn(1000)) * time.Millisecond)
+				c.Close()
+			}
+		}()
+
+		// Start the race
+		close(rdy)
+		for range 5 {
+			select {
+			case <-tCtx.Done():
+				t.Fatal("failed to receive first message in first subscriber")
+			case <-msgBuf:
+				// Should receive at least 5 messages
+			}
+		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			i := 0
+			for {
+				select {
+				case <-tCtx.Done():
+					return
+				case <-msgBuf:
+					i++
+					continue
+				default:
+					// ok
+				}
+			}
+		}()
+		wg.Wait()
+	})
 }
 
 func consumer_Subscribe_Handling_test(t *testing.T, eae bool) {
@@ -358,7 +544,7 @@ func consumer_Subscribe_Handling_test(t *testing.T, eae bool) {
 		require.NoError(t, err)
 		wClient := getWriteClient(t)
 		cMu := sync.Mutex{}
-		shouldClose := false
+		shouldWaitForClose := false
 		waitForClose := make(chan struct{})
 		wg := sync.WaitGroup{}
 		require.NoError(t, consumer.Subscribe(ctx, pubsubx.Handlers{
@@ -370,8 +556,10 @@ func consumer_Subscribe_Handling_test(t *testing.T, eae bool) {
 				}()
 				cMu.Lock()
 				defer cMu.Unlock()
-				if shouldClose {
+				if shouldWaitForClose {
+					t.Log("waiting for close")
 					<-waitForClose
+					t.Log("done waiting for close")
 				}
 				return nil, nil
 			},
@@ -379,10 +567,10 @@ func consumer_Subscribe_Handling_test(t *testing.T, eae bool) {
 		expectedMsg := messagex.NewMessage([]byte("test"))
 		expectedMsg2 := messagex.NewMessage([]byte("test2"))
 
-		closeConsumer1 := func() {
+		setShouldWaitForClose := func() {
 			cMu.Lock()
 			defer cMu.Unlock()
-			shouldClose = true
+			shouldWaitForClose = true
 		}
 
 		wg.Add(1)
@@ -390,18 +578,23 @@ func consumer_Subscribe_Handling_test(t *testing.T, eae bool) {
 		// This makes sure the first message has been processed and commited
 		wg.Wait()
 		wg.Add(1)
-		closeConsumer1()
+		setShouldWaitForClose()
 		sendMessage(t, ctx, wClient, topics[0], expectedMsg2)
+		t.Log("disabling network")
 		tf.DisableAll()
 		waitForClose <- struct{}{}
+		t.Log("waitForClose emitted")
 
 		// This waits for the failed execution
 		wg.Wait()
+		t.Log("failed execution done")
 
 		consumer.Close()
+		t.Log("consumer closed")
 
 		// We reenable the proxies to make sure we can consume again with the new consumer
 		tf.EnableAll()
+		t.Log("proxies enabled")
 
 		ctx = context.Background()
 		consumer2, err := newConsumer(ctx, l, nil, config, cg, topics, opts, erh, pqh, m)
@@ -425,6 +618,7 @@ func consumer_Subscribe_Handling_test(t *testing.T, eae bool) {
 		case msg := <-receivedMsg:
 			require.Equal(t, "test2", msg)
 		}
+		t.Log("finished")
 	})
 
 	t.Run("should push back messages on retryable error for complete error", func(t *testing.T) {
