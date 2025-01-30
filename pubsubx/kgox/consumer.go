@@ -181,14 +181,13 @@ func (c *consumer) bootstrapClient(ctx context.Context) error {
 
 // Close implements pubsubx.Subscriber.
 func (c *consumer) Close() error {
-	c.mu.RLock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	cancel := c.cancel
 	if c.cl == nil && cancel == nil {
 		// Already closed
-		c.mu.RUnlock()
 		return nil
 	}
-	c.mu.RUnlock()
 
 	// We wait for the current loop to finish if there is ongoing work
 	c.loopProcessingWg.Wait()
@@ -199,6 +198,9 @@ func (c *consumer) Close() error {
 
 	// Wait for the consumer to be exited
 	c.wg.Wait()
+
+	c.cl = nil
+	c.cancel = nil
 
 	return nil
 }
@@ -459,24 +461,24 @@ func (c *consumer) Subscribe(ctx context.Context, topicHandlers pubsubx.Handlers
 
 	c.wg.Add(1)
 	go func() {
+		defer c.wg.Done()
 		defer func() {
 			if r := recover(); r != nil {
 				c.l.WithContext(ctx).Errorf("panic while consuming messages: %v", r)
 			}
 
 			// Teardown
-			c.mu.Lock()
-			if c.cancel != nil {
-				c.cancel()
-			}
-			c.cancel = nil
 			if c.cl != nil {
 				c.cl.Close()
 			}
-			c.cl = nil
-			c.mu.Unlock()
 
-			c.wg.Done()
+			if c.mu.TryLock() {
+				// This allows the "spontaneous" failures to set the clients/cancel to nil without
+				// impacting a Close() call that already locks this mutex
+				c.cl = nil
+				c.cancel = nil
+				c.mu.Unlock()
+			}
 		}()
 
 		c.start(ctx)
