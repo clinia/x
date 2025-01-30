@@ -292,23 +292,17 @@ func TestConsumerLifecycle(t *testing.T) {
 		// Start the race
 		close(rdy)
 		wg.Wait()
-		// err = c.Subscribe(subCtx, pubsubx.Handlers{
-		// 	topics[0]: handler,
-		// })
-		// require.NoError(t, err, "no error on first Subscribe")
-		// assert.NoError(t, c.Health())
-		// sendMessage(t, context.Background(), wc, topics[0], messagex.NewMessage([]byte("test_msg_1")))
-		// ticker := time.After(15 * time.Second)
-		// select {
-		// case <-ticker:
-		// 	t.Fatal("failed to receive first message in first subscriber")
-		// case <-msgBuf:
-		// }
-		// c.loopProcessingWg.Wait()
-		// c.Close()
-		// require.Error(t, c.Health())
 	})
+
 	t.Run("should be able to close safely when consumer thread is faster than close with messages read", func(t *testing.T) {
+		log := false
+		maybeLog := func(str string, args ...interface{}) {
+			if !log {
+				return
+			}
+			t.Logf(str, args...)
+		}
+
 		glopt := goleak.IgnoreCurrent()
 		defer goleak.VerifyNone(t, glopt)
 		wc := getWriteClient(t)
@@ -322,11 +316,16 @@ func TestConsumerLifecycle(t *testing.T) {
 		defer c.Close()
 		subCtx := context.Background()
 		msgBuf := make(chan *messagex.Message)
+		consumed := 0
+		const expectedReceivedMsgs = 5
 		handler := func(ctx context.Context, msgs []*messagex.Message) ([]error, error) {
 			// time.After(1 * time.Second)
 			<-time.After(time.Duration(rand.Intn(1000)) * time.Millisecond)
 			for _, msg := range msgs {
-				msgBuf <- msg
+				if consumed < expectedReceivedMsgs {
+					msgBuf <- msg
+					consumed++
+				} // after 5 messages we stop emitting them as we don't care
 			}
 			return nil, nil
 		}
@@ -345,6 +344,7 @@ func TestConsumerLifecycle(t *testing.T) {
 			for {
 				select {
 				case <-tCtx.Done():
+					maybeLog("done subscribing")
 					return
 				default:
 					// All good, non-blocking loop
@@ -369,6 +369,7 @@ func TestConsumerLifecycle(t *testing.T) {
 			for {
 				select {
 				case <-tCtx.Done():
+					maybeLog("done closing")
 					return
 				default:
 					// All good, non-blocking loop
@@ -388,22 +389,6 @@ func TestConsumerLifecycle(t *testing.T) {
 				// Should receive at least 5 messages
 			}
 		}
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			i := 0
-			for {
-				select {
-				case <-tCtx.Done():
-					return
-				case <-msgBuf:
-					i++
-					continue
-				default:
-					// ok
-				}
-			}
-		}()
 		wg.Wait()
 	})
 }

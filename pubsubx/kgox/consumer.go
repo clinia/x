@@ -35,6 +35,7 @@ type (
 		erh          *eventRetryHandler
 		pqh          PoisonQueueHandler
 
+		loopProcMu       sync.Mutex
 		loopProcessingWg sync.WaitGroup
 
 		mu     sync.RWMutex
@@ -190,7 +191,9 @@ func (c *consumer) Close() error {
 	}
 
 	// We wait for the current loop to finish if there is ongoing work
+	c.loopProcMu.Lock()
 	c.loopProcessingWg.Wait()
+	c.loopProcMu.Unlock()
 
 	if cancel != nil {
 		cancel()
@@ -306,7 +309,16 @@ func (c *consumer) start(ctx context.Context) {
 			fetches := c.cl.PollRecords(ctx, int(c.opts.MaxBatchSize))
 			// This signifies we are currently processing records
 			// If the context was cancelled here, this is a noop
-			c.loopProcessingWg.Add(1)
+			c.loopProcMu.Lock()
+			select {
+			case <-ctx.Done():
+				c.loopProcMu.Unlock()
+				return true
+			default:
+				c.loopProcessingWg.Add(1)
+			}
+			c.loopProcMu.Unlock()
+
 			defer c.loopProcessingWg.Done()
 			defer c.cl.AllowRebalance()
 
