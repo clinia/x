@@ -313,6 +313,7 @@ func (c *consumer) start(ctx context.Context) {
 			select {
 			case <-ctx.Done():
 				c.loopProcMu.Unlock()
+				l.Infof("context canceled in between loops, stopping consumer")
 				return true
 			default:
 				c.loopProcessingWg.Add(1)
