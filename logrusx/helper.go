@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/clinia/x/errorx"
 	internaltracex "github.com/clinia/x/internal/tracex"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace"
@@ -220,6 +221,7 @@ func (l *Logger) WithError(err error) *Logger {
 	}
 
 	ctx := map[string]interface{}{"message": err.Error()}
+
 	// if l.Entry.Logger.IsLevelEnabled(logrus.DebugLevel) {
 	// 	if e, ok := err.(errorsx.StackTracer); ok {
 	// 		ctx["stack_trace"] = fmt.Sprintf("%+v", e.StackTrace())
@@ -246,5 +248,32 @@ func (l *Logger) WithError(err error) *Logger {
 	// 	ctx["debug"] = c.Debug()
 	// }
 
+	// add the error details if it's a Clinia error with details
+	if cErr, ok := err.(errorx.CliniaError); ok && len(cErr.Details) > 0 {
+		details := make([]map[string]interface{}, 0, len(cErr.Details))
+		for _, detail := range cErr.Details {
+			details = append(details, cliniaErrorCtx(detail))
+		}
+
+		return l.WithField("error", ctx).WithField("error_details", details)
+	}
+
 	return l.WithField("error", ctx)
+}
+
+func cliniaErrorCtx(err errorx.CliniaError) map[string]interface{} {
+	ctx := map[string]interface{}{"message": err.Error()}
+
+	if len(err.Details) == 0 {
+		return ctx
+	}
+
+	details := make([]map[string]interface{}, 0, len(err.Details))
+	for _, detail := range err.Details {
+		details = append(details, cliniaErrorCtx(detail))
+	}
+
+	ctx["details"] = details
+
+	return ctx
 }
