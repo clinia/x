@@ -17,7 +17,7 @@ func TestNewPrometheusLabels(t *testing.T) {
 		{
 			name: "single attribute with dot",
 			kvs:  []attribute.KeyValue{attribute.String("foo.bar", "baz")},
-			want: prometheus.Labels{"foo__bar": "baz"},
+			want: prometheus.Labels{"foo_bar": "baz"},
 		},
 		{
 			name: "multiple attributes with dots",
@@ -26,8 +26,8 @@ func TestNewPrometheusLabels(t *testing.T) {
 				attribute.String("baz.qux", "quux"),
 			},
 			want: prometheus.Labels{
-				"foo__bar": "baz",
-				"baz__qux": "quux",
+				"foo_bar": "baz",
+				"baz_qux": "quux",
 			},
 		},
 		{
