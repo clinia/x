@@ -6,8 +6,10 @@ import (
 	"github.com/cenkalti/backoff"
 )
 
-const DefaultDuration = 500 * time.Millisecond
-const DefaultMaxRetries = 3
+const (
+	DefaultDuration   = 500 * time.Millisecond
+	DefaultMaxRetries = 3
+)
 
 func QuickRetry(fn func() error, opts ...RetryOption) error {
 	rOpts := &retryOptions{}
