@@ -18,6 +18,7 @@ import (
 	"github.com/elastic/go-elasticsearch/v8/typedapi/core/search"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/indices/create"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types"
+	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/operationtype"
 )
 
 const (
@@ -140,6 +141,14 @@ func (e *engine) Search(ctx context.Context, request *search.Request, indices []
 }
 
 func (e *engine) MultiSearch(ctx context.Context, queries []elasticxmsearch.Item, opts ...elasticxmsearch.Option) (*msearch.Response, error) {
+	// No queries, we protect against empty requests
+	if len(queries) == 0 {
+		return &msearch.Response{
+			Took:      0,
+			Responses: make([]types.MsearchResponseItem, 0),
+		}, nil
+	}
+
 	items := []types.MsearchRequestItem{}
 	for _, query := range queries {
 		// Build index names
@@ -170,6 +179,15 @@ func (e *engine) MultiSearch(ctx context.Context, queries []elasticxmsearch.Item
 }
 
 func (e *engine) Bulk(ctx context.Context, actions []elasticxbulk.Operation, opts ...elasticxbulk.Option) (*bulk.Response, error) {
+	// No operations, we protect against empty requests
+	if len(actions) == 0 {
+		return &bulk.Response{
+			Took:   0,
+			Errors: false,
+			Items:  make([]map[operationtype.OperationType]types.ResponseItem, 0),
+		}, nil
+	}
+
 	request := []any{}
 	for _, action := range actions {
 		indexName := NewIndexName(enginesIndexName, pathEscape(e.name), pathEscape(action.IndexName)).String()

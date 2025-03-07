@@ -8,9 +8,12 @@ import (
 	elasticxmsearch "github.com/clinia/x/elasticx/msearch"
 	"github.com/clinia/x/jsonx"
 	"github.com/clinia/x/pointerx"
+	"github.com/elastic/go-elasticsearch/v8/typedapi/core/bulk"
+	"github.com/elastic/go-elasticsearch/v8/typedapi/core/msearch"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/core/search"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/dynamicmapping"
+	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/operationtype"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/refresh"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/totalhitsrelation"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -340,6 +343,21 @@ func TestEngineQueries(t *testing.T) {
 	engine, err := f.client.CreateEngine(ctx, name)
 	assert.NoError(t, err)
 
+	t.Run("should not return an error when no queries are provided", func(t *testing.T) {
+		expected := &msearch.Response{
+			Took:      0,
+			Responses: make([]types.MsearchResponseItem, 0),
+		}
+
+		actual, err := engine.MultiSearch(ctx, nil)
+		assert.NoError(t, err)
+		assert.Equal(t, actual, expected)
+
+		actual, err = engine.MultiSearch(ctx, []elasticxmsearch.Item{})
+		assert.NoError(t, err)
+		assert.Equal(t, actual, expected)
+	})
+
 	t.Run("should be able to execute multi search", func(t *testing.T) {
 		index, err := engine.CreateIndex(ctx, "index-1", &CreateIndexOptions{
 			Settings: &types.IndexSettings{},
@@ -453,6 +471,22 @@ func TestEngineBulk(t *testing.T) {
 	name := "test-engine-bulk"
 	engine, err := f.client.CreateEngine(ctx, name)
 	assert.NoError(t, err)
+
+	t.Run("should not return an error when no operations are provided", func(t *testing.T) {
+		expected := &bulk.Response{
+			Took:   0,
+			Errors: false,
+			Items:  make([]map[operationtype.OperationType]types.ResponseItem, 0),
+		}
+
+		actual, err := engine.Bulk(ctx, nil)
+		assert.NoError(t, err)
+		assert.Equal(t, actual, expected)
+
+		actual, err = engine.Bulk(ctx, []elasticxbulk.Operation{})
+		assert.NoError(t, err)
+		assert.Equal(t, actual, expected)
+	})
 
 	t.Run("should be able to execute a bulk", func(t *testing.T) {
 		index, err := engine.CreateIndex(ctx, "index-1", nil)
