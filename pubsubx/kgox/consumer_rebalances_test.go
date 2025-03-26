@@ -18,7 +18,7 @@ func TestConsumerRebalancesWithAutoCommit(t *testing.T) {
 	config.EnableAutoCommit = true
 	config.TopicRetry = false
 
-	t.Run("should commit offsets when handler errors even on restarts", func(t *testing.T) {
+	t.Run("should not commit offsets when handler has a critical error and restarts", func(t *testing.T) {
 		ctx := context.Background()
 		group, topics := getRandomGroupTopics(t, 1)
 		createTopic(t, config, topics[0])
@@ -108,9 +108,9 @@ func TestConsumerRebalancesWithAutoCommit(t *testing.T) {
 
 		select {
 		case <-handlerCh:
-			t.Fatalf("handler should not have been called after re-subscribing")
+			t.Logf("handler was called")
 		case <-time.After(10 * time.Second):
-			t.Logf("handler did not get called")
+			t.Fatalf("handler should have been called after re-subscribing")
 		}
 	})
 
