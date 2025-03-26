@@ -6,6 +6,8 @@ type (
 	retryOptions struct {
 		retryCount      int
 		initialInterval time.Duration
+		maxInterval     time.Duration
+		maxElapsedTime  time.Duration
 	}
 
 	RetryOption func(*retryOptions)
@@ -29,5 +31,25 @@ func WithRetryCount(count int) RetryOption {
 func WithInterval(interval time.Duration) RetryOption {
 	return func(ro *retryOptions) {
 		ro.initialInterval = interval
+	}
+}
+
+// WithMaxInterval sets the maximum interval between retries.
+// Default max interval is 2s.
+// When used with ExponentialRetry, this sets the maximum interval.
+// When used with ConstantRetry, this option is ignored.
+func WithMaxInterval(maxInterval time.Duration) RetryOption {
+	return func(ro *retryOptions) {
+		ro.maxInterval = maxInterval
+	}
+}
+
+// WithMaxElapsedTime sets the maximum elapsed time for retries.
+// Default max elapsed time is 5s.
+// When used with ExponentialRetry, this sets the maximum elapsed time.
+// When used with ConstantRetry, this option is ignored.
+func WithMaxElapsedTime(maxElapsedTime time.Duration) RetryOption {
+	return func(ro *retryOptions) {
+		ro.maxElapsedTime = maxElapsedTime
 	}
 }

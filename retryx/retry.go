@@ -7,10 +7,23 @@ import (
 )
 
 const (
-	DefaultInterval   = 500 * time.Millisecond
-	DefaultMaxRetries = 3
+	DefaultInterval       = 500 * time.Millisecond
+	DefaultMaxInterval    = 2 * time.Second
+	DefaultMaxElapsedTime = 5 * time.Second
+	DefaultMaxRetries     = 3
 )
 
+// ConstantRetry executes the provided function `fn` with a constant retry interval.
+// This function is designed for simple retry scenarios where the interval between retries
+// and the maximum number of retries are the only customizable options.
+//
+// Parameters:
+// - fn: The function to be executed and retried upon failure.
+// - opts: Optional retry configurations, such as initial interval and maximum retries.
+//
+// The retry interval defaults to `DefaultInterval` unless overridden by the `WithInterval`
+// option. If more advanced control over the retry behavior is required, consider using the
+// `backoff` package directly.
 func ConstantRetry(fn func() error, opts ...RetryOption) error {
 	rOpts := &retryOptions{}
 	for _, opt := range opts {
@@ -28,6 +41,18 @@ func ConstantRetry(fn func() error, opts ...RetryOption) error {
 	return retry(fn, bc, rOpts)
 }
 
+// ExponentialRetry executes the provided function `fn` with an exponential backoff retry strategy.
+// This function is suitable for scenarios where the retry interval increases exponentially
+// with each attempt, up to a maximum interval and elapsed time.
+//
+// Parameters:
+// - fn: The function to be executed and retried upon failure.
+// - opts: Optional retry configurations, such as initial interval, maximum retries, and other settings.
+//
+// The retry interval starts at `DefaultInterval` unless overridden by the `WithInterval` option.
+// The maximum interval between retries starts at `DefaultMaxInterval` unless overridden by the `WithMaxInterval` option.
+// The maximum elapsed time defaults to `DefaultMaxElapsedTime` unless overridden by the `WithMaxElapsedTime`option.
+// If more advanced control over the retry behavior is required, consider using the `backoff` package directly.
 func ExponentialRetry(fn func() error, opts ...RetryOption) error {
 	rOpts := &retryOptions{}
 	for _, opt := range opts {
@@ -35,14 +60,22 @@ func ExponentialRetry(fn func() error, opts ...RetryOption) error {
 	}
 
 	duration := DefaultInterval
+	maxInterval := DefaultMaxInterval
+	maxElapsedTime := DefaultMaxElapsedTime
 	if rOpts.initialInterval > 0 {
 		duration = rOpts.initialInterval
+	}
+	if rOpts.maxInterval > 0 {
+		maxInterval = rOpts.maxInterval
+	}
+	if rOpts.maxElapsedTime > 0 {
+		maxElapsedTime = rOpts.maxElapsedTime
 	}
 
 	bc := backoff.NewExponentialBackOff()
 	bc.InitialInterval = duration
-	bc.MaxInterval = 2 * time.Second
-	bc.MaxElapsedTime = time.Second * 5
+	bc.MaxInterval = maxInterval
+	bc.MaxElapsedTime = maxElapsedTime
 	bc.Reset()
 
 	return retry(fn, bc, rOpts)

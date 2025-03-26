@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRetry(t *testing.T) {
+func TestExponentialRetry(t *testing.T) {
 	tests := []struct {
 		name          string
 		fn            func() error
@@ -79,7 +79,7 @@ func TestRetry(t *testing.T) {
 	}
 }
 
-func TestQuickRetry(t *testing.T) {
+func TestConstantRetry(t *testing.T) {
 	tests := []struct {
 		name          string
 		fn            func() error
@@ -126,6 +126,33 @@ func TestQuickRetry(t *testing.T) {
 				WithRetryCount(2),
 			},
 			expectedCalls: 2,
+			expectedError: errors.New("temporary error"),
+		},
+		{
+			name: "retry with custom max interval",
+			fn: func() error {
+				return errors.New("temporary error")
+			},
+			opts: []RetryOption{
+				WithInterval(100 * time.Millisecond),
+				WithMaxInterval(200 * time.Millisecond),
+				WithRetryCount(2),
+			},
+			expectedCalls: 2,
+			expectedError: errors.New("temporary error"),
+		},
+		{
+			name: "retry with custom max elapsed time",
+			fn: func() error {
+				return errors.New("temporary error")
+			},
+			opts: []RetryOption{
+				WithInterval(100 * time.Millisecond),
+				WithMaxInterval(100 * time.Millisecond),
+				WithMaxElapsedTime(50 * time.Millisecond),
+				WithRetryCount(5),
+			},
+			expectedCalls: 2, // Should only have time for 1 retry.
 			expectedError: errors.New("temporary error"),
 		},
 	}
