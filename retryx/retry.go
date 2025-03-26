@@ -7,17 +7,17 @@ import (
 )
 
 const (
-	DefaultDuration   = 500 * time.Millisecond
+	DefaultInterval   = 500 * time.Millisecond
 	DefaultMaxRetries = 3
 )
 
-func QuickRetry(fn func() error, opts ...RetryOption) error {
+func ConstantRetry(fn func() error, opts ...RetryOption) error {
 	rOpts := &retryOptions{}
 	for _, opt := range opts {
 		opt(rOpts)
 	}
 
-	duration := DefaultDuration
+	duration := DefaultInterval
 	if rOpts.initialInterval > 0 {
 		duration = rOpts.initialInterval
 	}
@@ -28,13 +28,13 @@ func QuickRetry(fn func() error, opts ...RetryOption) error {
 	return retry(fn, bc, rOpts)
 }
 
-func Retry(fn func() error, opts ...RetryOption) error {
+func ExponentialRetry(fn func() error, opts ...RetryOption) error {
 	rOpts := &retryOptions{}
 	for _, opt := range opts {
 		opt(rOpts)
 	}
 
-	duration := DefaultDuration
+	duration := DefaultInterval
 	if rOpts.initialInterval > 0 {
 		duration = rOpts.initialInterval
 	}

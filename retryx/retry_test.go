@@ -52,7 +52,7 @@ func TestRetry(t *testing.T) {
 				return errors.New("temporary error")
 			},
 			opts: []RetryOption{
-				WithInitialDuration(100 * time.Millisecond),
+				WithInterval(100 * time.Millisecond),
 				WithRetryCount(2),
 			},
 			expectedCalls: 2,
@@ -67,7 +67,7 @@ func TestRetry(t *testing.T) {
 				actualCalls++
 				return tt.fn()
 			}
-			err := Retry(fn, tt.opts...)
+			err := ExponentialRetry(fn, tt.opts...)
 			if tt.expectedError != nil {
 				require.EqualError(t, err, tt.expectedError.Error())
 			} else {
@@ -122,7 +122,7 @@ func TestQuickRetry(t *testing.T) {
 				return errors.New("temporary error")
 			},
 			opts: []RetryOption{
-				WithInitialDuration(100 * time.Millisecond),
+				WithInterval(100 * time.Millisecond),
 				WithRetryCount(2),
 			},
 			expectedCalls: 2,
@@ -137,7 +137,7 @@ func TestQuickRetry(t *testing.T) {
 				actualCalls++
 				return tt.fn()
 			}
-			err := Retry(fn, tt.opts...)
+			err := ExponentialRetry(fn, tt.opts...)
 			if tt.expectedError != nil {
 				require.EqualError(t, err, tt.expectedError.Error())
 			} else {
