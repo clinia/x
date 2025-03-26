@@ -294,7 +294,9 @@ func (c *consumer) handleTopic(ctx context.Context, tp kgo.FetchTopic) error {
 }
 
 func (c *consumer) start(ctx context.Context) {
-	l := c.l.WithContext(ctx)
+	l := c.l.WithContext(ctx).WithFields(
+		logrusx.NewLogFields(c.attributes(nil)...),
+	)
 
 	for {
 		select {
@@ -328,9 +330,6 @@ func (c *consumer) start(ctx context.Context) {
 				// returned from polls so that users can notice and take action.
 				// TODO: Handle errors
 				// If its a context canceled error, we should return
-				l := c.l.WithFields(
-					logrusx.NewLogFields(c.attributes(nil)...),
-				)
 				shouldBreak = true
 				if lo.SomeBy(errs, func(err kgo.FetchError) bool { return errs[0].Err == context.Canceled }) {
 					l.Warnf("context canceled, stopping consumer")
@@ -354,6 +353,7 @@ func (c *consumer) start(ctx context.Context) {
 					if err := c.handleTopic(ctx, tp); err != nil {
 						switch err {
 						case pubsubx.AbortSubscribeError():
+							l.WithField("topic", tp.Topic).WithError(err).Errorf("critical error received, stopping consumer")
 							return err
 						default:
 							return nil
@@ -366,11 +366,6 @@ func (c *consumer) start(ctx context.Context) {
 				case c.opts.EnableAsyncExecution:
 					wg.Go(processTopic)
 				default:
-					if abortErr != nil {
-						// we will return all subsequent topics to break out of the processing ASAP
-						l.WithField("topic", tp.Topic).Warnf("skipping topic due to previous error")
-						return
-					}
 					abortErr = processTopic()
 				}
 			})
