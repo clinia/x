@@ -158,6 +158,11 @@ func (p *KgoxAdminClient) TruncateTopicsWithRetryTopics(ctx context.Context, top
 		return false
 	})
 
+	// Important check, as p.ListEndOffsets with no topics will return all offsets
+	if len(topicsToTruncate) == 0 {
+		return nil, errorx.FailedPreconditionErrorf("no provided topics exist. Nothing to truncate. ")
+	}
+
 	listedOffsets, err := p.ListEndOffsets(ctx, topicsToTruncate...)
 	if err != nil {
 		return nil, errorx.InternalErrorf("failed to truncate topics while listing end offsets: %v", err)
