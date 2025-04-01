@@ -348,7 +348,7 @@ func TestKadminClient_Healthcheck(t *testing.T) {
 	})
 }
 
-func TestTruncate(t *testing.T) {
+func TestTruncateTopicsWithRetryTopics(t *testing.T) {
 	l := getLogger()
 	config := getPubsubConfig(t, false)
 	ctx := context.Background()
@@ -363,13 +363,30 @@ func TestTruncate(t *testing.T) {
 
 	_, topics := getRandomGroupTopics(t, 2)
 
+	var retryTopics []messagex.Topic
 	for _, topic := range topics {
+		// create topic and publish messages to it
 		createTopic(t, config, topic)
 		errs, err := p.PublishSync(context.Background(), topic, msgBatch...)
 		require.NoError(t, err)
 		require.NoError(t, errs.FirstNonNil())
+
+		// craete corresponding retry topic and publish messages to it
+		retryTopic := topic.GenerateRetryTopic(messagex.ConsumerGroup("test"))
+		retryTopics = append(retryTopics, retryTopic)
+		createTopic(t, config, retryTopic)
+
+		errs, err = p.PublishSync(context.Background(), retryTopic, msgBatch...)
+		require.NoError(t, err)
+		require.NoError(t, errs.FirstNonNil())
+
 	}
+
 	topicsAsStrings := lo.Map(topics, func(t messagex.Topic, _ int) string {
+		return t.TopicName(config.Scope)
+	})
+
+	retryTopicsAsStrings := lo.Map(retryTopics, func(t messagex.Topic, _ int) string {
 		return t.TopicName(config.Scope)
 	})
 
@@ -378,28 +395,54 @@ func TestTruncate(t *testing.T) {
 
 	offsetsBefore.Offsets().Each(func(o kadm.Offset) {
 		assert.Equal(t, o.At, int64(0), "offset should be 0")
-	},
-	)
+	})
 
-	// truncate only the first topic
-	err = kgoxAdmCl.TruncateTopics(ctx, topicsAsStrings[0])
+	retryOffsetsBefore, err := kadmCl.ListStartOffsets(ctx, retryTopicsAsStrings...)
 	require.NoError(t, err)
 
-	t.Run("should truncate topic and keep the others untouched", func(t *testing.T) {
+	retryOffsetsBefore.Offsets().Each(func(o kadm.Offset) {
+		assert.Equal(t, o.At, int64(0), "offset should be 0")
+	})
+
+	// truncate only the first topic
+	resp, err := kgoxAdmCl.TruncateTopicsWithRetryTopics(ctx, topicsAsStrings[0])
+	require.NoError(t, err)
+
+	resp.Each(func(r kadm.DeleteRecordsResponse) {
+		assert.Equal(t, r.LowWatermark, int64(100), "low watermark should be 100 for all topics truncated")
+	})
+
+	t.Run("should truncate topic", func(t *testing.T) {
 		offsetsAfter, err := kadmCl.ListStartOffsets(ctx, topicsAsStrings[0])
 		require.NoError(t, err)
 
 		offsetsAfter.Offsets().Each(func(o kadm.Offset) {
-			assert.Equal(t, o.At, int64(100), "offset should be 100 for truncated topic")
-		},
-		)
+			assert.Equal(t, o.At, int64(100), "offset should be 100 for truncated topic %s", o.Topic)
+		})
+	})
 
-		offsetsAfter, err = kadmCl.ListStartOffsets(ctx, topicsAsStrings[1])
+	t.Run("should truncate corresponding retry topic", func(t *testing.T) {
+		offsetsAfter, err := kadmCl.ListStartOffsets(ctx, retryTopicsAsStrings[0])
 		require.NoError(t, err)
 
 		offsetsAfter.Offsets().Each(func(o kadm.Offset) {
-			assert.Equal(t, o.At, int64(0), "offset should be 100 for untruncated topic")
-		},
-		)
+			assert.Equal(t, o.At, int64(100), "offset should be 100 for truncated retry topic %s", o.Topic)
+		})
+	})
+
+	t.Run("should keep untruncated topic and corresponding retry topic untouched", func(t *testing.T) {
+		offsetsAfter, err := kadmCl.ListStartOffsets(ctx, topicsAsStrings[1])
+		require.NoError(t, err)
+
+		offsetsAfter.Offsets().Each(func(o kadm.Offset) {
+			assert.Equal(t, o.At, int64(0), "offset should be 100 for untruncated topic %s", o.Topic)
+		})
+
+		offsetsAfter, err = kadmCl.ListStartOffsets(ctx, retryTopicsAsStrings[1])
+		require.NoError(t, err)
+
+		offsetsAfter.Offsets().Each(func(o kadm.Offset) {
+			assert.Equal(t, o.At, int64(0), "offset should be 100 for untruncated topic %s", o.Topic)
+		})
 	})
 }
