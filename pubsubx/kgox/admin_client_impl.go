@@ -141,3 +141,19 @@ func (p *KgoxAdminClient) DeleteGroups(ctx context.Context, groups ...messagex.C
 
 	return r, nil
 }
+
+// TruncateTopics implements PubSubAdminClient.
+// It deleted the records od the provided topics by setting the offsets to the the end offsets
+func (p *KgoxAdminClient) TruncateTopics(ctx context.Context, topics ...string) error {
+	listedOffsets, err := p.ListEndOffsets(ctx, topics...)
+	if err != nil {
+		return err
+	}
+
+	_, err = p.DeleteRecords(ctx, listedOffsets.Offsets())
+	if err != nil {
+		return err
+	}
+
+	return nil
+}

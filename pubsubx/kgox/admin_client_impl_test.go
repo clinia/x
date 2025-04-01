@@ -347,3 +347,59 @@ func TestKadminClient_Healthcheck(t *testing.T) {
 		assert.NoError(t, err)
 	})
 }
+
+func TestTruncate(t *testing.T) {
+	l := getLogger()
+	config := getPubsubConfig(t, false)
+	ctx := context.Background()
+	p := getPublisher(t, l, config)
+	kgoxAdmCl, kadmCl, _ := getKadmClient(t, config)
+
+	msgBatch := []*messagex.Message{}
+	msgBatchCount := 100
+	for i := 0; i < msgBatchCount; i++ {
+		msgBatch = append(msgBatch, messagex.NewMessage([]byte(fmt.Sprintf("test-%d", i))))
+	}
+
+	_, topics := getRandomGroupTopics(t, 2)
+
+	for _, topic := range topics {
+		createTopic(t, config, topic)
+		errs, err := p.PublishSync(context.Background(), topic, msgBatch...)
+		require.NoError(t, err)
+		require.NoError(t, errs.FirstNonNil())
+	}
+	topicsAsStrings := lo.Map(topics, func(t messagex.Topic, _ int) string {
+		return t.TopicName(config.Scope)
+	})
+
+	offsetsBefore, err := kadmCl.ListStartOffsets(ctx, topicsAsStrings...)
+	require.NoError(t, err)
+
+	offsetsBefore.Offsets().Each(func(o kadm.Offset) {
+		assert.Equal(t, o.At, int64(0), "offset should be 0")
+	},
+	)
+
+	// truncate only the first topic
+	err = kgoxAdmCl.TruncateTopics(ctx, topicsAsStrings[0])
+	require.NoError(t, err)
+
+	t.Run("should truncate topic and keep the others untouched", func(t *testing.T) {
+		offsetsAfter, err := kadmCl.ListStartOffsets(ctx, topicsAsStrings[0])
+		require.NoError(t, err)
+
+		offsetsAfter.Offsets().Each(func(o kadm.Offset) {
+			assert.Equal(t, o.At, int64(100), "offset should be 100 for truncated topic")
+		},
+		)
+
+		offsetsAfter, err = kadmCl.ListStartOffsets(ctx, topicsAsStrings[1])
+		require.NoError(t, err)
+
+		offsetsAfter.Offsets().Each(func(o kadm.Offset) {
+			assert.Equal(t, o.At, int64(0), "offset should be 100 for untruncated topic")
+		},
+		)
+	})
+}
