@@ -674,3 +674,65 @@ func TestIndexQueryDeleteDocuments(t *testing.T) {
 		assert.NoError(t, err)
 	})
 }
+
+func TestIndexTruncate(t *testing.T) {
+	t.Parallel()
+
+	f := newTestFixture(t)
+	ctx := f.ctx
+
+	engine, err := f.client.CreateEngine(ctx, "test-index-truncate")
+	t.Cleanup(func() {
+		err := engine.Remove(ctx)
+		assert.NoError(t, err)
+	})
+
+	assert.NoError(t, err)
+
+	index, err := engine.CreateIndex(ctx, "index-1", &CreateIndexOptions{
+		Mappings: &types.TypeMapping{
+			Dynamic: &dynamicmapping.Strict,
+			Properties: map[string]types.Property{
+				"foo": types.NewKeywordProperty(),
+			},
+		},
+	})
+	assert.NoError(t, err)
+
+	t.Run("should truncate all documents", func(t *testing.T) {
+		// Prepare
+		meta1, err := index.CreateDocument(ctx, map[string]interface{}{
+			"foo": "bar",
+		}, WithRefresh(refresh.True))
+		assert.NoError(t, err)
+
+		meta2, err := index.CreateDocument(ctx, map[string]interface{}{
+			"foo": "barbar",
+		}, WithRefresh(refresh.True))
+		assert.NoError(t, err)
+
+		meta3, err := index.CreateDocument(ctx, map[string]interface{}{
+			"foo": "bar",
+		}, WithRefresh(refresh.True))
+		assert.NoError(t, err)
+
+		metas := []DocumentMeta{*meta1, *meta2, *meta3}
+
+		// assert all documents exist
+		for _, meta := range metas {
+			exists, err := f.es.Exists(NewIndexName(enginesIndexName, engine.Name(), index.Info().Name).String(), meta.ID).Do(ctx)
+			assert.NoError(t, err)
+			assert.True(t, exists)
+		}
+
+		result, err := index.Truncate(ctx)
+		assert.NoError(t, err)
+		assert.Equal(t, 3, int(result.DeleteCount))
+
+		for _, meta := range metas {
+			exists, err := f.es.Exists(NewIndexName(enginesIndexName, engine.Name(), index.Info().Name).String(), meta.ID).Do(ctx)
+			assert.NoError(t, err)
+			assert.False(t, exists)
+		}
+	})
+}

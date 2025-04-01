@@ -11,6 +11,7 @@ import (
 	"github.com/elastic/go-elasticsearch/v8"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/indices/putmapping"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types"
+	estypes "github.com/elastic/go-elasticsearch/v8/typedapi/types"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/result"
 	"github.com/samber/lo"
 	"github.com/segmentio/ksuid"
@@ -242,4 +243,12 @@ func (i *index) DeleteDocumentsByQuery(ctx context.Context, query *types.Query, 
 		DeleteCount: deleteCount,
 		TaskId:      taskId,
 	}, nil
+}
+
+// Truncates implements the Index interface.
+// It deletes all documents in the index by doing a DeleteDocumentsByQuery with a match_all query.
+func (i *index) Truncate(ctx context.Context) (*DeleteQueryResponse, error) {
+	return i.DeleteDocumentsByQuery(ctx, &estypes.Query{
+		MatchAll: &estypes.MatchAllQuery{},
+	}, WithWaitForCompletion(true))
 }

@@ -55,6 +55,9 @@ type IndexDocuments interface {
 	// If the query fails, an error is returned.
 	// The number of deleted document and the async taskId is returned.
 	DeleteDocumentsByQuery(ctx context.Context, query *types.Query, opts ...DocumentOption) (*DeleteQueryResponse, error)
+
+	// Truncate deletes all documents in the index by using a delete by query with a match_all
+	Truncate(ctx context.Context) (*DeleteQueryResponse, error)
 }
 
 type IndexInfo struct {
