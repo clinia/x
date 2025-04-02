@@ -357,7 +357,7 @@ func TestTruncateTopicsWithRetryTopics(t *testing.T) {
 
 	msgBatch := []*messagex.Message{}
 	msgBatchCount := 100
-	for i := 0; i < msgBatchCount; i++ {
+	for i := range msgBatchCount {
 		msgBatch = append(msgBatch, messagex.NewMessage([]byte(fmt.Sprintf("test-%d", i))))
 	}
 
@@ -435,14 +435,14 @@ func TestTruncateTopicsWithRetryTopics(t *testing.T) {
 		require.NoError(t, err)
 
 		offsetsAfter.Offsets().Each(func(o kadm.Offset) {
-			assert.Equal(t, o.At, int64(0), "offset should be 100 for untruncated topic %s", o.Topic)
+			assert.Equal(t, o.At, int64(0), "offset should be 0 for untruncated topic %s", o.Topic)
 		})
 
 		offsetsAfter, err = kadmCl.ListStartOffsets(ctx, retryTopicsAsStrings[1])
 		require.NoError(t, err)
 
 		offsetsAfter.Offsets().Each(func(o kadm.Offset) {
-			assert.Equal(t, o.At, int64(0), "offset should be 100 for untruncated topic %s", o.Topic)
+			assert.Equal(t, o.At, int64(0), "offset should be 0 for untruncated topic %s", o.Topic)
 		})
 	})
 }

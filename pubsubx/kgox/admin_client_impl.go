@@ -143,7 +143,7 @@ func (p *KgoxAdminClient) DeleteGroups(ctx context.Context, groups ...messagex.C
 }
 
 // TruncateTopicsWithRetryTopics implements PubSubAdminClient.
-// It deleted the records of the provided topics, as well as the corresponding retry topics, by setting the offsets to the the end offsets
+// It deletes the records of the provided topics, as well as the corresponding retry topics, by setting the offsets to the the end offsets
 func (p *KgoxAdminClient) TruncateTopicsWithRetryTopics(ctx context.Context, topics ...string) (kadm.DeleteRecordsResponses, error) {
 	rt, err := p.ListTopics(ctx)
 	if err != nil {
