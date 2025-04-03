@@ -126,7 +126,7 @@ func createTopic(t *testing.T, conf *pubsubx.Config, topic messagex.Topic) {
 	admCl := getAdmCl()
 	defer admCl.Close()
 	// Create the topic
-	res, err := admCl.CreateTopics(context.Background(), 1, 1, map[string]*string{}, topic.TopicName(conf.Scope))
+	res, err := admCl.CreateTopics(context.Background(), 1, int16(len(conf.Providers.Kafka.Brokers)), map[string]*string{}, topic.TopicName(conf.Scope))
 	require.NoError(t, err, "failed to create topic '%s'", topic.TopicName(conf.Scope))
 	require.NoError(t, res.Error(), "failed to create topic '%s'", topic.TopicName(conf.Scope))
 	t.Logf("created topic '%s'", topic.TopicName(conf.Scope))
