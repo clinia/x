@@ -14,6 +14,7 @@ import (
 	"github.com/clinia/x/logrusx"
 	"github.com/clinia/x/pubsubx"
 	"github.com/clinia/x/pubsubx/messagex"
+	"github.com/samber/lo"
 	"github.com/segmentio/ksuid"
 	"github.com/stretchr/testify/require"
 	"github.com/twmb/franz-go/pkg/kadm"
@@ -125,7 +126,8 @@ func createTopic(t *testing.T, conf *pubsubx.Config, topic messagex.Topic) {
 	admCl := getAdmCl()
 	defer admCl.Close()
 	// Create the topic
-	res, err := admCl.CreateTopics(context.Background(), 1, 1, map[string]*string{}, topic.TopicName(conf.Scope))
+	//nolint:all
+	res, err := admCl.CreateTopics(context.Background(), 1, int16(len(conf.Providers.Kafka.Brokers)), map[string]*string{}, topic.TopicName(conf.Scope))
 	require.NoError(t, err, "failed to create topic '%s'", topic.TopicName(conf.Scope))
 	require.NoError(t, res.Error(), "failed to create topic '%s'", topic.TopicName(conf.Scope))
 	t.Logf("created topic '%s'", topic.TopicName(conf.Scope))
@@ -164,4 +166,19 @@ func getLogger() *logrusx.Logger {
 	l := logrusx.New("Clinia x", "testing")
 	l.Entry.Logger.SetOutput(io.Discard)
 	return l
+}
+
+func getKadmClient(t *testing.T, config *pubsubx.Config, defaultCreateTopicConfigs ...map[string]*string) (*KgoxAdminClient, *kadm.Client, *kgo.Client) {
+	wc, err := kgo.NewClient(
+		kgo.SeedBrokers(config.Providers.Kafka.Brokers...),
+	)
+	require.NoError(t, err)
+	t.Cleanup(wc.Close)
+	var defaultCreateTopicConfigEntries map[string]*string
+	if len(defaultCreateTopicConfigs) > 0 {
+		defaultCreateTopicConfigEntries = lo.Assign(defaultCreateTopicConfigs...)
+	}
+
+	kadmCl := kadm.NewClient(wc)
+	return NewPubSubAdminClient(wc, config, defaultCreateTopicConfigEntries), kadmCl, wc
 }

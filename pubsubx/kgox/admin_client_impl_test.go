@@ -18,25 +18,9 @@ import (
 
 func TestKadminClient_DeleteTopicsWithRetryTopics(t *testing.T) {
 	config := getPubsubConfig(t, true)
-	getKadmClient := func(t *testing.T, defaultCreateTopicConfigs ...map[string]*string) (*KgoxAdminClient, *kadm.Client, *kgo.Client) {
-		wc, err := kgo.NewClient(
-			kgo.SeedBrokers(config.Providers.Kafka.Brokers...),
-		)
-		require.NoError(t, err)
-		t.Cleanup(wc.Close)
-		var defaultCreateTopicConfigEntries map[string]*string
-		if len(defaultCreateTopicConfigs) > 0 {
-			defaultCreateTopicConfigEntries = lo.Assign(defaultCreateTopicConfigs...)
-		}
-
-		kadmCl := kadm.NewClient(wc)
-		return NewPubSubAdminClient(wc, config, defaultCreateTopicConfigEntries), kadmCl, wc
-	}
-
 	ctx := context.Background()
-
 	t.Run("should delete a topic with retry topics", func(t *testing.T) {
-		kgoxAdmCl, kadmCl, _ := getKadmClient(t)
+		kgoxAdmCl, kadmCl, _ := getKadmClient(t, config)
 		group, topic := getRandomGroupTopics(t, 1)
 		topics := []string{topic[0].TopicName(config.Scope), topic[0].GenerateRetryTopic(messagex.ConsumerGroup(group)).TopicName(config.Scope)}
 		//nolint:all
@@ -85,7 +69,7 @@ func TestKadminClient_DeleteTopicsWithRetryTopics(t *testing.T) {
 	})
 
 	t.Run("should delete topics with retry topics", func(t *testing.T) {
-		kgoxAdmCl, kadmCl, _ := getKadmClient(t)
+		kgoxAdmCl, kadmCl, _ := getKadmClient(t, config)
 		group, topic := getRandomGroupTopics(t, 2)
 		topics := []string{topic[0].TopicName(config.Scope), topic[0].GenerateRetryTopic(messagex.ConsumerGroup(group)).TopicName(config.Scope), topic[1].TopicName(config.Scope), topic[1].GenerateRetryTopic(messagex.ConsumerGroup(group)).TopicName(config.Scope)}
 		//nolint:all
@@ -140,25 +124,10 @@ func TestKadminClient_DeleteTopicsWithRetryTopics(t *testing.T) {
 
 func TestKadminClient_CreateTopic(t *testing.T) {
 	config := getPubsubConfig(t, true)
-	getKadmClient := func(t *testing.T, defaultCreateTopicConfigs ...map[string]*string) (*KgoxAdminClient, *kadm.Client) {
-		wc, err := kgo.NewClient(
-			kgo.SeedBrokers(config.Providers.Kafka.Brokers...),
-		)
-		require.NoError(t, err)
-		t.Cleanup(wc.Close)
-		var defaultCreateTopicConfigEntries map[string]*string
-		if len(defaultCreateTopicConfigs) > 0 {
-			defaultCreateTopicConfigEntries = lo.Assign(defaultCreateTopicConfigs...)
-		}
-
-		kadmCl := kadm.NewClient(wc)
-		return NewPubSubAdminClient(wc, config, defaultCreateTopicConfigEntries), kadmCl
-	}
-
 	ctx := context.Background()
 
 	t.Run("should create a topic with no specific configs", func(t *testing.T) {
-		kgoxAdmCl, kadmCl := getKadmClient(t)
+		kgoxAdmCl, kadmCl, _ := getKadmClient(t, config)
 		topic := fmt.Sprintf("test-topic-%s", ksuid.New().String())
 		resp, err := kgoxAdmCl.CreateTopic(ctx, 1, 1, topic)
 		require.NoError(t, err)
@@ -178,7 +147,7 @@ func TestKadminClient_CreateTopic(t *testing.T) {
 
 	t.Run("should create a topic with specific configs", func(t *testing.T) {
 		maxBytes := "10485760" // 10MB
-		kgoxAdmCl, kadmCl := getKadmClient(t, map[string]*string{
+		kgoxAdmCl, kadmCl, _ := getKadmClient(t, config, map[string]*string{
 			"max.message.bytes": pointerx.Ptr(maxBytes),
 		})
 		topic := fmt.Sprintf("test-topic-%s", ksuid.New().String())
@@ -206,7 +175,7 @@ func TestKadminClient_CreateTopic(t *testing.T) {
 	t.Run("should create a topic with specific configs and overrides", func(t *testing.T) {
 		maxBytes := "10485760"     // 10MB
 		maxBytesOneMB := "1048576" // 1MB
-		kgoxAdmCl, kadmCl := getKadmClient(t, map[string]*string{
+		kgoxAdmCl, kadmCl, _ := getKadmClient(t, config, map[string]*string{
 			"max.message.bytes": pointerx.Ptr(maxBytes),
 		})
 		topic := fmt.Sprintf("test-topic-%s", ksuid.New().String())
@@ -234,7 +203,7 @@ func TestKadminClient_CreateTopic(t *testing.T) {
 	})
 
 	t.Run("should DescribeTopicConfigs", func(t *testing.T) {
-		kgoxAdmCl, _ := getKadmClient(t)
+		kgoxAdmCl, _, _ := getKadmClient(t, config)
 		_, err := kgoxAdmCl.DescribeTopicConfigs(ctx)
 		require.NoError(t, err)
 	})
@@ -242,24 +211,10 @@ func TestKadminClient_CreateTopic(t *testing.T) {
 
 func TestKadminClient_DeleteGroup(t *testing.T) {
 	config := getPubsubConfig(t, true)
-	getKadmClient := func(t *testing.T, defaultCreateTopicConfigs ...map[string]*string) (*KgoxAdminClient, *kadm.Client) {
-		wc, err := kgo.NewClient(
-			kgo.SeedBrokers(config.Providers.Kafka.Brokers...),
-		)
-		require.NoError(t, err)
-		t.Cleanup(wc.Close)
-		var defaultCreateTopicConfigEntries map[string]*string
-		if len(defaultCreateTopicConfigs) > 0 {
-			defaultCreateTopicConfigEntries = lo.Assign(defaultCreateTopicConfigs...)
-		}
-
-		kadmCl := kadm.NewClient(wc)
-		return NewPubSubAdminClient(wc, config, defaultCreateTopicConfigEntries), kadmCl
-	}
 
 	t.Run("test delete consumer group with retry topics", func(t *testing.T) {
 		ctx := context.Background()
-		kgoxAdmCl, kadmCl := getKadmClient(t)
+		kgoxAdmCl, kadmCl, _ := getKadmClient(t, config)
 		group, topics := getRandomGroupTopics(t, 1)
 		cGroup := messagex.ConsumerGroup(group)
 		retryTopic := topics[0].GenerateRetryTopic(cGroup)
@@ -309,24 +264,10 @@ func TestKadminClient_DeleteGroup(t *testing.T) {
 
 func TestKadminClient_DeleteGroups(t *testing.T) {
 	config := getPubsubConfig(t, true)
-	getKadmClient := func(t *testing.T, defaultCreateTopicConfigs ...map[string]*string) (*KgoxAdminClient, *kadm.Client) {
-		wc, err := kgo.NewClient(
-			kgo.SeedBrokers(config.Providers.Kafka.Brokers...),
-		)
-		require.NoError(t, err)
-		t.Cleanup(wc.Close)
-		var defaultCreateTopicConfigEntries map[string]*string
-		if len(defaultCreateTopicConfigs) > 0 {
-			defaultCreateTopicConfigEntries = lo.Assign(defaultCreateTopicConfigs...)
-		}
-
-		kadmCl := kadm.NewClient(wc)
-		return NewPubSubAdminClient(wc, config, defaultCreateTopicConfigEntries), kadmCl
-	}
 
 	t.Run("test delete consumer groups with retry topics", func(t *testing.T) {
 		ctx := context.Background()
-		kgoxAdmCl, kadmCl := getKadmClient(t)
+		kgoxAdmCl, kadmCl, _ := getKadmClient(t, config)
 		group, topics := getRandomGroupTopics(t, 1)
 		cGroup := messagex.ConsumerGroup(group)
 		group2, _ := getRandomGroupTopics(t, 0)
@@ -399,23 +340,109 @@ func TestKadminClient_DeleteGroups(t *testing.T) {
 
 func TestKadminClient_Healthcheck(t *testing.T) {
 	config := getPubsubConfig(t, true)
-	getKadmClient := func(t *testing.T, defaultCreateTopicConfigs ...map[string]*string) (*KgoxAdminClient, *kadm.Client) {
-		wc, err := kgo.NewClient(
-			kgo.SeedBrokers(config.Providers.Kafka.Brokers...),
-		)
-		require.NoError(t, err)
-		t.Cleanup(wc.Close)
-		var defaultCreateTopicConfigEntries map[string]*string
-		if len(defaultCreateTopicConfigs) > 0 {
-			defaultCreateTopicConfigEntries = lo.Assign(defaultCreateTopicConfigs...)
-		}
 
-		kadmCl := kadm.NewClient(wc)
-		return NewPubSubAdminClient(wc, config, defaultCreateTopicConfigEntries), kadmCl
-	}
 	t.Run("healthcheck should not return error", func(t *testing.T) {
-		c, _ := getKadmClient(t)
+		c, _, _ := getKadmClient(t, config)
 		err := c.HealthCheck(context.Background())
 		assert.NoError(t, err)
+	})
+}
+
+func TestTruncateTopicsWithRetryTopics(t *testing.T) {
+	l := getLogger()
+	config := getPubsubConfig(t, false)
+	ctx := context.Background()
+	p := getPublisher(t, l, config)
+	kgoxAdmCl, kadmCl, _ := getKadmClient(t, config)
+
+	msgBatch := []*messagex.Message{}
+	msgBatchCount := 100
+	for i := range msgBatchCount {
+		msgBatch = append(msgBatch, messagex.NewMessage([]byte(fmt.Sprintf("test-%d", i))))
+	}
+
+	_, topics := getRandomGroupTopics(t, 2)
+
+	var retryTopics []messagex.Topic
+	for _, topic := range topics {
+		// create topic and publish messages to it
+		createTopic(t, config, topic)
+		errs, err := p.PublishSync(context.Background(), topic, msgBatch...)
+		require.NoError(t, err)
+		require.NoError(t, errs.FirstNonNil())
+
+		// craete corresponding retry topic and publish messages to it
+		retryTopic := topic.GenerateRetryTopic(messagex.ConsumerGroup("test"))
+		retryTopics = append(retryTopics, retryTopic)
+		createTopic(t, config, retryTopic)
+
+		errs, err = p.PublishSync(context.Background(), retryTopic, msgBatch...)
+		require.NoError(t, err)
+		require.NoError(t, errs.FirstNonNil())
+
+	}
+
+	topicsAsStrings := lo.Map(topics, func(t messagex.Topic, _ int) string {
+		return t.TopicName(config.Scope)
+	})
+
+	retryTopicsAsStrings := lo.Map(retryTopics, func(t messagex.Topic, _ int) string {
+		return t.TopicName(config.Scope)
+	})
+
+	offsetsBefore, err := kadmCl.ListStartOffsets(ctx, topicsAsStrings...)
+	require.NoError(t, err)
+
+	offsetsBefore.Offsets().Each(func(o kadm.Offset) {
+		assert.Equal(t, o.At, int64(0), "offset should be 0")
+	})
+
+	retryOffsetsBefore, err := kadmCl.ListStartOffsets(ctx, retryTopicsAsStrings...)
+	require.NoError(t, err)
+
+	retryOffsetsBefore.Offsets().Each(func(o kadm.Offset) {
+		assert.Equal(t, o.At, int64(0), "offset should be 0")
+	})
+
+	// truncate only the first topic
+	resp, err := kgoxAdmCl.TruncateTopicsWithRetryTopics(ctx, topicsAsStrings[0])
+	require.NoError(t, err)
+
+	resp.Each(func(r kadm.DeleteRecordsResponse) {
+		assert.Equal(t, r.LowWatermark, int64(100), "low watermark should be 100 for all topics truncated")
+	})
+
+	t.Run("should truncate topic", func(t *testing.T) {
+		offsetsAfter, err := kadmCl.ListStartOffsets(ctx, topicsAsStrings[0])
+		require.NoError(t, err)
+
+		offsetsAfter.Offsets().Each(func(o kadm.Offset) {
+			assert.Equal(t, o.At, int64(100), "offset should be 100 for truncated topic %s", o.Topic)
+		})
+	})
+
+	t.Run("should truncate corresponding retry topic", func(t *testing.T) {
+		offsetsAfter, err := kadmCl.ListStartOffsets(ctx, retryTopicsAsStrings[0])
+		require.NoError(t, err)
+
+		offsetsAfter.Offsets().Each(func(o kadm.Offset) {
+			assert.Equal(t, o.At, int64(100), "offset should be 100 for truncated retry topic %s", o.Topic)
+		})
+	})
+
+	t.Run("should keep untruncated topic and corresponding retry topic untouched", func(t *testing.T) {
+		offsetsAfter, err := kadmCl.ListStartOffsets(ctx, topicsAsStrings[1])
+		require.NoError(t, err)
+
+		offsetsAfter.Offsets().Each(func(o kadm.Offset) {
+			assert.Equal(t, o.At, int64(0), "offset should be 0 for untruncated topic %s", o.Topic)
+		})
+
+		offsetsAfter, err = kadmCl.ListStartOffsets(ctx, retryTopicsAsStrings[1])
+		require.NoError(t, err)
+
+		offsetsAfter.Offsets().Each(func(o kadm.Offset) {
+			assert.Equal(t, o.At, int64(0), "offset should be 0 for untruncated topic %s", o.Topic)
+		})
 	})
 }

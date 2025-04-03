@@ -141,3 +141,37 @@ func (p *KgoxAdminClient) DeleteGroups(ctx context.Context, groups ...messagex.C
 
 	return r, nil
 }
+
+// TruncateTopicsWithRetryTopics implements PubSubAdminClient.
+// It deletes the records of the provided topics, as well as the corresponding retry topics, by setting the offsets to the the end offsets
+func (p *KgoxAdminClient) TruncateTopicsWithRetryTopics(ctx context.Context, topics ...string) (kadm.DeleteRecordsResponses, error) {
+	rt, err := p.ListTopics(ctx)
+	if err != nil {
+		return nil, errorx.InternalErrorf("failed to truncate topics while listing listing topics: %v", err)
+	}
+	topicsToTruncate := lo.Filter(rt.TopicsList().Topics(), func(t string, _ int) bool {
+		for _, topic := range topics {
+			if (strings.HasPrefix(t, topic) && strings.HasSuffix(t, messagex.TopicRetrySuffix)) || t == topic {
+				return true
+			}
+		}
+		return false
+	})
+
+	// Important check, as p.ListEndOffsets with no topics will return all offsets
+	if len(topicsToTruncate) == 0 {
+		return nil, errorx.FailedPreconditionErrorf("no provided topics exist. Nothing to truncate. ")
+	}
+
+	listedOffsets, err := p.ListEndOffsets(ctx, topicsToTruncate...)
+	if err != nil {
+		return nil, errorx.InternalErrorf("failed to truncate topics while listing end offsets: %v", err)
+	}
+
+	resp, err := p.DeleteRecords(ctx, listedOffsets.Offsets())
+	if err != nil {
+		return nil, errorx.InternalErrorf("failed to truncate topics while deleting records: %v", err)
+	}
+
+	return resp, nil
+}

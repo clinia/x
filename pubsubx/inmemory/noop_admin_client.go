@@ -147,3 +147,8 @@ func (n *NoopAdminClient) HealthCheck(ctx context.Context) error {
 func (n *NoopAdminClient) ListTopics(ctx context.Context, topics ...string) (kadm.TopicDetails, error) {
 	return n.topics, nil
 }
+
+func (n *NoopAdminClient) TruncateTopicsWithRetryTopics(ctx context.Context, topics ...string) (kadm.DeleteRecordsResponses, error) {
+	res := make(kadm.DeleteRecordsResponses)
+	return res, nil
+}

@@ -31,5 +31,9 @@ type PubSubAdminClient interface {
 	// If no topics are provided, it returns the details of all topics.
 	ListTopics(ctx context.Context, topics ...string) (kadm.TopicDetails, error)
 
+	// TruncateTopicsWithRetryTopics deleted the records of the provided topics, as well as the corresponding retry topics,
+	// by setting the offsets to the the end offsets
+	TruncateTopicsWithRetryTopics(ctx context.Context, topics ...string) (kadm.DeleteRecordsResponses, error)
+
 	Close()
 }
