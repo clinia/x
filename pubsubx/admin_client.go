@@ -14,8 +14,6 @@ type PubSubAdminClient interface {
 	// CreateTopics creates a topics with the given configuration.
 	// The default configuration entries are set by default, but they can be overridden (see `pubsub.NewCreateTopicConfigEntries()`).
 	CreateTopics(ctx context.Context, partitions int32, replicationFactor int16, topics []string, configs ...map[string]*string) (kadm.CreateTopicResponses, error)
-	// DeleteTopic deletes a topic.
-	DeleteTopic(ctx context.Context, topic string) (kadm.DeleteTopicResponse, error)
 	// DeleteTopicsWithRetryTopics deletes the topics with their related retry topics.
 	DeleteTopicsWithRetryTopics(ctx context.Context, topics ...string) (kadm.DeleteTopicResponses, error)
 	// DeleteTopicWithRetryTopics deletes a topic with it's related retry topics.

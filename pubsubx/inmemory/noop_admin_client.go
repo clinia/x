@@ -76,14 +76,6 @@ func (n *NoopAdminClient) CreateTopics(ctx context.Context, partitions int32, re
 	return res, nil
 }
 
-// DeleteTopic implements pubsubx.PubSubAdminClient.
-func (n *NoopAdminClient) DeleteTopic(ctx context.Context, topic string) (kadm.DeleteTopicResponse, error) {
-	delete(n.topics, topic)
-	return kadm.DeleteTopicResponse{
-		Topic: topic,
-	}, nil
-}
-
 func (n *NoopAdminClient) DeleteTopicsWithRetryTopics(ctx context.Context, topics ...string) (kadm.DeleteTopicResponses, error) {
 	res := make(kadm.DeleteTopicResponses)
 	for _, t := range topics {
