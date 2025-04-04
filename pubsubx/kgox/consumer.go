@@ -238,6 +238,10 @@ func (c *consumer) handleTopic(ctx context.Context, tp kgo.FetchTopic) error {
 		return errorx.InternalErrorf("no handler for topic")
 	}
 	records := tp.Records()
+	if len(records) == 0 {
+		l.Debugf("no records to process")
+		return nil
+	}
 	go func() {
 		if c.consumerMetric != nil {
 			mtc := metric.WithAttributes(attribute.String("topic", tp.Topic))

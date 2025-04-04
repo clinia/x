@@ -405,7 +405,7 @@ func TestConsumeQueue(t *testing.T) {
 			// Delete the topic
 			psub := (*PubSub)(pqh)
 			admin, _ := psub.AdminClient()
-			admin.DeleteTopic(context.Background(), pqTopic)
+			admin.DeleteTopicWithRetryTopics(context.Background(), pqTopic)
 		})
 		cctx, cancel := context.WithCancel(tctx)
 		defer cancel()
@@ -444,7 +444,7 @@ func TestConsumeQueue(t *testing.T) {
 			// Delete the topic
 			psub := (*PubSub)(pqh)
 			admin, _ := psub.AdminClient()
-			admin.DeleteTopic(context.Background(), pqTopic)
+			admin.DeleteTopicWithRetryTopics(context.Background(), pqTopic)
 		})
 		cctx, cancel := context.WithCancel(tctx)
 		defer cancel()

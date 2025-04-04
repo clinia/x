@@ -23,7 +23,7 @@ func TestGenerateRetryTopics(t *testing.T) {
 			cl, err := erh.AdminClient()
 			require.NoError(t, err)
 			for _, rt := range retryTopics {
-				cl.DeleteTopic(context.Background(), rt.TopicName(config.Scope))
+				cl.DeleteTopicWithRetryTopics(context.Background(), rt.TopicName(config.Scope))
 			}
 			cl.Close()
 		}()
@@ -46,7 +46,7 @@ func TestGenerateRetryTopics(t *testing.T) {
 		retryTopics, errs, err := erh.generateRetryTopics(context.Background(), topics...)
 		defer func() {
 			for _, rt := range retryTopics {
-				cl.DeleteTopic(context.Background(), rt.TopicName(config.Scope))
+				cl.DeleteTopicWithRetryTopics(context.Background(), rt.TopicName(config.Scope))
 			}
 			cl.Close()
 		}()
@@ -67,7 +67,7 @@ func TestGenerateRetryTopics(t *testing.T) {
 			cl, err := erh.AdminClient()
 			require.NoError(t, err)
 			for _, rt := range retryTopics {
-				cl.DeleteTopic(context.Background(), rt.TopicName(config.Scope))
+				cl.DeleteTopicWithRetryTopics(context.Background(), rt.TopicName(config.Scope))
 			}
 			cl.Close()
 		}()
