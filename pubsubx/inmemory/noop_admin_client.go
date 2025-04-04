@@ -140,7 +140,6 @@ func (n *NoopAdminClient) ListTopics(ctx context.Context, topics ...string) (kad
 	return n.topics, nil
 }
 
-func (n *NoopAdminClient) TruncateTopicsWithRetryTopics(ctx context.Context, topics ...string) (kadm.DeleteRecordsResponses, error) {
-	res := make(kadm.DeleteRecordsResponses)
-	return res, nil
+func (n *NoopAdminClient) TruncateTopicsWithRetryTopics(ctx context.Context, topics ...string) ([]pubsubx.TruncateReponse, error) {
+	return nil, nil
 }
