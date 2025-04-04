@@ -1,7 +1,6 @@
 package messagex
 
 import (
-	"fmt"
 	"strings"
 )
 
@@ -13,10 +12,6 @@ const (
 )
 
 func NewTopic(topic string) (Topic, error) {
-	if strings.Contains(string(topic), TopicSeparator) {
-		return "", fmt.Errorf("topic name cannot contain '.'")
-	}
-
 	return Topic(topic), nil
 }
 

@@ -14,10 +14,10 @@ func TestNewTopic(t *testing.T) {
 		assert.Equal(t, "my-topic", string(topic))
 	})
 
-	t.Run("should return error with invalid topic name", func(t *testing.T) {
+	t.Run("should not return error when topic contains dots", func(t *testing.T) {
 		topic, err := NewTopic("my" + TopicSeparator + "topic")
-		assert.Error(t, err)
-		assert.Equal(t, Topic(""), topic)
+		assert.NoError(t, err)
+		assert.Equal(t, Topic("my.topic"), topic)
 	})
 }
 
@@ -91,5 +91,15 @@ func TestBaseTopicFromName(t *testing.T) {
 	t.Run("should return an empty topic extracted from a retry suffix only topic", func(t *testing.T) {
 		topic := BaseTopicFromName("consumer-group" + TopicRetrySuffix)
 		assert.Equal(t, Topic(""), topic)
+	})
+
+	t.Run("should return the original topic name when it contains dots", func(t *testing.T) {
+		topic := BaseTopicFromName("scope.my-topic.interestingly.long")
+		assert.Equal(t, Topic("my-topic.interestingly.long"), topic)
+	})
+
+	t.Run("should return the original topic name when it contains dots with retry suffix", func(t *testing.T) {
+		topic := BaseTopicFromName("scope.my-topic.interestingly.long.consumer-group" + TopicRetrySuffix)
+		assert.Equal(t, Topic("my-topic.interestingly.long"), topic)
 	})
 }
