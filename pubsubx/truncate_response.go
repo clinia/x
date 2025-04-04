@@ -6,11 +6,11 @@ import (
 )
 
 type TruncateReponse struct {
-	Topic        string
-	Partition    int32
-	OffsetBefore int64
-	OffsetAfter  int64
-	Err          error
+	Topic        string `json:"topic"`
+	Partition    int32  `json:"partition"`
+	OffsetBefore int64  `json:"offset_before"`
+	OffsetAfter  int64  `json:"offset_after"`
+	Err          error  `json:"error,omitempty"`
 }
 
 // NewTruncateResponse creates a slice of TruncateTopicResult from the given previous offsets and delete records responses.
