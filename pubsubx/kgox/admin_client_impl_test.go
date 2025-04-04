@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/clinia/x/pointerx"
+	"github.com/clinia/x/pubsubx"
 	"github.com/clinia/x/pubsubx/messagex"
 	"github.com/samber/lo"
 	"github.com/segmentio/ksuid"
@@ -408,8 +409,19 @@ func TestTruncateTopicsWithRetryTopics(t *testing.T) {
 	resp, err := kgoxAdmCl.TruncateTopicsWithRetryTopics(ctx, topicsAsStrings[0])
 	require.NoError(t, err)
 
-	resp.Each(func(r kadm.DeleteRecordsResponse) {
-		assert.Equal(t, r.LowWatermark, int64(100), "low watermark should be 100 for all topics truncated")
+	assert.Equal(t, resp, []pubsubx.TruncateReponse{
+		{
+			Topic:        topicsAsStrings[0],
+			OffsetBefore: 0,
+			OffsetAfter:  100,
+			Err:          nil,
+		},
+		{
+			Topic:        retryTopicsAsStrings[0],
+			OffsetBefore: 0,
+			OffsetAfter:  100,
+			Err:          nil,
+		},
 	})
 
 	t.Run("should truncate topic", func(t *testing.T) {

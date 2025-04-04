@@ -31,7 +31,7 @@ type PubSubAdminClient interface {
 
 	// TruncateTopicsWithRetryTopics deleted the records of the provided topics, as well as the corresponding retry topics,
 	// by setting the offsets to the the end offsets
-	TruncateTopicsWithRetryTopics(ctx context.Context, topics ...string) (kadm.DeleteRecordsResponses, error)
+	TruncateTopicsWithRetryTopics(ctx context.Context, topics ...string) ([]TruncateReponse, error)
 
 	Close()
 }
