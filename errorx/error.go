@@ -39,9 +39,11 @@ type CliniaError struct {
 	stack Callers
 }
 
-var _ error = (*CliniaError)(nil)
-var _ StackTracer = (*CliniaError)(nil)
-var _ DetailedError = (*CliniaError)(nil)
+var (
+	_ error         = (*CliniaError)(nil)
+	_ StackTracer   = (*CliniaError)(nil)
+	_ DetailedError = (*CliniaError)(nil)
+)
 
 // ErrorDetails implements DetailedError.
 func (e *CliniaError) ErrorDetails() string {
