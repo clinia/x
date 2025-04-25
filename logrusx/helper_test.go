@@ -16,9 +16,9 @@ func TestCliniaErrorCtx(t *testing.T) {
 	t.Run("should return error with details", func(t *testing.T) {
 		err := errorx.InvalidArgumentErrorf("invalid content")
 		err = err.WithDetails(errorx.AlreadyExistsErrorf("field 'foo' already exists"))
-		assert.Equal(t, map[string]interface{}{
+		assert.Equal(t, map[string]any{
 			"message": "[INVALID_ARGUMENT] invalid content",
-			"details": []map[string]interface{}{
+			"details": []map[string]any{
 				{
 					"message": "[ALREADY_EXISTS] field 'foo' already exists",
 				},

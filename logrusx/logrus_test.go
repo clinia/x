@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/clinia/x/errorx"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -70,4 +71,8 @@ func TestSensitiveValues(t *testing.T) {
 		assert.Equal(t, strings.Count(output, redacted), 5, "all so far sensitive headers should be redacted")
 		assert.NotContains(t, output, sensitiveValue, "should not show sensitive values")
 	})
+}
+
+func execute() error {
+	return errorx.InvalidArgumentErrorf("invalid content")
 }

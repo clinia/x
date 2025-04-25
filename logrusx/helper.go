@@ -220,56 +220,43 @@ func (l *Logger) WithError(err error) *Logger {
 		return l
 	}
 
-	ctx := map[string]interface{}{"message": err.Error()}
-
-	// if l.Entry.Logger.IsLevelEnabled(logrus.DebugLevel) {
-	// 	if e, ok := err.(errorsx.StackTracer); ok {
-	// 		ctx["stack_trace"] = fmt.Sprintf("%+v", e.StackTrace())
-	// 	} else {
-	// 		ctx["stack_trace"] = fmt.Sprintf("stack trace could not be recovered from error type %s", reflect.TypeOf(err))
-	// 	}
-	// }
-	// if c := errorsx.ReasonCarrier(nil); errors.As(err, &c) {
-	// 	ctx["reason"] = c.Reason()
-	// }
-	// if c := errorsx.RequestIDCarrier(nil); errors.As(err, &c) && c.RequestID() != "" {
-	// 	ctx["request_id"] = c.RequestID()
-	// }
-	// if c := errorsx.DetailsCarrier(nil); errors.As(err, &c) && c.Details() != nil {
-	// 	ctx["details"] = c.Details()
-	// }
-	// if c := errorsx.StatusCarrier(nil); errors.As(err, &c) && c.Status() != "" {
-	// 	ctx["status"] = c.Status()
-	// }
-	// if c := errorsx.StatusCodeCarrier(nil); errors.As(err, &c) && c.StatusCode() != 0 {
-	// 	ctx["status_code"] = c.StatusCode()
-	// }
-	// if c := errorsx.DebugCarrier(nil); errors.As(err, &c) {
-	// 	ctx["debug"] = c.Debug()
-	// }
+	ctx := map[string]any{"message": err.Error()}
 
 	// add the error details if it's a Clinia error with details
-	if cErr, ok := err.(errorx.CliniaError); ok && len(cErr.Details) > 0 {
-		details := make([]map[string]interface{}, 0, len(cErr.Details))
+	if cErr, ok := errorx.IsCliniaError(err); ok {
+		details := make([]map[string]any, 0, len(cErr.Details))
 		for _, detail := range cErr.Details {
 			details = append(details, cliniaErrorCtx(detail))
 		}
 
-		return l.WithField("error", ctx).WithField("error_details", details)
+		if len(details) > 0 {
+			ctx["details"] = details
+		}
+
+		ctx["message"] = cErr.Message
+		ctx["type"] = cErr.Type.String()
+		ctx["stack_trace"] = cErr.StackTrace().String()
+
+		return l.WithField("error", ctx)
 	}
 
 	return l.WithField("error", ctx)
 }
 
-func cliniaErrorCtx(err errorx.CliniaError) map[string]interface{} {
+func cliniaErrorCtx(err error) map[string]interface{} {
 	ctx := map[string]interface{}{"message": err.Error()}
 
-	if len(err.Details) == 0 {
+	cErr, ok := errorx.IsCliniaError(err)
+	if !ok {
 		return ctx
 	}
 
-	details := make([]map[string]interface{}, 0, len(err.Details))
-	for _, detail := range err.Details {
+	if len(cErr.Details) == 0 {
+		return ctx
+	}
+
+	details := make([]map[string]interface{}, 0, len(cErr.Details))
+	for _, detail := range cErr.Details {
 		details = append(details, cliniaErrorCtx(detail))
 	}
 
