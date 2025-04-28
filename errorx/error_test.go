@@ -9,7 +9,7 @@ import (
 
 func TestError(t *testing.T) {
 	t.Run("should return clinia error from stack", func(t *testing.T) {
-		err := NewAlreadyExistsError("test")
+		err := AlreadyExistsErrorf("test")
 		serr := errors.WithStack(err)
 
 		_, ok := IsCliniaError(serr)
@@ -17,7 +17,7 @@ func TestError(t *testing.T) {
 	})
 
 	t.Run("should return a clinia error without stack", func(t *testing.T) {
-		err := NewAlreadyExistsError("test")
+		err := AlreadyExistsErrorf("test")
 
 		_, ok := IsCliniaError(err)
 		assert.True(t, ok)
@@ -37,5 +37,10 @@ func TestError(t *testing.T) {
 		err := NotFoundErrorf("test")
 		retryErr := err.AsRetryableError()
 		assert.Equal(t, retryErr.Unwrap(), err)
+	})
+
+	t.Run("should record stack trace", func(t *testing.T) {
+		err := AlreadyExistsErrorf("test")
+		assert.NotEmpty(t, err.StackTrace())
 	})
 }
