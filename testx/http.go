@@ -2,6 +2,7 @@ package testx
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -98,5 +99,11 @@ func Delete(s *http.Server, url string, opts ...requestOption) *httptest.Respons
 func WithHeader(key, value string) requestOption {
 	return func(req *http.Request) {
 		req.Header.Set(key, value)
+	}
+}
+
+func WithContext(ctx context.Context) requestOption {
+	return func(req *http.Request) {
+		*req = *req.WithContext(ctx)
 	}
 }
