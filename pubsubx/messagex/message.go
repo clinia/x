@@ -4,13 +4,15 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/clinia/x/featureflagx"
 	"github.com/segmentio/ksuid"
 	"go.opentelemetry.io/otel/trace"
 )
 
 const (
-	IDHeaderKey         = "_clinia_message_id"
-	RetryCountHeaderKey = "_clinia_retry_count"
+	IDHeaderKey           = "_clinia_message_id"
+	RetryCountHeaderKey   = "_clinia_retry_count"
+	FeatureFlagsHeaderKey = "_clinia_feature_flags"
 )
 
 // Message intentionally has no json marshalling fields as we want to pass by our own kgox.DefaultMarshaler
@@ -77,6 +79,25 @@ func WithMetadata(m MessageMetadata) newMessageOption {
 	}
 }
 
+func WithFeatureFlags(ffs *featureflagx.FeatureFlags) newMessageOption {
+	return func(o *newMessageOptions) {
+		if ffs == nil {
+			return
+		}
+		if o.m == nil {
+			o.m = make(MessageMetadata)
+		}
+		// Serialize the feature flags to JSON
+		s, err := ffs.MarshalJSON()
+		if err == nil {
+			o.m["_clinia_feature_flags"] = string(s)
+		}
+		// } else {
+		// 	panic(fmt.Errorf("failed to marshal feature flags: %w", err))
+		// }
+	}
+}
+
 func (m *Message) WithSpan(ctx context.Context, tracer trace.Tracer, spanPrefix string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
 	// Create a new span for the message
 	msgctx, span := tracer.Start(ctx, fmt.Sprintf("%s.message", spanPrefix), opts...)
@@ -112,4 +133,31 @@ func (m *Message) ExtractTraceContext(ctx context.Context) context.Context {
 func (m *Message) InjectTraceContext(ctx context.Context) {
 	prop := NewTraceContextPropagator()
 	prop.Inject(ctx, m)
+}
+
+func (m *Message) ExtractFeatureFlags() (*featureflagx.FeatureFlags, bool) {
+	if m.Metadata == nil {
+		return nil, false
+	}
+	if featureFlags, ok := m.Metadata[FeatureFlagsHeaderKey]; !ok {
+		return nil, false
+	} else {
+		// Unmarshal the feature flags from JSON
+		ff, err := featureflagx.New(map[string]bool{}, []featureflagx.FeatureFlag{})
+		if err != nil {
+			// panic(fmt.Errorf("failed to create feature flags: %w", err))
+			return nil, false
+		}
+		err = ff.UnmarshalJSON([]byte(featureFlags))
+		if err != nil {
+			// panic(fmt.Errorf("failed to unmarshal feature flags: %w", err))
+			return nil, false
+		}
+
+		if len(ff.GetFlags()) == 0 {
+			return nil, false
+		}
+		// Create a new context with the feature flags
+		return ff, true
+	}
 }
