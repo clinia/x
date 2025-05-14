@@ -22,9 +22,9 @@ func TestFeatureFlags(t *testing.T) {
 		assert.NotNil(t, ff)
 		assert.Equal(t, len(ff.fa), len(Flags))
 		assert.Equal(t, map[FeatureFlag]FeatureFlagValue{
-			Flags[0]: boolFeatureFlagValue(true),
-			Flags[1]: boolFeatureFlagValue(true),
-			Flags[2]: boolFeatureFlagValue(true),
+			Flags[0]: BoolFeatureFlagValue(true),
+			Flags[1]: BoolFeatureFlagValue(true),
+			Flags[2]: BoolFeatureFlagValue(true),
 		}, ff.fa)
 	})
 
@@ -47,7 +47,7 @@ func TestFeatureFlags(t *testing.T) {
 		}
 		ff, err := New(ffm, Flags)
 		assert.NoError(t, err)
-		ff.fa[FeatureFlag("feature4")] = boolFeatureFlagValue(true)
+		ff.fa[FeatureFlag("feature4")] = BoolFeatureFlagValue(true)
 		assert.Error(t, ff.Validate(Flags))
 	})
 

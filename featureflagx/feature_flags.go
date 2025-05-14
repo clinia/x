@@ -16,10 +16,10 @@ func New(fs map[string]bool, ffss []FeatureFlag) (*FeatureFlags, error) {
 		fa: map[FeatureFlag]FeatureFlagValue{},
 	}
 	for _, f := range ffss {
-		ffs.fa[f] = boolFeatureFlagValue(false)
+		ffs.fa[f] = BoolFeatureFlagValue(false)
 	}
 	for f, v := range fs {
-		ffs.fa[FeatureFlag(f)] = boolFeatureFlagValue(v)
+		ffs.fa[FeatureFlag(f)] = BoolFeatureFlagValue(v)
 	}
 	err := ffs.Validate(ffss)
 	if err != nil {
@@ -38,6 +38,10 @@ func (ffs *FeatureFlags) IsEnabled(ff FeatureFlag) bool {
 
 func (ffs *FeatureFlags) GetFlags() map[FeatureFlag]FeatureFlagValue {
 	return ffs.fa
+}
+
+func (ffs *FeatureFlags) UpdateFlags(fa map[FeatureFlag]FeatureFlagValue) {
+	ffs.fa = fa
 }
 
 func (ff *FeatureFlags) Validate(ffss []FeatureFlag) error {
@@ -81,7 +85,7 @@ func (ff *FeatureFlags) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	for k, v := range flags {
-		ff.fa[FeatureFlag(k)] = boolFeatureFlagValue(v)
+		ff.fa[FeatureFlag(k)] = BoolFeatureFlagValue(v)
 	}
 	return nil
 }

@@ -4,10 +4,10 @@ type FeatureFlagValue interface {
 	IsEnabled() bool
 }
 
-type boolFeatureFlagValue bool
+type BoolFeatureFlagValue bool
 
-var _ FeatureFlagValue = (*boolFeatureFlagValue)(nil)
+var _ FeatureFlagValue = (*BoolFeatureFlagValue)(nil)
 
-func (ffa boolFeatureFlagValue) IsEnabled() bool {
+func (ffa BoolFeatureFlagValue) IsEnabled() bool {
 	return bool(ffa)
 }
