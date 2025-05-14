@@ -25,20 +25,20 @@ func (e CliniaError) Error() string {
 }
 
 // WithDetails allows to attach multiple errors to the error
-func (c *CliniaError) WithDetails(details ...CliniaError) CliniaError {
-	if c.Details == nil {
-		c.Details = make([]CliniaError, 0, len(details))
+func (e *CliniaError) WithDetails(details ...CliniaError) CliniaError {
+	if e.Details == nil {
+		e.Details = make([]CliniaError, 0, len(details))
 	}
-	c.Details = append(c.Details, details...)
-	return *c
+	e.Details = append(e.Details, details...)
+	return *e
 }
 
-func (c *CliniaError) AsRetryableError() RetryableError {
-	return NewRetryableError(*c)
+func (e *CliniaError) AsRetryableError() RetryableError {
+	return NewRetryableError(*e)
 }
 
-func (c *CliniaError) IsRetryable() bool {
-	_, ok := IsRetryableError(c.OriginalError)
+func (e *CliniaError) IsRetryable() bool {
+	_, ok := IsRetryableError(e.OriginalError)
 	return ok
 }
 
@@ -176,11 +176,27 @@ func AlreadyExistsErrorf(format string, args ...interface{}) CliniaError {
 	}
 }
 
+// AlreadyExistsError creates a CliniaError with type ErrorTypeAlreadyExists and a message
+func AlreadyExistsError(error string) CliniaError {
+	return CliniaError{
+		Type:    ErrorTypeAlreadyExists,
+		Message: error,
+	}
+}
+
 // FailedPreconditionErrorf creates a CliniaError with type ErrorTypeFailedPrecondition and a formatted message
 func FailedPreconditionErrorf(format string, args ...interface{}) CliniaError {
 	return CliniaError{
 		Type:    ErrorTypeFailedPrecondition,
 		Message: fmt.Sprintf(format, args...),
+	}
+}
+
+// FailedPreconditionError creates a CliniaError with type ErrorTypeFailedPrecondition and a message
+func FailedPreconditionError(error string) CliniaError {
+	return CliniaError{
+		Type:    ErrorTypeFailedPrecondition,
+		Message: error,
 	}
 }
 
@@ -192,11 +208,26 @@ func InternalErrorf(format string, args ...interface{}) CliniaError {
 	}
 }
 
+func InternalError(error string) CliniaError {
+	return CliniaError{
+		Type:    ErrorTypeInternal,
+		Message: error,
+	}
+}
+
 // InvalidArgumentErrorf creates a CliniaError with type ErrorTypeInvalidArgument and a formatted message
 func InvalidArgumentErrorf(format string, args ...interface{}) CliniaError {
 	return CliniaError{
 		Type:    ErrorTypeInvalidArgument,
 		Message: fmt.Sprintf(format, args...),
+	}
+}
+
+// InvalidArgumentError creates a CliniaError with type ErrorTypeInvalidArgument and a message
+func InvalidArgumentError(error string) CliniaError {
+	return CliniaError{
+		Type:    ErrorTypeInvalidArgument,
+		Message: error,
 	}
 }
 
@@ -208,11 +239,27 @@ func NotFoundErrorf(format string, args ...interface{}) CliniaError {
 	}
 }
 
+// NotFoundError creates a CliniaError with type ErrorTypeNotFound and a message
+func NotFoundError(error string) CliniaError {
+	return CliniaError{
+		Type:    ErrorTypeNotFound,
+		Message: error,
+	}
+}
+
 // OutOfRangeErrorf creates a CliniaError with type ErrorTypeOutOfRange and a formatted message
 func OutOfRangeErrorf(format string, args ...interface{}) CliniaError {
 	return CliniaError{
 		Type:    ErrorTypeOutOfRange,
 		Message: fmt.Sprintf(format, args...),
+	}
+}
+
+// OutOfRangeError creates a CliniaError with type ErrorTypeOutOfRange and a message
+func OutOfRangeError(error string) CliniaError {
+	return CliniaError{
+		Type:    ErrorTypeOutOfRange,
+		Message: error,
 	}
 }
 
@@ -224,11 +271,27 @@ func UnimplementedErrorf(format string, args ...interface{}) CliniaError {
 	}
 }
 
+// UnimplementedError creates a CliniaError with type ErrorTypeUnimplemented and a message
+func UnimplementedError(error string) CliniaError {
+	return CliniaError{
+		Type:    ErrorTypeUnimplemented,
+		Message: error,
+	}
+}
+
 // UnauthenticatedErrorf creates a CliniaError with type ErrorTypeUnauthenticated and a formatted message
 func UnauthenticatedErrorf(format string, args ...interface{}) CliniaError {
 	return CliniaError{
 		Type:    ErrorTypeUnauthenticated,
 		Message: fmt.Sprintf(format, args...),
+	}
+}
+
+// UnauthenticatedError creates a CliniaError with type ErrorTypeUnauthenticated and a message
+func UnauthenticatedError(error string) CliniaError {
+	return CliniaError{
+		Type:    ErrorTypeUnauthenticated,
+		Message: error,
 	}
 }
 
@@ -240,11 +303,27 @@ func PermissionDeniedErrorf(format string, args ...interface{}) CliniaError {
 	}
 }
 
+// PermissionDeniedError creates a CliniaError with type ErrorTypePermissionDenied and a message
+func PermissionDeniedError(error string) CliniaError {
+	return CliniaError{
+		Type:    ErrorTypePermissionDenied,
+		Message: error,
+	}
+}
+
 // ContentTooLargeErrorf creates a CliniaError with type ErrorTypeContentTooLarge and a formatted message
 func ContentTooLargeErrorf(format string, args ...interface{}) CliniaError {
 	return CliniaError{
 		Type:    ErrorTypeContentTooLarge,
 		Message: fmt.Sprintf(format, args...),
+	}
+}
+
+// ContentTooLargeError creates a CliniaError with type ErrorTypeContentTooLarge and a message
+func ContentTooLargeError(error string) CliniaError {
+	return CliniaError{
+		Type:    ErrorTypeContentTooLarge,
+		Message: error,
 	}
 }
 

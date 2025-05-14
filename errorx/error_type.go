@@ -2,7 +2,7 @@ package errorx
 
 type ErrorType string
 
-// Errors status code are defined here:
+// Errors status codes are defined here:
 // https://chromium.googlesource.com/external/github.com/grpc/grpc/+/refs/tags/v1.21.4-pre1/doc/statuscodes.md
 
 const (
