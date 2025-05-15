@@ -36,6 +36,12 @@ func (m messageReferenceTracer) AttachMessageProcessingSpan(ctx context.Context,
 	originalMsgCtx := context.Background()
 	originalMsgCtx = m.Message().ExtractTraceContext(originalMsgCtx)
 
+	// Check if context is empty
+	// If it is, we don't want to add a link to the span because it will be a new span
+	if originalMsgCtx == context.Background() {
+		return
+	}
+
 	span.AddLink(trace.LinkFromContext(originalMsgCtx))
 	m.recordReferenceSpan(originalMsgCtx, span)
 }
