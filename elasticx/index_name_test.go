@@ -56,5 +56,4 @@ func TestFullIndexName(t *testing.T) {
 		name = FullIndexName("a", "b", "c")
 		assert.Equal(t, "b~c", name.Name())
 	})
-
 }
