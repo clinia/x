@@ -60,7 +60,7 @@ func (e *engine) Name() string {
 
 // Info fetches the information about the engine.
 func (e *engine) Info(ctx context.Context) (*EngineInfo, error) {
-	res, err := e.es.Get(enginesIndexName, e.name).Do(ctx)
+	res, err := e.es.Get(enginesIndexNameSegment, e.name).Do(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -77,7 +77,7 @@ func (e *engine) Info(ctx context.Context) (*EngineInfo, error) {
 // If the engine does not exists, a NotFoundError is returned
 func (e *engine) Remove(ctx context.Context) error {
 	// Fetch all clinia engine indices
-	indexName := NewIndexName(enginesIndexName, pathEscape(e.name), "*").String()
+	indexName := NewIndexName(enginesIndexNameSegment, pathEscape(e.name), "*").String()
 	indices, err := e.es.Cat.Indices().Index(indexName).Do(ctx)
 	if err != nil {
 		return err
@@ -89,7 +89,7 @@ func (e *engine) Remove(ctx context.Context) error {
 	}
 
 	// Remove engine info from server
-	res, err := e.es.DeleteByQuery(enginesIndexName).
+	res, err := e.es.DeleteByQuery(enginesIndexNameSegment).
 		Query(&types.Query{
 			Term: map[string]types.TermQuery{
 				"name": {
@@ -128,7 +128,7 @@ func (e *engine) Search(ctx context.Context, request *search.Request, indices []
 
 	indexPaths := []string{}
 	for _, name := range indices {
-		indexPaths = append(indexPaths, NewIndexName(enginesIndexName, pathEscape(e.name), pathEscape(name)).String())
+		indexPaths = append(indexPaths, NewIndexName(enginesIndexNameSegment, pathEscape(e.name), pathEscape(name)).String())
 	}
 
 	s := e.es.Search().Index(strings.Join(indexPaths, ",")).Request(request)
@@ -154,7 +154,7 @@ func (e *engine) MultiSearch(ctx context.Context, queries []elasticxmsearch.Item
 		// Build index names
 		indices := []string{}
 		for _, index := range query.Header.Index {
-			indices = append(indices, NewIndexName(enginesIndexName, pathEscape(e.name), pathEscape(index)).String())
+			indices = append(indices, NewIndexName(enginesIndexNameSegment, pathEscape(e.name), pathEscape(index)).String())
 		}
 		query.Header.Index = indices
 
@@ -190,7 +190,7 @@ func (e *engine) Bulk(ctx context.Context, actions []elasticxbulk.Operation, opt
 
 	request := []any{}
 	for _, action := range actions {
-		indexName := NewIndexName(enginesIndexName, pathEscape(e.name), pathEscape(action.IndexName)).String()
+		indexName := NewIndexName(enginesIndexNameSegment, pathEscape(e.name), pathEscape(action.IndexName)).String()
 		op := types.OperationContainer{}
 
 		switch action.Action {
@@ -254,7 +254,7 @@ func (e *engine) Bulk(ctx context.Context, actions []elasticxbulk.Operation, opt
 // Index opens a connection to an exisiting index within the engine.
 // If no index with given name exists, a NotFoundError is returned.
 func (e *engine) Index(ctx context.Context, name string) (Index, error) {
-	indexName := NewIndexName(enginesIndexName, pathEscape(e.name), pathEscape(name))
+	indexName := NewIndexName(enginesIndexNameSegment, pathEscape(e.name), pathEscape(name))
 
 	// Check if index exists
 	_, err := e.es.Indices.Get(indexName.String()).Do(ctx)
@@ -275,13 +275,13 @@ func (e *engine) Index(ctx context.Context, name string) (Index, error) {
 
 // IndexExists returns true if an index with given name exists within the engine.
 func (e *engine) IndexExists(ctx context.Context, name string) (bool, error) {
-	indexName := NewIndexName(enginesIndexName, pathEscape(e.name), pathEscape(name))
+	indexName := NewIndexName(enginesIndexNameSegment, pathEscape(e.name), pathEscape(name))
 	return e.es.Indices.Exists(indexName.String()).Do(ctx)
 }
 
 // Indexes returns a list of all indexes in the engine.
 func (e *engine) Indexes(ctx context.Context) ([]IndexInfo, error) {
-	indexPath := NewIndexName(enginesIndexName, pathEscape(e.name), "*").String()
+	indexPath := NewIndexName(enginesIndexNameSegment, pathEscape(e.name), "*").String()
 	indices, err := e.es.Cat.Indices().Index(indexPath).Do(ctx)
 	if err != nil {
 		return nil, err
@@ -310,7 +310,7 @@ func (e *engine) CreateIndex(ctx context.Context, name string, options *CreateIn
 
 		if len(options.Aliases) > 0 {
 			for key, alias := range options.Aliases {
-				aliases[NewIndexName(enginesIndexName, pathEscape(e.name), pathEscape(key)).String()] = alias
+				aliases[NewIndexName(enginesIndexNameSegment, pathEscape(e.name), pathEscape(key)).String()] = alias
 			}
 		}
 

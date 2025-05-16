@@ -31,7 +31,7 @@ func TestIndexRemove(t *testing.T) {
 		assert.NoError(t, err)
 
 		// Assert the index does not exist via es
-		exists, err := f.es.Indices.Exists(NewIndexName(enginesIndexName, engine.Name(), index.Info().Name).String()).Do(ctx)
+		exists, err := f.es.Indices.Exists(NewIndexName(enginesIndexNameSegment, engine.Name(), index.Info().Name).String()).Do(ctx)
 		assert.NoError(t, err)
 		assert.False(t, exists)
 	})
@@ -75,7 +75,7 @@ func TestIndexUpdateMappings(t *testing.T) {
 		assert.Equal(t, index.Info().Name, name)
 
 		// Assert the index exists via es
-		esIndexName := NewIndexName(enginesIndexName, engine.Name(), name).String()
+		esIndexName := NewIndexName(enginesIndexNameSegment, engine.Name(), name).String()
 		esIndices, err := f.es.Indices.Get(esIndexName).Do(ctx)
 		assert.NoError(t, err)
 		assert.Len(t, esIndices, 1)
@@ -84,7 +84,7 @@ func TestIndexUpdateMappings(t *testing.T) {
 
 		assertx.Equal(t, types.IndexState{
 			Aliases: map[string]types.Alias{
-				NewIndexName(enginesIndexName, engine.Name(), "test").String(): {},
+				NewIndexName(enginesIndexNameSegment, engine.Name(), "test").String(): {},
 			},
 			Mappings: &types.TypeMapping{
 				Dynamic: &dynamicmapping.Strict,
@@ -154,7 +154,7 @@ func TestIndexUpdateMappings(t *testing.T) {
 
 		assertx.Equal(t, types.IndexState{
 			Aliases: map[string]types.Alias{
-				NewIndexName(enginesIndexName, engine.Name(), "test").String(): {},
+				NewIndexName(enginesIndexNameSegment, engine.Name(), "test").String(): {},
 			},
 			Mappings: &types.TypeMapping{
 				Dynamic: &dynamicmapping.Strict,
@@ -236,7 +236,7 @@ func TestIndexUpdateMappings(t *testing.T) {
 		assert.Equal(t, index.Info().Name, name)
 
 		// Assert the index exists via es
-		esIndexName := NewIndexName(enginesIndexName, engine.Name(), name).String()
+		esIndexName := NewIndexName(enginesIndexNameSegment, engine.Name(), name).String()
 		esIndices, err := f.es.Indices.Get(esIndexName).Do(ctx)
 		assert.NoError(t, err)
 		assert.Len(t, esIndices, 1)
@@ -245,7 +245,7 @@ func TestIndexUpdateMappings(t *testing.T) {
 
 		assertx.Equal(t, types.IndexState{
 			Aliases: map[string]types.Alias{
-				NewIndexName(enginesIndexName, engine.Name(), "test").String(): {},
+				NewIndexName(enginesIndexNameSegment, engine.Name(), "test").String(): {},
 			},
 			Mappings: &types.TypeMapping{
 				Dynamic: &dynamicmapping.Strict,
@@ -286,7 +286,7 @@ func TestIndexUpdateMappings(t *testing.T) {
 
 		assertx.Equal(t, types.IndexState{
 			Aliases: map[string]types.Alias{
-				NewIndexName(enginesIndexName, engine.Name(), "test").String(): {},
+				NewIndexName(enginesIndexNameSegment, engine.Name(), "test").String(): {},
 			},
 			Mappings: &types.TypeMapping{
 				Dynamic: &dynamicmapping.Strict,
@@ -339,7 +339,7 @@ func TestIndexCreateDocument(t *testing.T) {
 		assert.Equal(t, int64(1), meta.Version)
 
 		// Assert the document exists via es
-		exists, err := f.es.Exists(NewIndexName(enginesIndexName, engine.Name(), index.Info().Name).String(), meta.ID).Do(ctx)
+		exists, err := f.es.Exists(NewIndexName(enginesIndexNameSegment, engine.Name(), index.Info().Name).String(), meta.ID).Do(ctx)
 		assert.NoError(t, err)
 		assert.True(t, exists)
 	})
@@ -393,7 +393,7 @@ func TestIndexUpsertDocument(t *testing.T) {
 		}, result)
 
 		// Assert the document exists via es
-		exists, err := f.es.Exists(NewIndexName(enginesIndexName, engine.Name(), index.Info().Name).String(), result.Meta.ID).Do(ctx)
+		exists, err := f.es.Exists(NewIndexName(enginesIndexNameSegment, engine.Name(), index.Info().Name).String(), result.Meta.ID).Do(ctx)
 		assert.NoError(t, err)
 		assert.True(t, exists)
 	})
@@ -422,7 +422,7 @@ func TestIndexUpsertDocument(t *testing.T) {
 		}, result)
 
 		// Assert the document exists via es
-		doc, err := f.es.Get(NewIndexName(enginesIndexName, engine.Name(), index.Info().Name).String(), meta.ID).Do(ctx)
+		doc, err := f.es.Get(NewIndexName(enginesIndexNameSegment, engine.Name(), index.Info().Name).String(), meta.ID).Do(ctx)
 		assert.NoError(t, err)
 		assert.Equal(t, jsonx.RawMessage(`{
 			"foo": "baz"
@@ -482,7 +482,7 @@ func TestIndexDeleteDocument(t *testing.T) {
 		assert.NoError(t, err)
 
 		// Assert the document does not exist via es
-		exists, err := f.es.Exists(NewIndexName(enginesIndexName, engine.Name(), index.Info().Name).String(), meta.ID).Do(ctx)
+		exists, err := f.es.Exists(NewIndexName(enginesIndexNameSegment, engine.Name(), index.Info().Name).String(), meta.ID).Do(ctx)
 		assert.NoError(t, err)
 		assert.False(t, exists)
 	})
@@ -601,15 +601,15 @@ func TestIndexQueryDeleteDocuments(t *testing.T) {
 		assert.Equal(t, 2, int(result.DeleteCount))
 
 		// Assert the documents do or do not exist via es
-		exists, err := f.es.Exists(NewIndexName(enginesIndexName, engine.Name(), index.Info().Name).String(), meta1.ID).
+		exists, err := f.es.Exists(NewIndexName(enginesIndexNameSegment, engine.Name(), index.Info().Name).String(), meta1.ID).
 			Do(ctx)
 		assert.NoError(t, err)
 		assert.False(t, exists)
-		exists, err = f.es.Exists(NewIndexName(enginesIndexName, engine.Name(), index.Info().Name).String(), meta2.ID).
+		exists, err = f.es.Exists(NewIndexName(enginesIndexNameSegment, engine.Name(), index.Info().Name).String(), meta2.ID).
 			Do(ctx)
 		assert.NoError(t, err)
 		assert.True(t, exists)
-		exists, err = f.es.Exists(NewIndexName(enginesIndexName, engine.Name(), index.Info().Name).String(), meta3.ID).
+		exists, err = f.es.Exists(NewIndexName(enginesIndexNameSegment, engine.Name(), index.Info().Name).String(), meta3.ID).
 			Do(ctx)
 		assert.NoError(t, err)
 		assert.False(t, exists)
@@ -655,15 +655,15 @@ func TestIndexQueryDeleteDocuments(t *testing.T) {
 		assert.NoError(t, err)
 
 		// Assert the documents do or do not exist via es
-		exists, err := f.es.Exists(NewIndexName(enginesIndexName, engine.Name(), index.Info().Name).String(), meta1.ID).
+		exists, err := f.es.Exists(NewIndexName(enginesIndexNameSegment, engine.Name(), index.Info().Name).String(), meta1.ID).
 			Do(ctx)
 		assert.NoError(t, err)
 		assert.False(t, exists)
-		exists, err = f.es.Exists(NewIndexName(enginesIndexName, engine.Name(), index.Info().Name).String(), meta2.ID).
+		exists, err = f.es.Exists(NewIndexName(enginesIndexNameSegment, engine.Name(), index.Info().Name).String(), meta2.ID).
 			Do(ctx)
 		assert.NoError(t, err)
 		assert.True(t, exists)
-		exists, err = f.es.Exists(NewIndexName(enginesIndexName, engine.Name(), index.Info().Name).String(), meta3.ID).
+		exists, err = f.es.Exists(NewIndexName(enginesIndexNameSegment, engine.Name(), index.Info().Name).String(), meta3.ID).
 			Do(ctx)
 		assert.NoError(t, err)
 		assert.False(t, exists)

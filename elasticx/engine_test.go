@@ -42,7 +42,7 @@ func TestEngineRemove(t *testing.T) {
 
 		// Assert the indexes exist via es
 		for _, index := range indexNames {
-			exists, err := f.es.Indices.Exists(NewIndexName(enginesIndexName, name, index).String()).Do(ctx)
+			exists, err := f.es.Indices.Exists(NewIndexName(enginesIndexNameSegment, name, index).String()).Do(ctx)
 			assert.NoError(t, err)
 			assert.True(t, exists)
 		}
@@ -53,13 +53,13 @@ func TestEngineRemove(t *testing.T) {
 
 		// Assert the indexes do not exist via es
 		for _, index := range indexNames {
-			exists, err := f.es.Indices.Exists(NewIndexName(enginesIndexName, name, index).String()).Do(ctx)
+			exists, err := f.es.Indices.Exists(NewIndexName(enginesIndexNameSegment, name, index).String()).Do(ctx)
 			assert.NoError(t, err)
 			assert.False(t, exists)
 		}
 
 		// Assert the engine does not exist via es
-		res, err := f.es.Get(enginesIndexName, name).Do(ctx)
+		res, err := f.es.Get(enginesIndexNameSegment, name).Do(ctx)
 		assert.NoError(t, err)
 		assert.False(t, res.Found)
 	})
@@ -107,7 +107,7 @@ func TestEngineCreateIndex(t *testing.T) {
 		assert.Equal(t, index.Info().Name, name)
 
 		// Assert the index exists via es
-		esIndexName := NewIndexName(enginesIndexName, engine.Name(), name).String()
+		esIndexName := NewIndexName(enginesIndexNameSegment, engine.Name(), name).String()
 		esIndices, err := f.es.Indices.Get(esIndexName).Do(ctx)
 		assert.NoError(t, err)
 		assert.Len(t, esIndices, 1)
@@ -116,7 +116,7 @@ func TestEngineCreateIndex(t *testing.T) {
 
 		assertx.Equal(t, types.IndexState{
 			Aliases: map[string]types.Alias{
-				NewIndexName(enginesIndexName, engine.Name(), "test").String(): {},
+				NewIndexName(enginesIndexNameSegment, engine.Name(), "test").String(): {},
 			},
 			Settings: &types.IndexSettings{
 				Index: &types.IndexSettings{
@@ -269,7 +269,7 @@ func TestEngineQuery(t *testing.T) {
 	index, err := engine.CreateIndex(ctx, "index-1", nil)
 	assert.NoError(t, err)
 
-	_, err = f.es.Index(NewIndexName(enginesIndexName, name, index.Info().Name).String()).
+	_, err = f.es.Index(NewIndexName(enginesIndexNameSegment, name, index.Info().Name).String()).
 		Document(map[string]interface{}{
 			"id":   "1",
 			"name": "test",
@@ -370,7 +370,7 @@ func TestEngineQueries(t *testing.T) {
 		})
 		assert.NoError(t, err)
 
-		_, err = f.es.Index(NewIndexName(enginesIndexName, name, index.Info().Name).String()).
+		_, err = f.es.Index(NewIndexName(enginesIndexNameSegment, name, index.Info().Name).String()).
 			Document(map[string]interface{}{
 				"id":   "1",
 				"name": "test",
@@ -528,7 +528,7 @@ func TestEngineBulk(t *testing.T) {
 		assert.Equal(t, 3, len(res.Items))
 
 		// Assert the documents exist via es
-		esIndexName := NewIndexName(enginesIndexName, engine.Name(), index.Info().Name).String()
+		esIndexName := NewIndexName(enginesIndexNameSegment, engine.Name(), index.Info().Name).String()
 		doc1, err := f.es.Get(esIndexName, "1").Do(ctx)
 		assert.NoError(t, err)
 		assert.Equal(t, jsonx.RawMessage(`{

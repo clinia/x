@@ -25,7 +25,7 @@ func TestClientCreateEngine(t *testing.T) {
 		assert.Equal(t, engine.Name(), name)
 
 		// Check that doc exists in es engines index
-		doc, err := f.es.Get(enginesIndexName, name).Do(ctx)
+		doc, err := f.es.Get(enginesIndexNameSegment, name).Do(ctx)
 		assert.NoError(t, err)
 		assert.True(t, doc.Found)
 
