@@ -188,7 +188,7 @@ func (i *index) DeleteDocument(ctx context.Context, key string, opts ...Document
 // indexName creates the relative path to this index (`clinia-engine~<engine-name>~<name>`)
 func (i *index) indexName() IndexName {
 	escapedName := pathEscape(i.name)
-	return NewIndexName(enginesIndexName, i.engine.name, escapedName)
+	return NewIndexName(enginesIndexNameSegment, i.engine.name, escapedName)
 }
 
 func (i *index) DeleteDocumentsByQuery(ctx context.Context, query *types.Query, opts ...DocumentOption) (*DeleteQueryResponse, error) {

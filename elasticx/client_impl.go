@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	enginesIndexName = "clinia-engines"
+	enginesIndexNameSegment = "clinia-engines"
 )
 
 type client struct {
@@ -50,14 +50,14 @@ func (c *client) Init(ctx context.Context) error {
 
 	return backoff.Retry(func() error {
 		// Check if index exists
-		if exists, err := c.es.Indices.Exists(enginesIndexName).Do(ctx); err != nil {
+		if exists, err := c.es.Indices.Exists(enginesIndexNameSegment).Do(ctx); err != nil {
 			return err
 		} else if exists {
 			return nil
 		}
 
 		// Create index
-		_, err = c.es.Indices.Create(enginesIndexName).
+		_, err = c.es.Indices.Create(enginesIndexNameSegment).
 			Request(&create.Request{
 				Mappings: &types.TypeMapping{
 					Dynamic: &dynamicmapping.Strict,
@@ -88,7 +88,7 @@ func (c *client) Clean(ctx context.Context) error {
 
 	return backoff.Retry(func() error {
 		// Fetch all clinia indices
-		indices, err := c.es.Cat.Indices().Index(fmt.Sprintf("%s*", enginesIndexName)).Do(ctx)
+		indices, err := c.es.Cat.Indices().Index(fmt.Sprintf("%s*", enginesIndexNameSegment)).Do(ctx)
 		if err != nil {
 			return err
 		}
@@ -103,14 +103,14 @@ func (c *client) Clean(ctx context.Context) error {
 
 		// Check if clinia-engines index exists
 		// If it does not exist, we are done
-		if exists, err := c.es.Indices.Exists(enginesIndexName).Do(ctx); err != nil {
+		if exists, err := c.es.Indices.Exists(enginesIndexNameSegment).Do(ctx); err != nil {
 			return err
 		} else if !exists {
 			return nil
 		}
 
 		// Remove all engine info from the server
-		_, err = c.es.DeleteByQuery(enginesIndexName).
+		_, err = c.es.DeleteByQuery(enginesIndexNameSegment).
 			Query(&types.Query{
 				MatchAll: &types.MatchAllQuery{},
 			}).
@@ -126,7 +126,7 @@ func (c *client) Clean(ctx context.Context) error {
 // Engine opens a connection to an existing engine.
 // If no engine with given name exists, a NotFoundError is returned.
 func (c *client) Engine(ctx context.Context, name string) (Engine, error) {
-	res, err := c.es.Get(enginesIndexName, name).Do(ctx)
+	res, err := c.es.Get(enginesIndexNameSegment, name).Do(ctx)
 	if err != nil {
 		if isElasticNotFoundError(err) {
 			return nil, errorx.NotFoundErrorf("engine '%s' does not exist", name)
@@ -146,13 +146,13 @@ func (c *client) Engine(ctx context.Context, name string) (Engine, error) {
 
 // EngineExists returns true if an engine with given name exists.
 func (c *client) EngineExists(ctx context.Context, name string) (bool, error) {
-	return c.es.Exists(enginesIndexName, name).Do(ctx)
+	return c.es.Exists(enginesIndexNameSegment, name).Do(ctx)
 }
 
 // Engines returns a list of all engine infos found by the client.
 func (c *client) Engines(ctx context.Context) ([]EngineInfo, error) {
 	res, err := c.es.Search().
-		Index(enginesIndexName).
+		Index(enginesIndexNameSegment).
 		Query(&types.Query{
 			MatchAll: &types.MatchAllQuery{},
 		}).
@@ -194,7 +194,7 @@ func (c *client) CreateEngine(ctx context.Context, name string) (Engine, error) 
 		return nil, err
 	}
 
-	_, err = c.es.Create(enginesIndexName, name).
+	_, err = c.es.Create(enginesIndexNameSegment, name).
 		Document(&EngineInfo{
 			Name: name,
 		}).
