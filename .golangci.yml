@@ -1,9 +1,10 @@
+version: '2'
 linters:
   enable:
     - gosec
     - govet
-  disable-all: true
-
-issues:
-  exclude-files:
-    - ".*_test.go"
+    - staticcheck
+  exclusions:
+    generated: disable
+    paths:
+      - ".*_test.go"
