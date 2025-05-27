@@ -35,7 +35,9 @@ func NewHTTPClient() *Client {
 func NewClientWithOptions(options ...Option) *Client {
 	client := &Client{
 		transport: &http.Transport{
-			TLSClientConfig: &tls.Config{},
+			TLSClientConfig: &tls.Config{
+				MinVersion: tls.VersionTLS12,
+			},
 		},
 	}
 
