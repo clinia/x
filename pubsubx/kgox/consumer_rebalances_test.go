@@ -3,6 +3,7 @@ package kgox
 import (
 	"context"
 	"fmt"
+	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
 
@@ -77,7 +78,7 @@ func TestConsumerRebalancesWithAutoCommit(t *testing.T) {
 				}
 			}()
 
-			_ = sub.Close()
+			assert.NoError(t, sub.Close())
 		})
 		for i := range topicRetryCount + 1 {
 			select {
@@ -175,7 +176,7 @@ func TestConsumerRebalancesWithAutoCommit(t *testing.T) {
 					}
 				}
 			}()
-			_ = sub.Close()
+			assert.NoError(t, sub.Close())
 		})
 
 		<-waiting
