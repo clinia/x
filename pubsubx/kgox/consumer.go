@@ -31,7 +31,6 @@ type (
 		opts         *pubsubx.SubscriberOptions
 		handlers     map[messagex.Topic]handlerExecutor
 		kotelService *kotel.Kotel
-		meter        metric.Meter
 		erh          *eventRetryHandler
 		pqh          PoisonQueueHandler
 

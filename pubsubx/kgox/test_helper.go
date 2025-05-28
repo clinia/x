@@ -46,13 +46,13 @@ func newProxyFixture(t *testing.T) *proxyFixture {
 
 func (f *proxyFixture) EnableAll() {
 	for _, p := range f.proxies {
-		p.Enable()
+		_ = p.Enable()
 	}
 }
 
 func (f *proxyFixture) DisableAll() {
 	for _, p := range f.proxies {
-		p.Disable()
+		_ = p.Disable()
 	}
 }
 

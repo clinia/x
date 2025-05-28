@@ -405,7 +405,7 @@ func TestConsumeQueue(t *testing.T) {
 			// Delete the topic
 			psub := (*PubSub)(pqh)
 			admin, _ := psub.AdminClient()
-			admin.DeleteTopicWithRetryTopics(context.Background(), pqTopic)
+			_, _ = admin.DeleteTopicWithRetryTopics(context.Background(), pqTopic)
 		})
 		cctx, cancel := context.WithCancel(tctx)
 		defer cancel()
@@ -417,9 +417,8 @@ func TestConsumeQueue(t *testing.T) {
 		consumeFunc := func(ctx context.Context, msgs []*messagex.Message) ([]error, error) {
 			mu.Lock()
 			defer mu.Unlock()
-			for _, m := range msgs {
-				receivedMsgs = append(receivedMsgs, m)
-			}
+
+			receivedMsgs = append(receivedMsgs, msgs...)
 			return make([]error, len(receivedMsgs)), nil
 		}
 		go func() {
@@ -444,7 +443,7 @@ func TestConsumeQueue(t *testing.T) {
 			// Delete the topic
 			psub := (*PubSub)(pqh)
 			admin, _ := psub.AdminClient()
-			admin.DeleteTopicWithRetryTopics(context.Background(), pqTopic)
+			_, _ = admin.DeleteTopicWithRetryTopics(context.Background(), pqTopic)
 		})
 		cctx, cancel := context.WithCancel(tctx)
 		defer cancel()
@@ -456,9 +455,8 @@ func TestConsumeQueue(t *testing.T) {
 		consumeFunc := func(ctx context.Context, msgs []*messagex.Message) ([]error, error) {
 			mu.Lock()
 			defer mu.Unlock()
-			for _, m := range msgs {
-				receivedMsgs = append(receivedMsgs, m)
-			}
+
+			receivedMsgs = append(receivedMsgs, msgs...)
 			return make([]error, len(receivedMsgs)), nil
 		}
 		_, _ = pqh.ConsumeQueue(cctx, consumeFunc)

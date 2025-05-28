@@ -3,7 +3,6 @@ package arangox
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"strings"
 
 	arangoDriver "github.com/arangodb/go-driver"
@@ -51,7 +50,7 @@ func ParseIndexType(s string) (IndexType, error) {
 	s = strings.TrimSpace(strings.ToUpper(s))
 	value, ok := IndexType_value[s]
 	if !ok {
-		return IndexType(0), errorx.NewInternalError(fmt.Errorf("%q is not a valid index type", s))
+		return IndexType(0), errorx.InternalErrorf("%q is not a valid index type", s)
 	}
 
 	return IndexType(value), nil

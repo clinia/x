@@ -5,7 +5,6 @@ package watcherx
 
 import (
 	"context"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -82,7 +81,7 @@ func streamFileEvents(ctx context.Context, watcher *fsnotify.Watcher, c EventCha
 			} else {
 				// The file does exist. Announce the current content by sending a ChangeEvent.
 				//#nosec G304 -- false positive
-				data, err := ioutil.ReadFile(watchedFile)
+				data, err := os.ReadFile(watchedFile)
 				if err != nil {
 					c <- &ErrorEvent{
 						error:  errors.WithStack(err),
@@ -134,7 +133,7 @@ func streamFileEvents(ctx context.Context, watcher *fsnotify.Watcher, c EventCha
 					fallthrough
 				case e.Op&(fsnotify.Write|fsnotify.Create) != 0:
 					//#nosec G304 -- false positive
-					data, err := ioutil.ReadFile(watchedFile)
+					data, err := os.ReadFile(watchedFile)
 					if err != nil {
 						c <- &ErrorEvent{
 							error:  errors.WithStack(err),

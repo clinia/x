@@ -16,7 +16,7 @@ func NewRequestIdHook(requestIdContextKey interface{}, requestIdFieldKey string)
 	}
 }
 
-func (irh *requestIdHook) Levels() []logrus.Level {
+func (rih *requestIdHook) Levels() []logrus.Level {
 	return logrus.AllLevels
 }
 

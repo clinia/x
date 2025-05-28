@@ -4,7 +4,6 @@
 package watcherx
 
 import (
-	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -36,7 +35,7 @@ func kubernetesAtomicWrite(t *testing.T, dir, fileName, content string) {
 	// (4) we assume the file needs an update
 
 	// (5)
-	tsDir, err := ioutil.TempDir(dir, time.Now().UTC().Format("..2006_01_02_15_04_05."))
+	tsDir, err := os.MkdirTemp(dir, time.Now().UTC().Format("..2006_01_02_15_04_05."))
 	require.NoError(t, err)
 	tsDirName := filepath.Base(tsDir)
 

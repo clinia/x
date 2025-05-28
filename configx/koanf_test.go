@@ -64,7 +64,7 @@ func BenchmarkKoanf(b *testing.B) {
 	k, err := newKoanf(ctx, schemaPath, []string{"stub/benchmark/benchmark.yaml"})
 	require.NoError(b, err)
 
-	keys := k.Koanf.Keys()
+	keys := k.Keys()
 	numKeys := len(keys)
 
 	b.Run("cache=false", func(b *testing.B) {
@@ -74,7 +74,7 @@ func BenchmarkKoanf(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			key = keys[i%numKeys]
 
-			if k.Koanf.Get(key) == nil {
+			if k.Get(key) == nil {
 				b.Fatalf("cachedFind returned a nil value for key: %s", key)
 			}
 		}
@@ -111,7 +111,7 @@ func BenchmarkKoanf(b *testing.B) {
 					key = keys[i%numKeys]
 
 					if val, found = cache.Get(key); !found {
-						val = k.Koanf.Get(key)
+						val = k.Get(key)
 						_ = cache.Set(key, val, 0)
 					}
 

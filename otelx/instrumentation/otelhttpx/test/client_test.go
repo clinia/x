@@ -45,19 +45,28 @@ func TestConvenienceWrappers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	res.Body.Close()
+
+	if err = res.Body.Close(); err != nil {
+		t.Fatal(err)
+	}
 
 	res, err = otelhttpx.Head(ctx, ts.URL)
 	if err != nil {
 		t.Fatal(err)
 	}
-	res.Body.Close()
+
+	if err = res.Body.Close(); err != nil {
+		t.Fatal(err)
+	}
 
 	res, err = otelhttpx.Post(ctx, ts.URL, "text/plain", strings.NewReader("test"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	res.Body.Close()
+
+	if err = res.Body.Close(); err != nil {
+		t.Fatal(err)
+	}
 
 	form := make(url.Values)
 	form.Set("foo", "bar")
@@ -65,7 +74,10 @@ func TestConvenienceWrappers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	res.Body.Close()
+
+	if err = res.Body.Close(); err != nil {
+		t.Fatal(err)
+	}
 
 	spans := sr.Ended()
 	require.Equal(t, 4, len(spans))
@@ -95,7 +107,10 @@ func TestClientWithTraceContext(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	res.Body.Close()
+
+	if err = res.Body.Close(); err != nil {
+		t.Fatal(err)
+	}
 
 	span.End()
 

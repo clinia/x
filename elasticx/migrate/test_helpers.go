@@ -35,25 +35,6 @@ func newTestFixture(t *testing.T) *testFixture {
 	}
 }
 
-// setupEngine creates an engine with the given name and returns it.
-// It also deletes the engine when it exist.
-func (f *testFixture) setupEngine(t *testing.T, name string) elasticx.Engine {
-	if exists, err := f.client.EngineExists(f.ctx, name); err != nil {
-		t.Fatal(err)
-	} else if exists {
-		engine, err := f.client.Engine(f.ctx, name)
-		assert.NoError(t, err)
-
-		err = engine.Remove(f.ctx)
-		assert.NoError(t, err)
-	}
-
-	engine, err := f.client.CreateEngine(f.ctx, name)
-	assert.NoError(t, err)
-
-	return engine
-}
-
 // cleanEngine deletes the engine with the given name.
 func (f *testFixture) cleanEngine(t *testing.T, name string) {
 	engine, err := f.client.Engine(f.ctx, name)

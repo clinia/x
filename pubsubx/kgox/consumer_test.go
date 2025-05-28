@@ -44,7 +44,11 @@ func TestConsumerLifecycle(t *testing.T) {
 	pubSub, err := NewPubSub(l, config, nil)
 	require.NoError(t, err)
 	pqh := pubSub.PoisonQueueHandler().(*poisonQueueHandler)
-	defer pubSub.Close()
+
+	defer func() {
+		_ = pubSub.Close()
+	}()
+
 	getWriteClient := func(t *testing.T) *kgo.Client {
 		t.Helper()
 		wc, err := kgo.NewClient(
@@ -76,7 +80,9 @@ func TestConsumerLifecycle(t *testing.T) {
 		erh := pubSub.eventRetryHandler(cg, nil)
 		c, err := newConsumer(context.Background(), l, nil, config, cg, topics, opts, erh, pqh, m)
 		require.NoError(t, err)
-		defer c.Close()
+		defer func() {
+			_ = c.Close()
+		}()
 		subCtx := context.Background()
 		msgBuf := make(chan *messagex.Message)
 		handler := func(ctx context.Context, msgs []*messagex.Message) ([]error, error) {
@@ -127,7 +133,10 @@ func TestConsumerLifecycle(t *testing.T) {
 		erh := pubSub.eventRetryHandler(cg, nil)
 		c, err := newConsumer(context.Background(), l, nil, config, cg, topics, opts, erh, pqh, m)
 		require.NoError(t, err)
-		defer c.Close()
+		defer func() {
+			_ = c.Close()
+		}()
+
 		subCtx := context.Background()
 		msgBuf := make(chan *messagex.Message)
 		handler := func(ctx context.Context, msgs []*messagex.Message) ([]error, error) {
@@ -153,7 +162,7 @@ func TestConsumerLifecycle(t *testing.T) {
 		t.Cleanup(tf.EnableAll)
 		c.wg.Wait()
 
-		c.Close()
+		_ = c.Close()
 		require.Error(t, c.Health())
 		subCtx = context.Background()
 		tf.EnableAll()
@@ -183,7 +192,9 @@ func TestConsumerLifecycle(t *testing.T) {
 		erh := pubSub.eventRetryHandler(cg, nil)
 		c, err := newConsumer(context.Background(), l, nil, config, cg, topics, opts, erh, pqh, m)
 		require.NoError(t, err)
-		defer c.Close()
+		defer func() {
+			_ = c.Close()
+		}()
 		subCtx := context.Background()
 		msgBuf := make(chan *messagex.Message)
 		handler := func(ctx context.Context, msgs []*messagex.Message) ([]error, error) {
@@ -204,7 +215,7 @@ func TestConsumerLifecycle(t *testing.T) {
 			t.Fatal("failed to receive first message in first subscriber")
 		case <-msgBuf:
 		}
-		c.Close()
+		_ = c.Close()
 		require.Error(t, c.Health())
 		subCtx = context.Background()
 		start := time.Now()
@@ -233,7 +244,9 @@ func TestConsumerLifecycle(t *testing.T) {
 		erh := pubSub.eventRetryHandler(cg, nil)
 		c, err := newConsumer(context.Background(), l, nil, config, cg, topics, opts, erh, pqh, m)
 		require.NoError(t, err)
-		defer c.Close()
+		defer func() {
+			_ = c.Close()
+		}()
 		subCtx := context.Background()
 		msgBuf := make(chan *messagex.Message)
 		handler := func(ctx context.Context, msgs []*messagex.Message) ([]error, error) {
@@ -285,7 +298,7 @@ func TestConsumerLifecycle(t *testing.T) {
 				default:
 					// All good, non-blocking loop
 				}
-				c.Close()
+				_ = c.Close()
 			}
 		}()
 
@@ -313,7 +326,9 @@ func TestConsumerLifecycle(t *testing.T) {
 		erh := pubSub.eventRetryHandler(cg, nil)
 		c, err := newConsumer(context.Background(), l, nil, config, cg, topics, opts, erh, pqh, m)
 		require.NoError(t, err)
-		defer c.Close()
+		defer func() {
+			_ = c.Close()
+		}()
 		subCtx := context.Background()
 		msgBuf := make(chan *messagex.Message)
 		consumed := 0
@@ -375,7 +390,7 @@ func TestConsumerLifecycle(t *testing.T) {
 					// All good, non-blocking loop
 				}
 				<-time.After(time.Duration(rand.Intn(1000)) * time.Millisecond)
-				c.Close()
+				_ = c.Close()
 			}
 		}()
 
@@ -432,7 +447,7 @@ func consumer_Subscribe_Handling_test(t *testing.T, eae bool) {
 		if err != nil {
 			t.Fatalf("failed to create consumer: %v", err)
 		}
-		t.Cleanup(func() { consumer.Close() })
+		t.Cleanup(func() { _ = consumer.Close() })
 		wClient := getWriteClient(t)
 
 		ctx := context.Background()
@@ -479,7 +494,7 @@ func consumer_Subscribe_Handling_test(t *testing.T, eae bool) {
 		if err != nil {
 			t.Fatalf("failed to create consumer: %v", err)
 		}
-		t.Cleanup(func() { consumer.Close() })
+		t.Cleanup(func() { _ = consumer.Close() })
 		wClient := getWriteClient(t)
 
 		ctx := context.Background()
@@ -574,7 +589,7 @@ func consumer_Subscribe_Handling_test(t *testing.T, eae bool) {
 		wg.Wait()
 		t.Log("failed execution done")
 
-		consumer.Close()
+		_ = consumer.Close()
 		t.Log("consumer closed")
 
 		// We reenable the proxies to make sure we can consume again with the new consumer
@@ -584,7 +599,7 @@ func consumer_Subscribe_Handling_test(t *testing.T, eae bool) {
 		ctx = context.Background()
 		consumer2, err := newConsumer(ctx, l, nil, config, cg, topics, opts, erh, pqh, m)
 		require.NoError(t, err)
-		t.Cleanup(func() { consumer2.Close() })
+		t.Cleanup(func() { _ = consumer2.Close() })
 
 		receivedMsg := make(chan string, 1)
 		err = consumer2.Subscribe(ctx, pubsubx.Handlers{
@@ -616,7 +631,7 @@ func consumer_Subscribe_Handling_test(t *testing.T, eae bool) {
 		if err != nil {
 			t.Fatalf("failed to create consumer: %v", err)
 		}
-		t.Cleanup(func() { consumer.Close() })
+		t.Cleanup(func() { _ = consumer.Close() })
 		wClient := getWriteClient(t)
 		ctx := context.Background()
 
@@ -708,7 +723,7 @@ func consumer_Subscribe_Concurrency_test(t *testing.T, eae bool) {
 		if err != nil {
 			t.Fatalf("failed to create consumer: %v", err)
 		}
-		t.Cleanup(func() { consumer.Close() })
+		t.Cleanup(func() { _ = consumer.Close() })
 
 		noopHandler := func(ctx context.Context, msgs []*messagex.Message) ([]error, error) {
 			return nil, nil
@@ -741,7 +756,7 @@ func consumer_Subscribe_Concurrency_test(t *testing.T, eae bool) {
 		if err != nil {
 			t.Fatalf("failed to create consumer: %v", err)
 		}
-		t.Cleanup(func() { consumer.Close() })
+		t.Cleanup(func() { _ = consumer.Close() })
 
 		ctx := context.Background()
 		topicHandlers := pubsubx.Handlers{
@@ -865,7 +880,7 @@ func consumer_Subscribe_Concurrency_test(t *testing.T, eae bool) {
 		aerh := getEventRetryHandler(t, l, config, acg, nil)
 		anotherConsumer, err := newConsumer(context.Background(), l, nil, config, acg, topics, opts, aerh, pqh, m)
 		t.Cleanup(func() {
-			anotherConsumer.Close()
+			_ = anotherConsumer.Close()
 		})
 		require.NoError(t, err)
 
@@ -925,7 +940,7 @@ func consumer_Subscribe_Concurrency_test(t *testing.T, eae bool) {
 		c, err := newConsumer(context.Background(), l, nil, config, cg, topics, opts, erh, pqh, m)
 		require.NoError(t, err)
 		require.NoError(t, c.Subscribe(ctx, hs))
-		t.Cleanup(func() { c.Close() })
+		t.Cleanup(func() { _ = c.Close() })
 
 		expected := []int32{10, 10, 10}
 		assert.EventuallyWithT(t, func(c *assert.CollectT) {
@@ -967,7 +982,7 @@ func consumer_Subscribe_Concurrency_test(t *testing.T, eae bool) {
 		if err != nil {
 			t.Fatalf("failed to create consumer: %v", err)
 		}
-		t.Cleanup(func() { consumer.Close() })
+		t.Cleanup(func() { _ = consumer.Close() })
 
 		ctx := context.Background()
 		shouldFail := make(chan bool)

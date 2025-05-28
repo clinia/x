@@ -137,7 +137,12 @@ func TestProviderReload(t *testing.T) {
 
 	t.Run("case=rejects not validating changes", func(t *testing.T) {
 		configFile := tmpConfigFile(t, "memory", "bar")
-		defer configFile.Close()
+		defer func() {
+			if err := configFile.Close(); err != nil {
+				t.Errorf("failed to close cursor: %v", err)
+			}
+		}()
+
 		c := make(chan struct{})
 		p, l := setup(t, configFile, c)
 		hook := test.NewLocal(l.Entry.Logger)
@@ -171,7 +176,12 @@ func TestProviderReload(t *testing.T) {
 
 	t.Run("case=rejects to update immutable", func(t *testing.T) {
 		configFile := tmpConfigFile(t, "memory", "bar")
-		defer configFile.Close()
+		defer func() {
+			if err := configFile.Close(); err != nil {
+				t.Errorf("failed to close cursor: %v", err)
+			}
+		}()
+
 		c := make(chan struct{})
 		p, l := setup(t, configFile, c,
 			WithImmutables("dsn"))
@@ -202,7 +212,12 @@ func TestProviderReload(t *testing.T) {
 
 	t.Run("case=runs without validation errors", func(t *testing.T) {
 		configFile := tmpConfigFile(t, "some string", "bar")
-		defer configFile.Close()
+		defer func() {
+			if err := configFile.Close(); err != nil {
+				t.Errorf("failed to close cursor: %v", err)
+			}
+		}()
+
 		c := make(chan struct{})
 		p, l := setup(t, configFile, c)
 		hook := test.NewLocal(l.Entry.Logger)
@@ -214,7 +229,12 @@ func TestProviderReload(t *testing.T) {
 
 	t.Run("case=runs and reloads", func(t *testing.T) {
 		configFile := tmpConfigFile(t, "some string", "bar")
-		defer configFile.Close()
+		defer func() {
+			if err := configFile.Close(); err != nil {
+				t.Errorf("failed to close cursor: %v", err)
+			}
+		}()
+
 		c := make(chan struct{})
 		p, l := setup(t, configFile, c)
 		hook := test.NewLocal(l.Entry.Logger)
@@ -229,7 +249,12 @@ func TestProviderReload(t *testing.T) {
 
 	t.Run("case=has with validation errors", func(t *testing.T) {
 		configFile := tmpConfigFile(t, "some string", "not bar")
-		defer configFile.Close()
+		defer func() {
+			if err := configFile.Close(); err != nil {
+				t.Errorf("failed to close cursor: %v", err)
+			}
+		}()
+
 		l := logrusx.New("", "")
 		hook := test.NewLocal(l.Entry.Logger)
 

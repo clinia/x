@@ -131,7 +131,11 @@ func (m *Migrator) Version(ctx context.Context) (current uint, latest uint, desc
 	if err != nil {
 		return 0, latest, "", err
 	}
-	defer cursor.Close()
+	defer func() {
+		if err := cursor.Close(); err != nil {
+			m.l.WithError(err).Errorf("failed to close cursor")
+		}
+	}()
 
 	var rec versionRecord
 	_, err = cursor.ReadDocument(ctx, &rec)

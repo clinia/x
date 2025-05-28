@@ -8,35 +8,37 @@ import (
 	"errors"
 	"testing"
 
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/codes"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
-	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 )
 
 var errPanic = errors.New("panic-error")
 
 func TestWithSpan(t *testing.T) {
-	tracer := trace.NewNoopTracerProvider().Tracer("test")
+	tracer := noop.NewTracerProvider().Tracer("test")
 	ctx, span := tracer.Start(context.Background(), "parent")
 	defer span.End()
 
 	assert.NoError(t, WithSpan(ctx, "no-error", func(ctx context.Context) error { return nil }))
 	assert.Error(t, WithSpan(ctx, "error", func(ctx context.Context) error { return errors.New("some-error") }))
 	assert.PanicsWithError(t, errPanic.Error(), func() {
-		WithSpan(ctx, "panic", func(ctx context.Context) error {
+		_ = WithSpan(ctx, "panic", func(ctx context.Context) error {
 			panic(errPanic)
 		})
 	})
 	assert.PanicsWithValue(t, errPanic, func() {
-		WithSpan(ctx, "panic", func(ctx context.Context) error {
+		_ = WithSpan(ctx, "panic", func(ctx context.Context) error {
 			panic(errPanic)
 		})
 	})
 	assert.PanicsWithValue(t, "panic-string", func() {
-		WithSpan(ctx, "panic", func(ctx context.Context) error {
+		_ = WithSpan(ctx, "panic", func(ctx context.Context) error {
 			panic("panic-string")
 		})
 	})
@@ -76,27 +78,29 @@ func TestEnd(t *testing.T) {
 	assert.NoError(t, returnsNormally(ctx))
 	require.NotEmpty(t, recorder.Ended())
 	assert.Equal(t, last(recorder).Name(), "returnsNormally")
-	assert.Equal(t, last(recorder).Status(), sdktrace.Status{codes.Unset, ""})
+	assert.Equal(t, last(recorder).Status(), sdktrace.Status{Code: codes.Unset})
 
 	assert.Errorf(t, returnsError(ctx), "error from returnsError()")
 	require.NotEmpty(t, recorder.Ended())
 	assert.Equal(t, last(recorder).Name(), "returnsError")
-	assert.Equal(t, last(recorder).Status(), sdktrace.Status{codes.Error, "error from returnsError()"})
+	assert.Equal(t, last(recorder).Status(), sdktrace.Status{Code: codes.Error, Description: "error from returnsError()"})
 
 	assert.Errorf(t, returnsNamedError(ctx), "err2 message")
 	require.NotEmpty(t, recorder.Ended())
 	assert.Equal(t, last(recorder).Name(), "returnsNamedError")
-	assert.Equal(t, last(recorder).Status(), sdktrace.Status{codes.Error, "err2 message"})
+	assert.Equal(t, last(recorder).Status(), sdktrace.Status{Code: codes.Error, Description: "err2 message"})
 
-	assert.PanicsWithError(t, "panic from panics()", func() { panics(ctx) })
+	assert.PanicsWithError(t, "panic from panics()", func() {
+		_ = panics(ctx)
+	})
 	require.NotEmpty(t, recorder.Ended())
 	assert.Equal(t, last(recorder).Name(), "panics")
-	assert.Equal(t, last(recorder).Status(), sdktrace.Status{codes.Error, "panic: panic from panics()"})
+	assert.Equal(t, last(recorder).Status(), sdktrace.Status{Code: codes.Error, Description: "panic: panic from panics()"})
 
 	span.End()
 	require.NotEmpty(t, recorder.Ended())
 	assert.Equal(t, last(recorder).Name(), "parent")
-	assert.Equal(t, last(recorder).Status(), sdktrace.Status{codes.Unset, ""})
+	assert.Equal(t, last(recorder).Status(), sdktrace.Status{Code: codes.Unset})
 }
 
 func last(r *tracetest.SpanRecorder) sdktrace.ReadOnlySpan {

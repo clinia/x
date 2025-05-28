@@ -29,7 +29,7 @@ func TestKadminClient_DeleteTopicsWithRetryTopics(t *testing.T) {
 		require.NoError(t, err)
 		defer func() {
 			defer kadmCl.Close()
-			kadmCl.DeleteTopics(context.Background(), topics...)
+			_, _ = kadmCl.DeleteTopics(context.Background(), topics...)
 		}()
 		for _, v := range resCreate {
 			require.NoError(t, v.Err)
@@ -78,7 +78,7 @@ func TestKadminClient_DeleteTopicsWithRetryTopics(t *testing.T) {
 		require.NoError(t, err)
 		defer func() {
 			defer kadmCl.Close()
-			kadmCl.DeleteTopics(context.Background(), topics...)
+			_, _ = kadmCl.DeleteTopics(context.Background(), topics...)
 		}()
 		for _, v := range resCreate {
 			require.NoError(t, v.Err)
@@ -92,7 +92,7 @@ func TestKadminClient_DeleteTopicsWithRetryTopics(t *testing.T) {
 		assert.NoError(t, err)
 		defer func() {
 			defer kadmCl.Close()
-			kadmCl.DeleteTopics(context.Background(), topics...)
+			_, _ = kadmCl.DeleteTopics(context.Background(), topics...)
 		}()
 		require.NoError(t, err)
 		for _, top := range topics {
@@ -222,12 +222,12 @@ func TestKadminClient_DeleteGroup(t *testing.T) {
 		_, err := kadmCl.CreateTopics(ctx, 1, 1, map[string]*string{}, topics[0].TopicName(config.Scope))
 		assert.NoError(t, err)
 		t.Cleanup(func() {
-			kadmCl.DeleteTopic(context.Background(), topics[0].TopicName(config.Scope))
+			_, _ = kadmCl.DeleteTopic(context.Background(), topics[0].TopicName(config.Scope))
 		})
 		_, err = kadmCl.CreateTopics(ctx, 1, 1, map[string]*string{}, retryTopic.TopicName(config.Scope))
 		assert.NoError(t, err)
 		t.Cleanup(func() {
-			kadmCl.DeleteTopic(context.Background(), retryTopic.TopicName(config.Scope))
+			_, _ = kadmCl.DeleteTopic(context.Background(), retryTopic.TopicName(config.Scope))
 		})
 		groupClient, err := kgo.NewClient(
 			kgo.SeedBrokers(config.Providers.Kafka.Brokers...),
@@ -278,17 +278,17 @@ func TestKadminClient_DeleteGroups(t *testing.T) {
 		_, err := kadmCl.CreateTopics(ctx, 1, 1, map[string]*string{}, topics[0].TopicName(config.Scope))
 		assert.NoError(t, err)
 		defer func() {
-			kadmCl.DeleteTopic(context.Background(), topics[0].TopicName(config.Scope))
+			_, _ = kadmCl.DeleteTopic(context.Background(), topics[0].TopicName(config.Scope))
 		}()
 		_, err = kadmCl.CreateTopics(ctx, 1, 1, map[string]*string{}, retryTopic.TopicName(config.Scope))
 		assert.NoError(t, err)
 		defer func() {
-			kadmCl.DeleteTopic(context.Background(), retryTopic.TopicName(config.Scope))
+			_, _ = kadmCl.DeleteTopic(context.Background(), retryTopic.TopicName(config.Scope))
 		}()
 		_, err = kadmCl.CreateTopics(ctx, 1, 1, map[string]*string{}, retryTopic2.TopicName(config.Scope))
 		assert.NoError(t, err)
 		defer func() {
-			kadmCl.DeleteTopic(context.Background(), retryTopic2.TopicName(config.Scope))
+			_, _ = kadmCl.DeleteTopic(context.Background(), retryTopic2.TopicName(config.Scope))
 		}()
 		groupClient, err := kgo.NewClient(
 			kgo.SeedBrokers(config.Providers.Kafka.Brokers...),
