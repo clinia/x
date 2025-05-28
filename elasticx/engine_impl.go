@@ -21,10 +21,6 @@ import (
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/operationtype"
 )
 
-const (
-	maxSearchWindowSize = 10000
-)
-
 var isValidEngineName = regexp.MustCompile("^[a-zA-Z0-9_-]*$").MatchString
 
 // engine implementes the Engine interface
@@ -120,10 +116,6 @@ func (e *engine) Search(ctx context.Context, request *search.Request, indices []
 
 	if request.Size != nil && *request.Size < 0 {
 		return nil, errorx.InvalidArgumentErrorf("invalid search request: 'size' must be greater than or equal to 0")
-	}
-
-	if request.From != nil && request.Size != nil && *request.From+*request.Size > maxSearchWindowSize {
-		return nil, errorx.InvalidArgumentErrorf("invalid search request. The maximum size of the search window is %v", maxSearchWindowSize)
 	}
 
 	indexPaths := []string{}
