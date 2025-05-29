@@ -218,16 +218,6 @@ func (i *index) DeleteDocumentsByQuery(ctx context.Context, query *types.Query, 
 		return nil, err
 	}
 
-	// As soon as one of the query match fails the whole query execution fails, this is to join all the failures
-	// into a single error
-	if len(res.Failures) > 0 {
-		return nil, errors.Join(lo.Map(
-			res.Failures,
-			func(item types.BulkIndexByScrollFailure, _ int) error {
-				return errors.New(item.Type)
-			})...)
-	}
-
 	var deleteCount int64 = 0
 	if res.Deleted != nil {
 		deleteCount = *res.Deleted
@@ -238,10 +228,25 @@ func (i *index) DeleteDocumentsByQuery(ctx context.Context, query *types.Query, 
 		taskId = (*TaskId)(&res.Task)
 	}
 
-	return &DeleteQueryResponse{
+	resp := &DeleteQueryResponse{
 		DeleteCount: deleteCount,
 		TaskId:      taskId,
-	}, nil
+	}
+
+	// As soon as one of the query match fails the whole query execution fails, this is to join all the failures
+	// into a single error
+	// However, any delete request that completed successfully still stick, they are not rolled back.
+	// https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-delete-by-query
+	// This is why we return the delete count even if we have a failure
+	if len(res.Failures) > 0 {
+		return resp, errors.Join(lo.Map(
+			res.Failures,
+			func(item types.BulkIndexByScrollFailure, _ int) error {
+				return errors.New(item.Type)
+			})...)
+	}
+
+	return resp, nil
 }
 
 func (i *index) UpdateDocumentsByQuery(ctx context.Context, query *types.Query, updateScript *types.Script, opts ...DocumentOption) (*UpdateQueryResponse, error) {
@@ -282,8 +287,23 @@ func (i *index) UpdateDocumentsByQuery(ctx context.Context, query *types.Query, 
 		updateCount = *res.Updated
 	}
 
-	return &UpdateQueryResponse{
-		TaskId:      taskId,
+	resp := &UpdateQueryResponse{
 		UpdateCount: updateCount,
-	}, nil
+		TaskId:      taskId,
+	}
+
+	// As soon as one of the query match fails the whole query execution fails, this is to join all the failures
+	// into a single error
+	// However, any update request that completed successfully still stick, they are not rolled back.
+	// https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-update-by-query
+	// This is why we return the delete count even if we have a failure
+	if len(res.Failures) > 0 {
+		return resp, errors.Join(lo.Map(
+			res.Failures,
+			func(item types.BulkIndexByScrollFailure, _ int) error {
+				return errors.New(item.Type)
+			})...)
+	}
+
+	return resp, nil
 }
