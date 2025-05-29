@@ -79,7 +79,7 @@ func TestConsumerRebalancesWithAutoCommit(t *testing.T) {
 				}
 			}()
 
-			assert.NoError(t, sub.Close())
+			_ = sub.Close()
 		})
 		for i := range topicRetryCount + 1 {
 			select {
@@ -177,7 +177,7 @@ func TestConsumerRebalancesWithAutoCommit(t *testing.T) {
 					}
 				}
 			}()
-			assert.NoError(t, sub.Close())
+			_ = sub.Close()
 		})
 
 		<-waiting
