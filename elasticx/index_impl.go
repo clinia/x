@@ -218,16 +218,6 @@ func (i *index) DeleteDocumentsByQuery(ctx context.Context, query *types.Query, 
 		return nil, err
 	}
 
-	// As soon as one of the query match fails the whole query execution fails, this is to join all the failures
-	// into a single error
-	if len(res.Failures) > 0 {
-		return nil, errors.Join(lo.Map(
-			res.Failures,
-			func(item types.BulkIndexByScrollFailure, _ int) error {
-				return errors.New(item.Type)
-			})...)
-	}
-
 	var deleteCount int64 = 0
 	if res.Deleted != nil {
 		deleteCount = *res.Deleted
@@ -238,8 +228,82 @@ func (i *index) DeleteDocumentsByQuery(ctx context.Context, query *types.Query, 
 		taskId = (*TaskId)(&res.Task)
 	}
 
-	return &DeleteQueryResponse{
+	resp := &DeleteQueryResponse{
 		DeleteCount: deleteCount,
 		TaskId:      taskId,
-	}, nil
+	}
+
+	// As soon as one of the query match fails the whole query execution fails, this is to join all the failures
+	// into a single error
+	// However, any delete request that completed successfully still stick, they are not rolled back.
+	// https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-delete-by-query
+	// This is why we return the delete count even if we have a failure
+	if len(res.Failures) > 0 {
+		return resp, errors.Join(lo.Map(
+			res.Failures,
+			func(item types.BulkIndexByScrollFailure, _ int) error {
+				return errors.New(item.Type)
+			})...)
+	}
+
+	return resp, nil
+}
+
+func (i *index) UpdateDocumentsByQuery(ctx context.Context, query *types.Query, updateScript *types.Script, opts ...DocumentOption) (*UpdateQueryResponse, error) {
+	if query == nil {
+		return nil, errorx.InvalidArgumentErrorf("query cannot be nil")
+	}
+
+	options := DefaultDocumentOptions
+	for _, opt := range opts {
+		opt(options)
+	}
+
+	// This block is to simulate the behaviour of the `.Refresh` function on the other elastic search lib calls,
+	// for some reason the UpdateByQuery takes a boolean that is converted to a string, as the other functions use
+	// the direct string
+	refresh, refreshErr := strconv.ParseBool(options.refresh.String())
+	if refreshErr != nil {
+		refresh = false
+	}
+
+	res, err := i.es.UpdateByQuery(i.indexName().String()).
+		WaitForCompletion(options.waitForCompletion).
+		Refresh(refresh).
+		Query(query).
+		Script(updateScript).
+		Do(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	var taskId *TaskId
+	if res.Task != nil {
+		taskId = (*TaskId)(&res.Task)
+	}
+
+	var updateCount int64 = 0
+	if res.Updated != nil {
+		updateCount = *res.Updated
+	}
+
+	resp := &UpdateQueryResponse{
+		UpdateCount: updateCount,
+		TaskId:      taskId,
+	}
+
+	// As soon as one of the query match fails the whole query execution fails, this is to join all the failures
+	// into a single error
+	// However, any update request that completed successfully still stick, they are not rolled back.
+	// https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-update-by-query
+	// This is why we return the delete count even if we have a failure
+	if len(res.Failures) > 0 {
+		return resp, errors.Join(lo.Map(
+			res.Failures,
+			func(item types.BulkIndexByScrollFailure, _ int) error {
+				return errors.New(item.Type)
+			})...)
+	}
+
+	return resp, nil
 }
