@@ -805,7 +805,7 @@ func TestIndexQueryUpdateDocuments(t *testing.T) {
 
 		_, err = f.es.Tasks.Get(taskId).WaitForCompletion(true).Do(ctx)
 		assert.NoError(t, err)
-	
+
 		doc, err := f.es.Get(NewIndexName(enginesIndexNameSegment, engine.Name(), index.Info().Name).String(), meta1.ID).Do(ctx)
 		assert.NoError(t, err)
 		assert.Equal(t, jsonx.RawMessage(`{
