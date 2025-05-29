@@ -243,3 +243,47 @@ func (i *index) DeleteDocumentsByQuery(ctx context.Context, query *types.Query, 
 		TaskId:      taskId,
 	}, nil
 }
+
+func (i *index) UpdateDocumentsByQuery(ctx context.Context, query *types.Query, updateScript *types.Script, opts ...DocumentOption) (*UpdateQueryResponse, error) {
+	if query == nil {
+		return nil, errorx.InvalidArgumentErrorf("query cannot be nil")
+	}
+
+	options := DefaultDocumentOptions
+	for _, opt := range opts {
+		opt(options)
+	}
+
+	// This block is to simulate the behaviour of the `.Refresh` function on the other elastic search lib calls,
+	// for some reason the UpdateByQuery takes a boolean that is converted to a string, as the other functions use
+	// the direct string
+	refresh, refreshErr := strconv.ParseBool(options.refresh.String())
+	if refreshErr != nil {
+		refresh = false
+	}
+
+	res, err := i.es.UpdateByQuery(i.indexName().String()).
+		WaitForCompletion(options.waitForCompletion).
+		Refresh(refresh).
+		Query(query).
+		Script(updateScript).
+		Do(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	var taskId *TaskId
+	if res.Task != nil {
+		taskId = (*TaskId)(&res.Task)
+	}
+
+	var updateCount int64 = 0
+	if res.Updated != nil {
+		updateCount = *res.Updated
+	}
+
+	return &UpdateQueryResponse{
+		TaskId:      taskId,
+		UpdateCount: updateCount,
+	}, nil
+}

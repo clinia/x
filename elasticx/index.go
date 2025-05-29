@@ -55,6 +55,12 @@ type IndexDocuments interface {
 	// If the query fails, an error is returned.
 	// The number of deleted document and the async taskId is returned.
 	DeleteDocumentsByQuery(ctx context.Context, query *types.Query, opts ...DocumentOption) (*DeleteQueryResponse, error)
+
+	// UpdateDocumentsByQuery updates all documents satisfying the query and runs the given updateScript.
+	// No error is returned when the documents are updated.
+	// If the query fails, an error is returned.
+	// The number of updated documents and the async taskId is returned.
+	UpdateDocumentsByQuery(ctx context.Context, query *types.Query, updateScript *types.Script, opts ...DocumentOption) (*UpdateQueryResponse, error)
 }
 
 type IndexInfo struct {

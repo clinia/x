@@ -5,9 +5,11 @@ import (
 
 	"github.com/clinia/x/assertx"
 	"github.com/clinia/x/jsonx"
+	"github.com/clinia/x/pointerx"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/dynamicmapping"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/refresh"
+	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/scriptlanguage"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
 )
@@ -672,5 +674,152 @@ func TestIndexQueryDeleteDocuments(t *testing.T) {
 	t.Cleanup(func() {
 		err := engine.Remove(ctx)
 		assert.NoError(t, err)
+	})
+}
+
+func TestIndexQueryUpdateDocuments(t *testing.T) {
+	t.Parallel()
+
+	f := newTestFixture(t)
+	ctx := f.ctx
+
+	engine, err := f.client.CreateEngine(ctx, "test-index-query-update-documents")
+	assert.NoError(t, err)
+
+	t.Cleanup(func() {
+		err := engine.Remove(ctx)
+		assert.NoError(t, err)
+	})
+
+	index, err := engine.CreateIndex(ctx, "index-1", &CreateIndexOptions{
+		Mappings: &types.TypeMapping{
+			Dynamic: &dynamicmapping.Strict,
+			Properties: map[string]types.Property{
+				"foo": types.NewKeywordProperty(),
+			},
+		},
+	})
+	assert.NoError(t, err)
+
+	t.Run("should run the updateScript on documents matching the query", func(t *testing.T) {
+		// Prepare
+		meta1, err := index.CreateDocument(ctx, map[string]interface{}{
+			"foo": "bar",
+		}, WithRefresh(refresh.True))
+		assert.NoError(t, err)
+
+		meta2, err := index.CreateDocument(ctx, map[string]interface{}{
+			"foo": "barbar",
+		}, WithRefresh(refresh.True))
+		assert.NoError(t, err)
+
+		meta3, err := index.CreateDocument(ctx, map[string]interface{}{
+			"foo": "bar",
+		}, WithRefresh(refresh.True))
+		assert.NoError(t, err)
+		query := &types.Query{
+			Term: map[string]types.TermQuery{
+				"foo": {Value: "bar"},
+			},
+		}
+
+		updateScript := &types.Script{
+			Lang: pointerx.Ptr(scriptlanguage.ScriptLanguage{
+				Name: "painless",
+			}),
+			Source: pointerx.Ptr("ctx._source.foo = 'UPDATED'"),
+		}
+
+		// Act
+		result, err := index.UpdateDocumentsByQuery(ctx, query, updateScript,
+			WithWaitForCompletion(true),
+			WithRefresh(refresh.True),
+		)
+		assert.NoError(t, err)
+		assert.Equal(t, 2, int(result.UpdateCount))
+
+		// assert the matching documents were updated with the new value, and the other was not modified
+		doc, err := f.es.Get(NewIndexName(enginesIndexNameSegment, engine.Name(), index.Info().Name).String(), meta1.ID).Do(ctx)
+		assert.NoError(t, err)
+		assert.Equal(t, jsonx.RawMessage(`{
+			"foo": "UPDATED"
+		}`), doc.Source_)
+		doc, err = f.es.Get(NewIndexName(enginesIndexNameSegment, engine.Name(), index.Info().Name).String(), meta2.ID).Do(ctx)
+		assert.NoError(t, err)
+		assert.Equal(t, jsonx.RawMessage(`{
+			"foo": "barbar"
+		}`), doc.Source_)
+		doc, err = f.es.Get(NewIndexName(enginesIndexNameSegment, engine.Name(), index.Info().Name).String(), meta3.ID).Do(ctx)
+		assert.NoError(t, err)
+		assert.Equal(t, jsonx.RawMessage(`{
+			"foo": "UPDATED"
+		}`), doc.Source_)
+	})
+
+	t.Run("should fail on empty query", func(t *testing.T) {
+		_, err := index.UpdateDocumentsByQuery(ctx, nil, &types.Script{
+			Lang: pointerx.Ptr(scriptlanguage.ScriptLanguage{
+				Name: "painless",
+			}),
+			Source: pointerx.Ptr("ctx._source.foo = 'UPDATED'"),
+		})
+		assert.Error(t, err)
+	})
+	t.Run("should run the updateScript on documents matching the query async", func(t *testing.T) {
+		// Prepare
+		meta1, err := index.CreateDocument(ctx, map[string]interface{}{
+			"foo": "bar",
+		}, WithRefresh(refresh.True))
+		assert.NoError(t, err)
+
+		meta2, err := index.CreateDocument(ctx, map[string]interface{}{
+			"foo": "barbar",
+		}, WithRefresh(refresh.True))
+		assert.NoError(t, err)
+
+		meta3, err := index.CreateDocument(ctx, map[string]interface{}{
+			"foo": "bar",
+		}, WithRefresh(refresh.True))
+		assert.NoError(t, err)
+		query := &types.Query{
+			Term: map[string]types.TermQuery{
+				"foo": {Value: "bar"},
+			},
+		}
+
+		updateScript := &types.Script{
+			Lang: pointerx.Ptr(scriptlanguage.ScriptLanguage{
+				Name: "painless",
+			}),
+			Source: pointerx.Ptr("ctx._source.foo = 'UPDATED'"),
+		}
+
+		// Act
+		result, err := index.UpdateDocumentsByQuery(ctx, query, updateScript,
+			WithWaitForCompletion(false),
+			WithRefresh(refresh.True),
+		)
+		assert.NoError(t, err)
+
+		taskId := (*result.TaskId).(string)
+
+		_, err = f.es.Tasks.Get(taskId).WaitForCompletion(true).Do(ctx)
+		assert.NoError(t, err)
+	
+		doc, err := f.es.Get(NewIndexName(enginesIndexNameSegment, engine.Name(), index.Info().Name).String(), meta1.ID).Do(ctx)
+		assert.NoError(t, err)
+		assert.Equal(t, jsonx.RawMessage(`{
+			"foo": "UPDATED"
+		}`), doc.Source_)
+		doc, err = f.es.Get(NewIndexName(enginesIndexNameSegment, engine.Name(), index.Info().Name).String(), meta2.ID).Do(ctx)
+		assert.NoError(t, err)
+		assert.Equal(t, jsonx.RawMessage(`{
+			"foo": "barbar"
+		}`), doc.Source_)
+		doc, err = f.es.Get(NewIndexName(enginesIndexNameSegment, engine.Name(), index.Info().Name).String(), meta3.ID).Do(ctx)
+		assert.NoError(t, err)
+		assert.Equal(t, jsonx.RawMessage(`{
+			"foo": "UPDATED"
+		}`), doc.Source_)
 	})
 }
