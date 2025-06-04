@@ -40,7 +40,7 @@ func TestPublisher(t *testing.T) {
 
 		t.Cleanup(func() {
 			cancel()
-			_ = sub.Close()
+			sub.Close() //nolint:errcheck,gosec
 			close(msgsCh)
 		})
 
@@ -73,7 +73,9 @@ func TestPublisher(t *testing.T) {
 
 	t.Run("PublishSync", func(t *testing.T) {
 		p := getPublisher(t, l, config)
-		t.Cleanup(func() { _ = p.Close() })
+		t.Cleanup(func() {
+			p.Close() //nolint:errcheck,gosec
+		})
 
 		group, topics := getRandomGroupTopics(t, 1)
 		testTopic := topics[0]
@@ -145,7 +147,9 @@ func TestPublisher(t *testing.T) {
 
 	t.Run("PublishAsync", func(t *testing.T) {
 		p := getPublisher(t, l, config)
-		t.Cleanup(func() { _ = p.Close() })
+		t.Cleanup(func() {
+			p.Close() //nolint:errcheck,gosec
+		})
 
 		group, topics := getRandomGroupTopics(t, 1)
 		testTopic := topics[0]
@@ -173,7 +177,9 @@ func TestPublisher(t *testing.T) {
 
 	t.Run("should be able to cancel sending messages with PublishAsync", func(t *testing.T) {
 		p := getPublisher(t, l, config)
-		t.Cleanup(func() { _ = p.Close() })
+		t.Cleanup(func() {
+			p.Close() //nolint:errcheck,gosec
+		})
 
 		group, topics := getRandomGroupTopics(t, 1)
 		testTopic := topics[0]

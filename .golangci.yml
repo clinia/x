@@ -1,9 +1,9 @@
+version: '2'
 linters:
   enable:
     - gosec
     - govet
     - staticcheck
-  disable-all: true
 
 issues:
   exclude-files:

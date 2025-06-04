@@ -72,7 +72,7 @@ func streamFileEvents(ctx context.Context, watcher *fsnotify.Watcher, c EventCha
 	for {
 		select {
 		case <-ctx.Done():
-			_ = watcher.Close()
+			watcher.Close() //nolint:errcheck,gosec
 			return
 		case <-sendNow:
 			if resolvedFile == "" {
