@@ -4,7 +4,3 @@ linters:
     - gosec
     - govet
     - staticcheck
-
-issues:
-  exclude-files:
-    - ".*_test.go"
