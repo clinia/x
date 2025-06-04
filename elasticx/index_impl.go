@@ -111,7 +111,7 @@ func (i *index) ReadDocument(ctx context.Context, id string, result interface{})
 }
 
 func (i *index) CreateDocument(ctx context.Context, document interface{}, opts ...DocumentOption) (*DocumentMeta, error) {
-	options := DefaultDocumentOptions
+	options := NewDefaultDocumentOptions()
 	for _, opt := range opts {
 		opt(options)
 	}
@@ -135,7 +135,7 @@ func (i *index) CreateDocument(ctx context.Context, document interface{}, opts .
 }
 
 func (i *index) UpsertDocument(ctx context.Context, key string, document interface{}, opts ...DocumentOption) (*UpsertResponse[DocumentMeta], error) {
-	options := DefaultDocumentOptions
+	options := NewDefaultDocumentOptions()
 	for _, opt := range opts {
 		opt(options)
 	}
@@ -163,7 +163,7 @@ func (i *index) UpsertDocument(ctx context.Context, key string, document interfa
 }
 
 func (i *index) DeleteDocument(ctx context.Context, key string, opts ...DocumentOption) error {
-	options := DefaultDocumentOptions
+	options := NewDefaultDocumentOptions()
 	for _, opt := range opts {
 		opt(options)
 	}
@@ -196,7 +196,7 @@ func (i *index) DeleteDocumentsByQuery(ctx context.Context, query *types.Query, 
 		return nil, errorx.InvalidArgumentErrorf("query cannot be nil")
 	}
 
-	options := DefaultDocumentOptions
+	options := NewDefaultDocumentOptions()
 	for _, opt := range opts {
 		opt(options)
 	}
@@ -254,7 +254,7 @@ func (i *index) UpdateDocumentsByQuery(ctx context.Context, query *types.Query, 
 		return nil, errorx.InvalidArgumentErrorf("query cannot be nil")
 	}
 
-	options := DefaultDocumentOptions
+	options := NewDefaultDocumentOptions()
 	for _, opt := range opts {
 		opt(options)
 	}

@@ -74,9 +74,11 @@ type documentOptions struct {
 
 type DocumentOption func(*documentOptions)
 
-var DefaultDocumentOptions = &documentOptions{
-	refresh:           refresh.False,
-	waitForCompletion: false,
+func NewDefaultDocumentOptions() *documentOptions {
+	return &documentOptions{
+		refresh:           refresh.False,
+		waitForCompletion: false,
+	}
 }
 
 // WithRefresh sets the refresh option of the document operation.
