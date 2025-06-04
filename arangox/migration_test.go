@@ -522,7 +522,7 @@ func fetchMigrations(t *testing.T, ctx context.Context, db driver.Database, m *M
 
 	defer func() {
 		if err := cur.Close(); err != nil {
-			t.Errorf("Failed to close cursor: %v", err)
+			t.Errorf("failed to close cursor: %v", err)
 		}
 	}()
 
