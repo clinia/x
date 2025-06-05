@@ -169,7 +169,7 @@ func (m *Migrator) Up(ctx context.Context, targetVersion int) error {
 	if targetVersion <= 0 {
 		target = latest
 	} else {
-		target = uint(mathx.Clamp(targetVersion, 0, latestInt))
+		target = uint(mathx.Clamp(targetVersion, 0, latestInt)) //nolint:gosec
 	}
 
 	col, err := m.db.Collection(ctx, m.migrationsCollection)
@@ -228,7 +228,7 @@ func (m *Migrator) Down(ctx context.Context, targetVersion int) error {
 	}
 
 	version := curVersion
-	target := uint(mathx.Clamp(targetVersion, 0, latestInt))
+	target := uint(mathx.Clamp(targetVersion, 0, latestInt)) //nolint:gosec
 
 	for i := len(m.migrations) - 1; i >= 0; i-- {
 		migration := m.migrations[i]

@@ -62,7 +62,7 @@ func (m *memoryPubSub) PublishSync(ctx context.Context, topic messagex.Topic, me
 		if handler, ok := sub.topicHandlers[topic]; !ok || handler == nil {
 			continue
 		} else {
-			handler(ctx, messages)
+			handler(ctx, messages) //nolint:errcheck,gosec
 		}
 	}
 

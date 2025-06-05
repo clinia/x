@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"path/filepath"
 	"testing"
 
 	"github.com/spf13/pflag"
@@ -17,7 +18,7 @@ import (
 )
 
 func newKoanf(ctx context.Context, schemaPath string, configPaths []string, modifiers ...OptionModifier) (*Provider, error) {
-	schema, err := os.ReadFile(schemaPath)
+	schema, err := os.ReadFile(filepath.Clean(schemaPath))
 	if err != nil {
 		return nil, err
 	}

@@ -33,11 +33,7 @@ func TestPublishMessagesToPoisonQueue(t *testing.T) {
 		records := make([]*kgo.Record, 0, 1)
 		pqh := getPoisonQueueHandler(t, l, config)
 		admCl := kadm.NewClient(testClient)
-		defer func() error {
-			// Delete the topic
-			res, err := admCl.DeleteTopics(context.Background(), pqTopic)
-			return errors.Join(err, res.Error())
-		}()
+		defer admCl.DeleteTopics(context.Background(), pqTopic) //nolint:errcheck,gosec
 		err = pqh.PublishMessagesToPoisonQueue(ctx, "failed-topic", "failed-group", []error{}, []*messagex.Message{})
 		assert.NoError(t, err)
 		mut := sync.Mutex{}
@@ -84,11 +80,7 @@ func TestPublishMessagesToPoisonQueue(t *testing.T) {
 		require.NoError(t, err)
 		pqh := getPoisonQueueHandler(t, l, config)
 		admCl := kadm.NewClient(testClient)
-		defer func() error {
-			// Delete the topic
-			res, err := admCl.DeleteTopics(context.Background(), pqTopic)
-			return errors.Join(err, res.Error())
-		}()
+		defer admCl.DeleteTopics(context.Background(), pqTopic) //nolint:errcheck,gosec
 
 		failTopicName := "failed-topic"
 		failGroupName := "failed-group"
@@ -157,11 +149,7 @@ func TestPublishMessagesToPoisonQueue(t *testing.T) {
 		defer cancel()
 		pqh := getPoisonQueueHandler(t, l, config)
 		admCl := kadm.NewClient(testClient)
-		defer func() error {
-			// Delete the topic
-			res, err := admCl.DeleteTopics(context.Background(), pqTopic)
-			return errors.Join(err, res.Error())
-		}()
+		defer admCl.DeleteTopics(context.Background(), pqTopic) //nolint:errcheck,gosec
 		failTopicName := "failed-topic"
 		failGroupName := "failed-group"
 		testErrorMessage := "Test-Error"
@@ -231,11 +219,7 @@ func TestPublishMessagesToPoisonQueue(t *testing.T) {
 		defer cancel()
 		pqh := getPoisonQueueHandler(t, l, config)
 		admCl := kadm.NewClient(testClient)
-		defer func() error {
-			// Delete the topic
-			res, err := admCl.DeleteTopics(context.Background(), pqTopic)
-			return errors.Join(err, res.Error())
-		}()
+		defer admCl.DeleteTopics(context.Background(), pqTopic) //nolint:errcheck,gosec
 		failTopicName := "failed-topic"
 		failGroupName := "failed-group"
 		err = pqh.PublishMessagesToPoisonQueue(ctx, failTopicName, messagex.ConsumerGroup(failGroupName), []error{errors.New("Test-Error")}, []*messagex.Message{
@@ -303,11 +287,7 @@ func TestPublishMessagesToPoisonQueue(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		admCl := kadm.NewClient(testClient)
-		defer func() error {
-			// Delete the topic
-			res, err := admCl.DeleteTopics(context.Background(), pqTopic)
-			return errors.Join(err, res.Error())
-		}()
+		defer admCl.DeleteTopics(context.Background(), pqTopic) //nolint:errcheck,gosec
 		pqh := getPoisonQueueHandler(t, l, config)
 		failTopicName := "failed-topic"
 		failGroupName := "failed-group"

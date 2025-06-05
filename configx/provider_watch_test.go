@@ -33,6 +33,8 @@ func tmpConfigFile(t *testing.T, dsn, foo string) *os.File {
 	config := fmt.Sprintf("dsn: %s\nfoo: %s\n", dsn, foo)
 
 	tdir := filepath.Join(os.TempDir(), strconv.FormatInt(time.Now().UnixNano(), 10))
+
+	// nolint:gosec
 	require.NoError(t,
 		os.MkdirAll(tdir, // DO NOT CHANGE THIS: https://github.com/fsnotify/fsnotify/issues/340
 			os.ModePerm))
@@ -92,7 +94,7 @@ func checkLsof(t *testing.T, file string) string {
 	}
 
 	var b bytes.Buffer
-	c := exec.Command("bash", "-c", "lsof -n | grep '"+file+"' | wc -l")
+	c := exec.Command("bash", "-c", "lsof -n | grep '"+file+"' | wc -l") //nolint:gosec
 	c.Stdout = &b
 	require.NoError(t, c.Run(), c.String())
 	return b.String()
