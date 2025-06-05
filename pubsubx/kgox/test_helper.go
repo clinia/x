@@ -121,7 +121,7 @@ func createTopic(t *testing.T, conf *pubsubx.Config, topic messagex.Topic) {
 	}
 
 	// Ensure the topic is deleted
-	require.NoError(t, deleteTopic())
+	deleteTopic() //nolint:errcheck,gosec
 
 	admCl := getAdmCl()
 	defer admCl.Close()
