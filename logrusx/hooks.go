@@ -16,14 +16,14 @@ func NewRequestIdHook(requestIdContextKey interface{}, requestIdFieldKey string)
 	}
 }
 
-func (irh *requestIdHook) Levels() []logrus.Level {
+func (rih *requestIdHook) Levels() []logrus.Level {
 	return logrus.AllLevels
 }
 
 func (rih *requestIdHook) Fire(entry *logrus.Entry) error {
 	defer func() {
 		// Nullify panic to prevent having this hook break a request
-		recover()
+		recover() //nolint:errcheck
 	}()
 	if entry == nil || entry.Context == nil || entry.Data == nil {
 		return nil

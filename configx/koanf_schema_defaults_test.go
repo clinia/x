@@ -8,6 +8,7 @@ import (
 	"context"
 	"os"
 	"path"
+	"path/filepath"
 	"testing"
 
 	"github.com/clinia/x/snapshotx"
@@ -17,7 +18,7 @@ import (
 )
 
 func TestKoanfSchemaDefaults(t *testing.T) {
-	schemaPath := path.Join("stub", "domain-aliases", "config.schema.json")
+	schemaPath := filepath.Clean(path.Join("stub", "domain-aliases", "config.schema.json"))
 
 	rawSchema, err := os.ReadFile(schemaPath)
 	require.NoError(t, err)

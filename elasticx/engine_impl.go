@@ -81,7 +81,10 @@ func (e *engine) Remove(ctx context.Context) error {
 
 	// Delete all engine indices
 	for _, catIndex := range indices {
-		e.es.Indices.Delete(*catIndex.Index).Do(ctx)
+		_, err = e.es.Indices.Delete(*catIndex.Index).Do(ctx)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Remove engine info from server

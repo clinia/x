@@ -33,6 +33,8 @@ func tmpConfigFile(t *testing.T, dsn, foo string) *os.File {
 	config := fmt.Sprintf("dsn: %s\nfoo: %s\n", dsn, foo)
 
 	tdir := filepath.Join(os.TempDir(), strconv.FormatInt(time.Now().UnixNano(), 10))
+
+	// nolint:gosec
 	require.NoError(t,
 		os.MkdirAll(tdir, // DO NOT CHANGE THIS: https://github.com/fsnotify/fsnotify/issues/340
 			os.ModePerm))
@@ -92,7 +94,7 @@ func checkLsof(t *testing.T, file string) string {
 	}
 
 	var b bytes.Buffer
-	c := exec.Command("bash", "-c", "lsof -n | grep '"+file+"' | wc -l")
+	c := exec.Command("bash", "-c", "lsof -n | grep '"+file+"' | wc -l") //nolint:gosec
 	c.Stdout = &b
 	require.NoError(t, c.Run(), c.String())
 	return b.String()
@@ -137,7 +139,12 @@ func TestProviderReload(t *testing.T) {
 
 	t.Run("case=rejects not validating changes", func(t *testing.T) {
 		configFile := tmpConfigFile(t, "memory", "bar")
-		defer configFile.Close()
+		defer func() {
+			if err := configFile.Close(); err != nil {
+				t.Errorf("failed to close cursor: %v", err)
+			}
+		}()
+
 		c := make(chan struct{})
 		p, l := setup(t, configFile, c)
 		hook := test.NewLocal(l.Entry.Logger)
@@ -171,7 +178,12 @@ func TestProviderReload(t *testing.T) {
 
 	t.Run("case=rejects to update immutable", func(t *testing.T) {
 		configFile := tmpConfigFile(t, "memory", "bar")
-		defer configFile.Close()
+		defer func() {
+			if err := configFile.Close(); err != nil {
+				t.Errorf("failed to close cursor: %v", err)
+			}
+		}()
+
 		c := make(chan struct{})
 		p, l := setup(t, configFile, c,
 			WithImmutables("dsn"))
@@ -202,7 +214,12 @@ func TestProviderReload(t *testing.T) {
 
 	t.Run("case=runs without validation errors", func(t *testing.T) {
 		configFile := tmpConfigFile(t, "some string", "bar")
-		defer configFile.Close()
+		defer func() {
+			if err := configFile.Close(); err != nil {
+				t.Errorf("failed to close cursor: %v", err)
+			}
+		}()
+
 		c := make(chan struct{})
 		p, l := setup(t, configFile, c)
 		hook := test.NewLocal(l.Entry.Logger)
@@ -214,7 +231,12 @@ func TestProviderReload(t *testing.T) {
 
 	t.Run("case=runs and reloads", func(t *testing.T) {
 		configFile := tmpConfigFile(t, "some string", "bar")
-		defer configFile.Close()
+		defer func() {
+			if err := configFile.Close(); err != nil {
+				t.Errorf("failed to close cursor: %v", err)
+			}
+		}()
+
 		c := make(chan struct{})
 		p, l := setup(t, configFile, c)
 		hook := test.NewLocal(l.Entry.Logger)
@@ -229,7 +251,12 @@ func TestProviderReload(t *testing.T) {
 
 	t.Run("case=has with validation errors", func(t *testing.T) {
 		configFile := tmpConfigFile(t, "some string", "not bar")
-		defer configFile.Close()
+		defer func() {
+			if err := configFile.Close(); err != nil {
+				t.Errorf("failed to close cursor: %v", err)
+			}
+		}()
+
 		l := logrusx.New("", "")
 		hook := test.NewLocal(l.Entry.Logger)
 

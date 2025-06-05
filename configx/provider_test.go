@@ -201,7 +201,7 @@ func TestAdvancedConfigs(t *testing.T) {
 			}
 			require.NoError(t, err)
 
-			out, err := k.Koanf.Marshal(json.Parser())
+			out, err := k.Marshal(json.Parser())
 			require.NoError(t, err)
 			assert.JSONEq(t, string(expected), string(out), "%s", out)
 

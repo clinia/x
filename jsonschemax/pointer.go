@@ -18,8 +18,8 @@ func JSONPointerToDotNotation(pointer string) (string, error) {
 
 	var path []string
 	for _, item := range strings.Split(strings.TrimPrefix(pointer, "#/"), "/") {
-		item = strings.Replace(item, "~1", "/", -1)
-		item = strings.Replace(item, "~0", "~", -1)
+		item = strings.ReplaceAll(item, "~1", "/")
+		item = strings.ReplaceAll(item, "~0", "~")
 		item, err := url.PathUnescape(item)
 		if err != nil {
 			return "", err

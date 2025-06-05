@@ -92,10 +92,10 @@ func (e *Env) Watch(cb func(event interface{}, err error)) error {
 }
 
 func (e *Env) extract(key string, value string) (string, interface{}) {
-	key = strings.Replace(strings.ToLower(strings.TrimPrefix(key, e.prefix)), "_", ".", -1)
+	key = strings.ReplaceAll(strings.ToLower(strings.TrimPrefix(key, e.prefix)), "_", ".")
 
 	for _, path := range e.paths {
-		normalized := strings.Replace(path.Name, "_", ".", -1)
+		normalized := strings.ReplaceAll(path.Name, "_", ".")
 		name := path.Name
 
 		// Crazy hack to get arrays working.

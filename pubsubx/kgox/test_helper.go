@@ -46,13 +46,13 @@ func newProxyFixture(t *testing.T) *proxyFixture {
 
 func (f *proxyFixture) EnableAll() {
 	for _, p := range f.proxies {
-		p.Enable()
+		_ = p.Enable()
 	}
 }
 
 func (f *proxyFixture) DisableAll() {
 	for _, p := range f.proxies {
-		p.Disable()
+		_ = p.Disable()
 	}
 }
 
@@ -121,7 +121,7 @@ func createTopic(t *testing.T, conf *pubsubx.Config, topic messagex.Topic) {
 	}
 
 	// Ensure the topic is deleted
-	deleteTopic()
+	deleteTopic() //nolint:errcheck,gosec
 
 	admCl := getAdmCl()
 	defer admCl.Close()

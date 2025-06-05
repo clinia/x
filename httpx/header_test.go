@@ -13,7 +13,7 @@ func TestSetCliniaHealthyHeader(t *testing.T) {
 	})
 	t.Run("should add the clinia healthy header as being healthy", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		SetCliniaHealthyHeader(w)
+		_ = SetCliniaHealthyHeader(w)
 		h := w.Header().Get(CliniaHealthyHeaderKey)
 		assert.Contains(t, h, CliniaHealthyValue)
 	})
@@ -25,7 +25,7 @@ func TestSetCliniaUnHealthyHeader(t *testing.T) {
 	})
 	t.Run("should add the clinia healthy header as being unhealthy", func(t *testing.T) {
 		w := httptest.NewRecorder()
-		SetCliniaUnHealthyHeader(w)
+		_ = SetCliniaUnHealthyHeader(w)
 		h := w.Header().Get(CliniaHealthyHeaderKey)
 		assert.Contains(t, h, CliniaUnHealthyValue)
 	})

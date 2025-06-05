@@ -45,7 +45,7 @@ func (e *CliniaError) IsRetryable() bool {
 func NewCliniaErrorFromMessage(msg string) (*CliniaError, error) {
 	r, _ := regexp.Compile(`\[(.*?)\] (.*)`)
 	m := r.FindStringSubmatch(msg)
-	if m == nil || len(m) < 2 {
+	if len(m) < 2 {
 		return nil, fmt.Errorf("%q is not a valid error type", msg)
 	}
 

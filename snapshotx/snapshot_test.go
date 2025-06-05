@@ -30,7 +30,7 @@ func TestDeleteMatches(t *testing.T) {
 			return nil
 		}
 
-		f, err := os.ReadFile(path)
+		f, err := os.ReadFile(path) //nolint:gosec
 		if err != nil {
 			return err
 		}

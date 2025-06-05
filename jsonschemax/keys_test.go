@@ -8,7 +8,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/clinia/x/snapshotx"
@@ -60,7 +61,7 @@ const recursiveSchema = `{
 }`
 
 func readFile(t *testing.T, path string) string {
-	schema, err := ioutil.ReadFile(path)
+	schema, err := os.ReadFile(filepath.Clean(path))
 	require.NoError(t, err)
 	return string(schema)
 }
