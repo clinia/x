@@ -912,13 +912,13 @@ func consumer_Subscribe_Concurrency_test(t *testing.T, eae bool) {
 
 	t.Run("should be able to consume multiple topics and abort from one topic failure", func(t *testing.T) {
 		group, topics := getRandomGroupTopics(t, 3)
-		counter := make([]atomic.Int64, len(topics))
+		counter := make([]atomic.Int32, len(topics))
 		wClient := getWriteClient(t)
 		hs := make(pubsubx.Handlers, len(topics))
 		for i, topic := range topics {
 			createTopic(t, config, topic)
 			hs[topic] = func(ctx context.Context, msgs []*messagex.Message) ([]error, error) {
-				counter[i].Add(int64(len(msgs)))
+				counter[i].Add(int32(len(msgs))) // nolint:gosec
 				var err error = nil
 				errs := make([]error, len(msgs))
 				for _, msg := range msgs {
