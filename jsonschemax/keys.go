@@ -297,7 +297,7 @@ func listPaths(schema *jsonschema.Schema, parent *jsonschema.Schema, parents []s
 		pathTypeHint = JSON
 	}
 
-	var def = schema.Default
+	def := schema.Default
 	if v, ok := def.(json.Number); ok {
 		def, _ = v.Float64()
 	}
