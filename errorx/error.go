@@ -24,6 +24,8 @@ func (e CliniaError) Error() string {
 	return fmt.Sprintf("[%s] %s", e.Type.String(), e.Message)
 }
 
+type CliniaFunctionErrorGenerator func(format string, args ...interface{}) CliniaError
+
 // WithDetails allows to attach multiple errors to the error
 func (e *CliniaError) WithDetails(details ...CliniaError) CliniaError {
 	if e.Details == nil {
