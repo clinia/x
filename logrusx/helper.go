@@ -196,6 +196,17 @@ func (l *Logger) WithField(key string, value interface{}) *Logger {
 	return &ll
 }
 
+func (l *Logger) WithSpanStartOptions(opts ...trace.SpanStartOption) *Logger {
+	sc := trace.NewSpanStartConfig(opts...)
+	ll := l.WithFields(NewLogFields(
+		sc.Attributes()...,
+	))
+	if sc.StackTrace() {
+		ll = ll.WithStackTrace()
+	}
+	return ll
+}
+
 func (l *Logger) WithStackTrace() *Logger {
 	stackTrace := internaltracex.GetStackTrace(2)
 	return l.WithFields(NewLogFields(semconv.ExceptionStacktrace(stackTrace)))
