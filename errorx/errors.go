@@ -1,11 +1,11 @@
 package errorx
 
-func OutputErrsMatchInputLength(errsLength, inputLength int, err error) error {
+func OutputErrsMatchInputLength(errs []error, inputLength int, err error) ([]error, error) {
 	if err != nil {
-		return err
+		return make([]error, inputLength), err
 	}
-	if errsLength != inputLength {
-		return InternalErrorf("a different length of errors (%d) then the input length (%d) was returned", errsLength, inputLength)
+	if len(errs) != inputLength {
+		return make([]error, inputLength), InternalErrorf("a different length of errors (%d) then the input length (%d) was returned", len(errs), inputLength)
 	}
-	return nil
+	return errs, nil
 }
