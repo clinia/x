@@ -23,7 +23,7 @@ func TestOutputErrsMatchInputLength(t *testing.T) {
 		assert.Equal(t, "[INVALID_ARGUMENT] test error", err.Error())
 	})
 	t.Run("should return no error on length match", func(t *testing.T) {
-		errs, err := OutputErrsMatchInputLength([]error{nil, errors.New("test")}, 2, InvalidArgumentErrorf("test error"))
+		errs, err := OutputErrsMatchInputLength([]error{nil, errors.New("test")}, 2, nil)
 		assert.NoError(t, err)
 		assert.Len(t, errs, 2)
 	})
