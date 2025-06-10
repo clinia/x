@@ -5,4 +5,4 @@ linters:
     - govet
     - staticcheck
   disable:
-    - unused
+    - unused # Had to add this because we are not running linter on _test files and linter thinks that some func's are unused
