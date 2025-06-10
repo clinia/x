@@ -8,8 +8,10 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-type loggerProvider func(ctx context.Context) *logrusx.Logger
-type tracerProvider func(ctx context.Context) *otelx.Tracer
+type (
+	loggerProvider func(ctx context.Context) *logrusx.Logger
+	tracerProvider func(ctx context.Context) *otelx.Tracer
+)
 
 func ComponentName(packageName, structName string) string {
 	return packageName + "." + structName
