@@ -179,7 +179,7 @@ func makeUnique(in byName) (byName, error) {
 			continue
 		}
 
-		if fmt.Sprintf("%T", p.Type) != fmt.Sprintf("%T", p.Type) {
+		if fmt.Sprintf("%T", p.Type) != fmt.Sprintf("%T", vc.Type) {
 			return nil, errors.Errorf("multiple types %+v are not supported for path: %s", []interface{}{p.Type, vc.Type}, p.Name)
 		}
 
@@ -297,7 +297,7 @@ func listPaths(schema *jsonschema.Schema, parent *jsonschema.Schema, parents []s
 		pathTypeHint = JSON
 	}
 
-	var def interface{} = schema.Default
+	var def = schema.Default
 	if v, ok := def.(json.Number); ok {
 		def, _ = v.Float64()
 	}

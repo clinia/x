@@ -284,7 +284,7 @@ func (m *Migrator) Up(ctx context.Context, targetVersion int) error {
 			return err
 		}
 
-		target = uint(mathx.Clamp(targetVersion, 0, latestInt))
+		target = uint(mathx.Clamp(targetVersion, 0, latestInt)) //nolint:errcheck,gosec
 	}
 
 	version := currentVersion.Version
@@ -331,7 +331,7 @@ func (m *Migrator) Down(ctx context.Context, targetVersion int) error {
 		return err
 	}
 
-	target := uint(mathx.Clamp(targetVersion, 0, latestVerInt))
+	target := uint(mathx.Clamp(targetVersion, 0, latestVerInt)) //nolint:errcheck,gosec
 	version := currentVersion.Version
 
 	for i := len(m.migrations) - 1; i >= 0; i-- {

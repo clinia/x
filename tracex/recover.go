@@ -13,7 +13,7 @@ func RecoverWithStackTracef(l *logrusx.Logger, msg string, args ...interface{}) 
 	// We don't want the recoverer itself to panic - that would be a shame.
 	defer func() {
 		// We ignore it here, as we only want to recover from panics that happen in the recover without doing anything with them.
-		recover()
+		recover() //nolint:errcheck,gosec
 	}()
 
 	if r := recover(); r != nil {

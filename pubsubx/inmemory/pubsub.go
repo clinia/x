@@ -47,7 +47,7 @@ func (m *memoryPubSub) Close() error {
 
 // PublishAsync implements Publisher.
 func (m *memoryPubSub) PublishAsync(ctx context.Context, topic messagex.Topic, messages ...*messagex.Message) error {
-	go m.PublishSync(ctx, topic, messages...)
+	go m.PublishSync(ctx, topic, messages...) //nolint:errcheck,gosec
 	return nil
 }
 
@@ -60,7 +60,7 @@ func (m *memoryPubSub) PublishSync(ctx context.Context, topic messagex.Topic, me
 		if handler, ok := sub.topicHandlers[topic]; !ok || handler == nil {
 			continue
 		} else {
-			handler(ctx, messages)
+			handler(ctx, messages) //nolint:errcheck,gosec
 		}
 	}
 
