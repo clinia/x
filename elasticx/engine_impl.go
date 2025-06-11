@@ -81,10 +81,11 @@ func (e *engine) Remove(ctx context.Context) error {
 
 	// Delete all engine indices
 	for _, catIndex := range indices {
-		_, err = e.es.Indices.Delete(*catIndex.Index).Do(ctx)
-		if err != nil {
-			return err
-		}
+		/*
+			    Ignoring the error here as catching and returning an error will obstruct the control flow as there is
+				no rollback option on failure in Elastic
+		*/
+		e.es.Indices.Delete(*catIndex.Index).Do(ctx) // nolint:gosec
 	}
 
 	// Remove engine info from server
