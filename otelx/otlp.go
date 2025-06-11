@@ -83,7 +83,7 @@ func getTraceExporter(c *TracerConfig) (*otlptrace.Exporter, error) {
 		// Set up a connection to the OTLP server.
 		conn, err := grpc.NewClient(c.Providers.OTLP.ServerURL, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		if err != nil {
-			errors.Errorf("failed to connect to OTLP gRPC endpoint: %s", err) //nolint:errcheck,gosec
+			return nil, errors.Errorf("failed to connect to OTLP gRPC endpoint: %s", err)
 		}
 
 		// Set up a trace exporter
