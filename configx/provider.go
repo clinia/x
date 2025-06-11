@@ -297,8 +297,8 @@ func (p *Provider) reload(e watcherx.Event) {
 	}
 
 	for _, key := range p.immutables {
-		if !reflect.DeepEqual(p.Koanf.Get(key), nk.Get(key)) {
-			err = NewImmutableError(key, fmt.Sprintf("%v", p.Koanf.Get(key)), fmt.Sprintf("%v", nk.Get(key)))
+		if !reflect.DeepEqual(p.Get(key), nk.Get(key)) {
+			err = NewImmutableError(key, fmt.Sprintf("%v", p.Get(key)), fmt.Sprintf("%v", nk.Get(key)))
 			return // unlocks & runs changes in defer
 		}
 	}
@@ -340,7 +340,7 @@ func (p *Provider) BoolF(key string, fallback bool) bool {
 	p.l.RLock()
 	defer p.l.RUnlock()
 
-	if !p.Koanf.Exists(key) {
+	if !p.Exists(key) {
 		return fallback
 	}
 
@@ -351,7 +351,7 @@ func (p *Provider) StringF(key string, fallback string) string {
 	p.l.RLock()
 	defer p.l.RUnlock()
 
-	if !p.Koanf.Exists(key) {
+	if !p.Exists(key) {
 		return fallback
 	}
 
@@ -362,7 +362,7 @@ func (p *Provider) StringsF(key string, fallback []string) (val []string) {
 	p.l.RLock()
 	defer p.l.RUnlock()
 
-	if !p.Koanf.Exists(key) {
+	if !p.Exists(key) {
 		return fallback
 	}
 
@@ -373,7 +373,7 @@ func (p *Provider) IntF(key string, fallback int) (val int) {
 	p.l.RLock()
 	defer p.l.RUnlock()
 
-	if !p.Koanf.Exists(key) {
+	if !p.Exists(key) {
 		return fallback
 	}
 
@@ -384,7 +384,7 @@ func (p *Provider) Float64F(key string, fallback float64) (val float64) {
 	p.l.RLock()
 	defer p.l.RUnlock()
 
-	if !p.Koanf.Exists(key) {
+	if !p.Exists(key) {
 		return fallback
 	}
 
@@ -395,7 +395,7 @@ func (p *Provider) DurationF(key string, fallback time.Duration) (val time.Durat
 	p.l.RLock()
 	defer p.l.RUnlock()
 
-	if !p.Koanf.Exists(key) {
+	if !p.Exists(key) {
 		return fallback
 	}
 
@@ -406,11 +406,11 @@ func (p *Provider) ByteSizeF(key string, fallback bytesize.ByteSize) bytesize.By
 	p.l.RLock()
 	defer p.l.RUnlock()
 
-	if !p.Koanf.Exists(key) {
+	if !p.Exists(key) {
 		return fallback
 	}
 
-	switch v := p.Koanf.Get(key).(type) {
+	switch v := p.Get(key).(type) {
 	case string:
 		// this type usually comes from user input
 		dec, err := bytesize.Parse(v)

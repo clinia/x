@@ -1,9 +1,21 @@
+version: '2'
 linters:
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    paths:
+      - .+_test.go
+      - third_party$
+      - builtin$
+      - examples$
   enable:
     - gosec
     - govet
-  disable-all: true
-
-issues:
-  exclude-files:
-    - ".*_test.go"
+    - staticcheck
+  disable:
+    - unused # Had to add this because we are not running linter on _test files and linter thinks that some func's are unused
+    - errcheck

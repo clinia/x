@@ -59,10 +59,10 @@ jobs:
           fi
 
       - name: Lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v8
         with:
-          version: v1.60.3
-          args: --timeout=5m
+          version: v2.1
+          args: --timeout=5m --tests=false
 
       - name: Test
         env:

@@ -12,7 +12,7 @@ test_kafka_race:
 
 .PHONY: lint
 lint:
-	golangci-lint run
+	golangci-lint run --tests=false
 
 .PHONY: format
 format:

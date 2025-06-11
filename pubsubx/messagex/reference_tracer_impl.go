@@ -49,13 +49,12 @@ func (m messageReferenceTracer) AttachMessageProcessingSpan(ctx context.Context,
 // StartMessageProcessingSpan implements MessageReferenceTracer.
 func (m messageReferenceTracer) StartMessageProcessingSpan(ctx context.Context, name string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
 	originalMsgCtx := context.Background()
-	topts := opts
 	originalMsgCtx = m.Message().ExtractTraceContext(originalMsgCtx)
-	topts = append(opts, trace.WithLinks(
+	opts = append(opts, trace.WithLinks(
 		trace.LinkFromContext(originalMsgCtx),
 	))
 
-	ctx, currentSpan := m.tr.Start(ctx, name, topts...)
+	ctx, currentSpan := m.tr.Start(ctx, name, opts...)
 
 	m.recordReferenceSpan(originalMsgCtx, currentSpan)
 
