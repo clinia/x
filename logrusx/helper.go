@@ -196,14 +196,12 @@ func (l *Logger) WithField(key string, value interface{}) *Logger {
 	return &ll
 }
 
+// This only adds the attribute within the SparStartOptions
 func (l *Logger) WithSpanStartOptions(opts ...trace.SpanStartOption) *Logger {
 	sc := trace.NewSpanStartConfig(opts...)
 	ll := l.WithFields(NewLogFields(
 		sc.Attributes()...,
 	))
-	if sc.StackTrace() {
-		ll = ll.WithStackTrace()
-	}
 	return ll
 }
 
