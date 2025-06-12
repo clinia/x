@@ -13,10 +13,10 @@ that expect this to not return any error and is also not returning error. It fal
 becomes
 
 	s := MyStruct{
-		objField: testx.AssertAndPanicOnError(MyFunc())
+		objField: utilx.Must(MyFunc())
 	}
 */
-func ReturnOrPanicOnError[T any](item T, err error) T {
+func Must[T any](item T, err error) T {
 	if err != nil {
 		panic(err.Error())
 	}

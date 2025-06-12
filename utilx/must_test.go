@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestReturnOrPanicOnError(t *testing.T) {
+func TestMust(t *testing.T) {
 	errFunc := func() (*struct{}, error) {
 		return nil, errors.New("my error")
 	}
@@ -16,10 +16,10 @@ func TestReturnOrPanicOnError(t *testing.T) {
 	}
 	t.Run("should panic when error returned", func(t *testing.T) {
 		assert.Panics(t, func() {
-			ReturnOrPanicOnError(errFunc())
+			Must(errFunc())
 		})
 	})
 	t.Run("should return value when no error", func(t *testing.T) {
-		assert.NotNil(t, ReturnOrPanicOnError(returnFunc()))
+		assert.NotNil(t, Must(returnFunc()))
 	})
 }
