@@ -63,8 +63,9 @@ type Provider struct {
 	baseValues   []tuple
 	files        []string
 
-	skipValidation    bool
-	disableEnvLoading bool
+	skipValidation      bool
+	disableFileWatching bool
+	disableEnvLoading   bool
 
 	logger *logrusx.Logger
 
@@ -169,12 +170,17 @@ func (p *Provider) createProviders(ctx context.Context) (providers []koanf.Provi
 			return nil, err
 		}
 
-		c := make(watcherx.EventChannel)
-		if _, err := fp.WatchChannel(c); err != nil {
-			return nil, err
-		}
+		if p.disableFileWatching {
+			p.logger.WithField("file", path).Debugf("Not watching file for changes, disabled by configuration.")
+		} else {
+			p.logger.WithField("file", path).Debugf("Watching file for changes.")
+			c := make(watcherx.EventChannel)
+			if _, err := fp.WatchChannel(c); err != nil {
+				return nil, err
+			}
 
-		go p.watchForFileChanges(c)
+			go p.watchForFileChanges(c)
+		}
 
 		providers = append(providers, fp)
 	}
