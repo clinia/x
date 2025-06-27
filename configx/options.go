@@ -62,6 +62,12 @@ func SkipValidation() OptionModifier {
 	}
 }
 
+func DisableFileWatching() OptionModifier {
+	return func(p *Provider) {
+		p.disableFileWatching = true
+	}
+}
+
 func DisableEnvLoading() OptionModifier {
 	return func(p *Provider) {
 		p.disableEnvLoading = true

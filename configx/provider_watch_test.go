@@ -289,4 +289,48 @@ func TestProviderReload(t *testing.T) {
 
 		assert.Equal(t, "new", dsn)
 	})
+
+	t.Run("case=does not watch files when DisableFileWatching is set", func(t *testing.T) {
+		configFile := tmpConfigFile(t, "initial", "bar")
+		defer configFile.Close()
+		c := make(chan struct{})
+		p, l := setup(t, configFile, c, DisableFileWatching())
+		hook := test.NewLocal(l.Entry.Logger)
+
+		// Verify initial values
+		assert.Equal(t, []*logrus.Entry{}, hook.AllEntries())
+		assert.Equal(t, "initial", p.String("dsn"))
+		assert.Equal(t, "bar", p.String("foo"))
+
+		// Drain the channel to ensure no previous signals are present
+		select {
+		case <-c:
+		default:
+		}
+		// Modify the config file directly (without using the channel since we're not watching)
+		config := "dsn: changed\nfoo: modified\nbaz: new"
+		_, err := configFile.Seek(0, 0)
+		require.NoError(t, err)
+		require.NoError(t, configFile.Truncate(0))
+		_, err = io.WriteString(configFile, config)
+		require.NoError(t, err)
+		require.NoError(t, configFile.Sync())
+
+		// Wait a bit to ensure any potential watcher would have triggered
+		select {
+		case <-c:
+			t.Fatal("Expected no changes to be detected, but got a signal")
+		case <-time.After(time.Millisecond * 100):
+			// All good
+		}
+
+		// Values should remain unchanged since file watching is disabled
+		modifiedDsn := p.String("dsn")
+		modifiedFoo := p.String("foo")
+		newBaz := p.String("baz")
+		assert.Equal(t, "initial", modifiedDsn)
+		assert.Equal(t, "bar", modifiedFoo)
+		// baz key didn't exist initially, so it should still be empty
+		assert.Equal(t, "", newBaz)
+	})
 }
