@@ -15,6 +15,7 @@ import (
 	"github.com/elastic/go-elasticsearch/v8"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/core/bulk"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/core/msearch"
+	"github.com/elastic/go-elasticsearch/v8/typedapi/core/scroll"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/core/search"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/indices/create"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types"
@@ -134,6 +135,29 @@ func (e *engine) Search(ctx context.Context, request *search.Request, indices []
 	}
 
 	return s.Do(ctx)
+}
+
+func (e *engine) Scroll(ctx context.Context, req *scroll.Request) (*scroll.Response, error) {
+	if req == nil {
+		return nil, errorx.InvalidArgumentErrorf("request is nil")
+	}
+
+	if len(req.ScrollId) == 0 {
+		return nil, errorx.InvalidArgumentErrorf("scroll ID is required")
+	}
+
+	s := e.es.Scroll().Request(req)
+
+	res, err := s.Do(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, hit := range res.Hits.Hits {
+		hit.Index_ = IndexName(hit.Index_).Name()
+	}
+
+	return res, nil
 }
 
 func (e *engine) MultiSearch(ctx context.Context, queries []elasticxmsearch.Item, opts ...elasticxmsearch.Option) (*msearch.Response, error) {

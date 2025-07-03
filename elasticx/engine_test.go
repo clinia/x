@@ -1,15 +1,18 @@
 package elasticx
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/clinia/x/assertx"
 	elasticxbulk "github.com/clinia/x/elasticx/bulk"
 	elasticxmsearch "github.com/clinia/x/elasticx/msearch"
+	elasticxsearch "github.com/clinia/x/elasticx/search"
 	"github.com/clinia/x/jsonx"
 	"github.com/clinia/x/pointerx"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/core/bulk"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/core/msearch"
+	"github.com/elastic/go-elasticsearch/v8/typedapi/core/scroll"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/core/search"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/dynamicmapping"
@@ -315,6 +318,99 @@ func TestEngineQuery(t *testing.T) {
 	t.Cleanup(func() {
 		err := engine.Remove(ctx)
 		assert.NoError(t, err)
+	})
+}
+
+func TestEngineScroll(t *testing.T) {
+	f := newTestFixture(t)
+	ctx := f.ctx
+
+	name := "test-engine-scroll"
+
+	engine := f.setupEngine(t, name)
+
+	t.Cleanup(func() {
+		err := engine.Remove(ctx)
+		assert.NoError(t, err)
+	})
+
+	index, err := engine.CreateIndex(ctx, "index-1", &CreateIndexOptions{
+		Mappings: &types.TypeMapping{
+			Dynamic: &dynamicmapping.Strict,
+			Properties: map[string]types.Property{
+				"id":   types.NewIntegerNumberProperty(),
+				"name": &types.TextProperty{},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	ops := make([]elasticxbulk.Operation, 0, 100)
+	for i := range 100 {
+		ops = append(ops, elasticxbulk.Operation{
+			IndexName:  index.Info().Name,
+			Action:     elasticxbulk.ActionIndex,
+			DocumentID: fmt.Sprintf("%d", i),
+			Doc: map[string]any{
+				"id":   i,
+				"name": fmt.Sprintf("test-%d", i),
+			},
+		})
+	}
+
+	res, err := engine.Bulk(ctx, ops, elasticxbulk.Refresh(refresh.Waitfor))
+	require.NoError(t, err)
+	require.False(t, res.Errors)
+
+	t.Run("should be able to execute a scroll", func(t *testing.T) {
+		res, err := engine.Search(ctx, &search.Request{
+			Query: &types.Query{
+				MatchAll: &types.MatchAllQuery{},
+			},
+			Size: pointerx.Ptr(10),
+			Sort: []types.SortCombinations{
+				types.SortOptions{
+					SortOptions: map[string]types.FieldSort{
+						"id": {},
+					},
+				},
+			},
+		}, []string{index.Info().Name}, elasticxsearch.Scroll("2m"))
+		require.NoError(t, err)
+
+		assert.NotNil(t, res.ScrollId_)
+
+		// Assert batch
+		assertBatch := func(batch []types.Hit, start int) {
+			for i, hit := range batch {
+				assert.Equal(t, jsonx.RawMessage(fmt.Sprintf(`{"id":%d,"name":"test-%d"}`, start+i, start+i)), hit.Source_)
+			}
+		}
+
+		assertBatch(res.Hits.Hits, 0)
+
+		scrollId := res.ScrollId_
+		for i := 10; i < 100; i += 10 {
+			scrollRes, err := engine.Scroll(ctx, &scroll.Request{
+				ScrollId: *scrollId,
+				Scroll:   "2m",
+			})
+			require.NoError(t, err)
+
+			assert.NotNil(t, scrollRes.ScrollId_, fmt.Sprintf("scroll ID should not be nil i=%d", i))
+
+			// Assert batch
+			assertBatch(scrollRes.Hits.Hits, i)
+
+			scrollId = res.ScrollId_
+		}
+	})
+
+	t.Run("should return an error if scroll ID is not provided", func(t *testing.T) {
+		_, err := engine.Scroll(ctx, &scroll.Request{
+			Scroll: "2m",
+		})
+		assert.EqualError(t, err, "[INVALID_ARGUMENT] scroll ID is required")
 	})
 }
 

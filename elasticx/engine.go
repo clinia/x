@@ -8,6 +8,7 @@ import (
 	elasticxsearch "github.com/clinia/x/elasticx/search"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/core/bulk"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/core/msearch"
+	"github.com/elastic/go-elasticsearch/v8/typedapi/core/scroll"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/core/search"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types"
 )
@@ -29,6 +30,9 @@ type Engine interface {
 
 	// Search performs a search request to Elastic Search
 	Search(ctx context.Context, query *search.Request, indices []string, opts ...elasticxsearch.Option) (*search.Response, error)
+
+	// Scroll performs a scroll request to Elastic Search
+	Scroll(ctx context.Context, req *scroll.Request) (*scroll.Response, error)
 
 	// MultiSearch performs a multi search request to Elastic Search
 	MultiSearch(ctx context.Context, items []elasticxmsearch.Item, opts ...elasticxmsearch.Option) (*msearch.Response, error)
