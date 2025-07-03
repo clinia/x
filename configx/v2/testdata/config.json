@@ -1,0 +1,13 @@
+{
+  "server": {
+    "host": "json-host",
+    "port": 7070
+  },
+  "database": {
+    "host": "json-db",
+    "port": 3306,
+    "name": "jsondb",
+    "username": "jsonuser",
+    "password": "jsonpass123"
+  }
+}

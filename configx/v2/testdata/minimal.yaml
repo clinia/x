@@ -1,0 +1,10 @@
+server:
+  host: "minimal"
+  port: 3000
+
+database:
+  host: "localhost"
+  port: 5432
+  name: "test"
+  username: "user"
+  password: "password"
