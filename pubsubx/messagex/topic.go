@@ -65,7 +65,7 @@ func BaseTopicFromName(topicName string) Topic {
 func ExtractScopeFromTopic(topic string) (scope string, topicWithoutScope Topic, err error) {
 	splits := strings.Split(topic, TopicSeparator)
 	if len(splits) < 2 {
-		return "", "", errorx.InvalidArgumentErrorf("topic %s does not have a valid format, expected at least scope and topic name", topic)
+		return "", "", errorx.InvalidArgumentErrorf("topic '%s' does not have a valid format, expected at least scope and topic name", topic)
 	}
 	return splits[0], Topic(strings.Join(splits[1:], TopicSeparator)), nil
 }
