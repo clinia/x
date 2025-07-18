@@ -27,7 +27,7 @@ func (group ConsumerGroup) ConsumerGroup(scope string) string {
 func ExtractScopeFromConsumerGroup(group string) (scope string, groupWithoutScope ConsumerGroup, err error) {
 	splits := strings.Split(group, ConsumerGroupSeparator)
 	if len(splits) < 2 {
-		return "", "", errorx.InvalidArgumentErrorf("group %s does not have a valid format, expected at least scope and group name", group)
+		return "", "", errorx.InvalidArgumentErrorf("group '%s' does not have a valid format, expected at least scope and group name", group)
 	}
 	return splits[0], ConsumerGroup(strings.Join(splits[1:], ConsumerGroupSeparator)), nil
 }
