@@ -3,6 +3,7 @@ package messagex
 import (
 	"testing"
 
+	"github.com/clinia/x/errorx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -101,5 +102,85 @@ func TestBaseTopicFromName(t *testing.T) {
 	t.Run("should return the original topic name when it contains dots with retry suffix", func(t *testing.T) {
 		topic := BaseTopicFromName("scope.my-topic.interestingly.long.consumer-group" + TopicRetrySuffix)
 		assert.Equal(t, Topic("my-topic.interestingly.long"), topic)
+	})
+}
+
+func TestTopicScopeUtils(t *testing.T) {
+	t.Run("ExtractScopeFromTopic", func(t *testing.T) {
+		for _, tc := range []struct {
+			name          string
+			topic         string
+			expectedScope string
+			expectedTopic Topic
+			expectedErr   error
+		}{
+			{
+				name:          "valid topic with scope",
+				topic:         "scope.my-topic",
+				expectedScope: "scope",
+				expectedTopic: "my-topic",
+			},
+			{
+				name:        "topic without scope",
+				topic:       "my-topic",
+				expectedErr: errorx.InvalidArgumentError("topic 'my-topic' does not have a valid format, expected at least scope and topic name"),
+			},
+			{
+				name:          "valid topic with multiple segments",
+				topic:         "scope.my-topic.interestingly.long",
+				expectedScope: "scope",
+				expectedTopic: "my-topic.interestingly.long",
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				scope, topic, err := ExtractScopeFromTopic(tc.topic)
+				if tc.expectedErr != nil {
+					assert.EqualError(t, err, tc.expectedErr.Error())
+					return
+				}
+				assert.NoError(t, err)
+				assert.Equal(t, tc.expectedScope, scope)
+				assert.Equal(t, tc.expectedTopic, topic)
+			})
+		}
+	})
+
+	t.Run("RenameTopicWithScope", func(t *testing.T) {
+		for _, tc := range []struct {
+			name          string
+			topic         string
+			scope         string
+			expectedTopic string
+			expectedErr   error
+		}{
+			{
+				name:          "valid topic with scope",
+				topic:         "scope.my-topic",
+				scope:         "new-scope",
+				expectedTopic: "new-scope.my-topic",
+			},
+			{
+				name:          "valid topic with multiple segments and scope",
+				topic:         "oldScope.my-topic.interestingly.long",
+				scope:         "my-new-scope",
+				expectedTopic: "my-new-scope.my-topic.interestingly.long",
+			},
+			{
+				name:        "topic without scope",
+				topic:       "my-topic",
+				scope:       "",
+				expectedErr: errorx.InvalidArgumentError("topic 'my-topic' does not have a valid format, expected at least scope and topic name"),
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				newTopic, err := RenameTopicWithScope(tc.topic, tc.scope)
+				if tc.expectedErr != nil {
+					assert.EqualError(t, err, tc.expectedErr.Error())
+					return
+				}
+				assert.NoError(t, err)
+				assert.Equal(t, tc.expectedTopic, newTopic)
+			})
+		}
 	})
 }

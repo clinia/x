@@ -2,6 +2,8 @@ package messagex
 
 import (
 	"strings"
+
+	"github.com/clinia/x/errorx"
 )
 
 type Topic string
@@ -55,4 +57,24 @@ func BaseTopicFromName(topicName string) Topic {
 	}
 
 	return Topic(splits[0])
+}
+
+// ExtractScopeFromTopic extracts the scope and topic from a topic string.
+// It expects the topic to be in the format `{scope}.{topic}`.
+// If the topic does not have a valid format, it returns an error.
+func ExtractScopeFromTopic(topic string) (scope string, topicWithoutScope Topic, err error) {
+	splits := strings.Split(topic, TopicSeparator)
+	if len(splits) < 2 {
+		return "", "", errorx.InvalidArgumentErrorf("topic '%s' does not have a valid format, expected at least scope and topic name", topic)
+	}
+	return splits[0], Topic(strings.Join(splits[1:], TopicSeparator)), nil
+}
+
+// RenameTopicWithScope renames a topic by replacing the existing scope with the given scope.
+func RenameTopicWithScope(topic string, scope string) (string, error) {
+	_, withoutScope, err := ExtractScopeFromTopic(topic)
+	if err != nil {
+		return "", err
+	}
+	return withoutScope.TopicName(scope), nil
 }
