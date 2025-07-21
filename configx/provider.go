@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"net/url"
 	"os"
 	"reflect"
@@ -18,6 +19,7 @@ import (
 	"github.com/clinia/x/jsonschemax"
 	"github.com/clinia/x/logrusx"
 	"github.com/clinia/x/otelx"
+	"github.com/clinia/x/pointerx"
 	"github.com/clinia/x/pubsubx"
 	"github.com/clinia/x/watcherx"
 	"github.com/rs/cors"
@@ -517,6 +519,20 @@ func (p *Provider) MeterConfig(serviceName string, attrs ...attribute.KeyValue) 
 }
 
 func (p *Provider) PubSubConfig() *pubsubx.Config {
+	var maxMessageSize *int32
+	if p.Exists("pubsub.maxMessageSize") {
+		v := p.Int("pubsub.maxMessageSize")
+		if v >= math.MinInt32 && v <= math.MaxInt32 {
+			maxMessageSize = pointerx.Ptr(int32(v))
+		}
+	}
+	var retentionMs *int32
+	if p.Exists("pubsub.retentionMs") {
+		v := p.Int("pubsub.retentionMs")
+		if v >= math.MinInt32 && v <= math.MaxInt32 {
+			retentionMs = pointerx.Ptr(int32(v))
+		}
+	}
 	return &pubsubx.Config{
 		Provider: p.StringF("pubsub.provider", "inmemory"),
 		Providers: pubsubx.ProvidersConfig{
@@ -531,6 +547,8 @@ func (p *Provider) PubSubConfig() *pubsubx.Config {
 			TopicName: p.StringF("pubsub.poisonQueue.topicName", "poison-queue"),
 		},
 		EnableAutoCommit: p.BoolF("pubsub.enableAutoCommit", true),
+		MaxMessageSize:   maxMessageSize,
+		RetentionMs:      retentionMs,
 	}
 }
 

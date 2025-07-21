@@ -20,6 +20,8 @@ type Config struct {
 	Providers        ProvidersConfig   `json:"providers"`
 	TopicRetry       bool              `json:"topicRetry"`
 	EnableAutoCommit bool              `json:"enableAutoCommit"`
+	MaxMessageSize   *int32            `json:"maxMessageSize,omitempty"`
+	RetentionMs      *int32            `json:"retentionMs,omitempty"`
 }
 
 type ProvidersConfig struct {

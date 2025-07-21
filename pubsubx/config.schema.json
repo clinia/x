@@ -84,6 +84,14 @@
       "type": "boolean",
       "description": "Enable auto-commit logic on records polling",
       "default": true
+    },
+    "maxMessageSize": {
+      "type": "integer",
+      "description": "Maximum size of a message in bytes."
+    },
+    "retentionMs": {
+      "type": "integer",
+      "description": "Retention time for messages in milliseconds. '-1' means infinite retention."
     }
   }
 }
