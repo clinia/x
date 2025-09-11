@@ -44,6 +44,24 @@ func (_m *PubSub) AdminClient() (pubsubx.PubSubAdminClient, error) {
 	return r0, r1
 }
 
+// Bootstrap provides a mock function with given fields:
+func (_m *PubSub) Bootstrap() error {
+	ret := _m.Called()
+
+	if len(ret) == 0 {
+		panic("no return value specified for Bootstrap")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func() error); ok {
+		r0 = rf()
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // Close provides a mock function with given fields:
 func (_m *PubSub) Close() error {
 	ret := _m.Called()
@@ -124,7 +142,8 @@ func (_m *PubSub) Subscriber(group string, topics []messagex.Topic, opts ...pubs
 func NewPubSub(t interface {
 	mock.TestingT
 	Cleanup(func())
-}) *PubSub {
+},
+) *PubSub {
 	mock := &PubSub{}
 	mock.Mock.Test(t)
 

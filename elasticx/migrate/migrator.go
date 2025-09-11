@@ -154,7 +154,7 @@ func (m *Migrator) getIndexes(ctx context.Context) (indices []indexSpecification
 		})
 	}
 
-	return
+	return indices, err
 }
 
 // Version returns current engine version and comment.

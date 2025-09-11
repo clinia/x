@@ -127,7 +127,7 @@ func diffLists(listA, listB interface{}, opts ...cmp.Option) (extraA, extraB []i
 		extraB = append(extraB, bValue.Index(j).Interface())
 	}
 
-	return
+	return extraA, extraB
 }
 
 func formatListDiff(listA, listB interface{}, extraA, extraB []interface{}) string {

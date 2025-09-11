@@ -546,7 +546,7 @@ func firstHostPort(source ...string) (host string, port int) {
 			break
 		}
 	}
-	return
+	return host, port
 }
 
 // ClientStatus returns a span status code and message for an HTTP status code
