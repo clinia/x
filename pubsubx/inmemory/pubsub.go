@@ -41,6 +41,11 @@ func SetupInMemoryPubSub(l *logrusx.Logger, c *pubsubx.Config) (*memoryPubSub, e
 }
 
 // Close implements Publisher.
+func (m *memoryPubSub) Bootstrap() error {
+	return nil
+}
+
+// Close implements Publisher.
 func (m *memoryPubSub) Close() error {
 	return nil
 }

@@ -337,11 +337,11 @@ func (c *consumer) start(ctx context.Context) {
 				shouldBreak = true
 				if lo.SomeBy(errs, func(err kgo.FetchError) bool { return errs[0].Err == context.Canceled }) {
 					l.Warnf("context canceled, stopping consumer")
-					return
+					return shouldBreak
 				}
 
 				l.WithError(errors.Join(lo.Map(errs, func(err kgo.FetchError, i int) error { return err.Err })...)).Errorf("error while polling records, Stopping consumer")
-				return
+				return shouldBreak
 			}
 
 			var wg errgroup.Group
@@ -380,7 +380,7 @@ func (c *consumer) start(ctx context.Context) {
 
 			if abortErr != nil {
 				shouldBreak = true
-				return
+				return shouldBreak
 			}
 
 			if !c.conf.EnableAutoCommit {
@@ -388,7 +388,7 @@ func (c *consumer) start(ctx context.Context) {
 				if err := c.cl.CommitUncommittedOffsets(ctx); err != nil {
 					l.WithError(err).Errorf("failed to commit records")
 					shouldBreak = true
-					return
+					return shouldBreak
 				}
 			}
 

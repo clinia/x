@@ -68,7 +68,7 @@ func getRandomGroupTopics(t *testing.T, count int) (Group string, Topics []messa
 		Topics = append(Topics, messagex.Topic(fmt.Sprintf("%s-%d", topicName, i)))
 	}
 
-	return
+	return Group, Topics
 }
 
 func getPubsubConfig(t *testing.T, retry bool) *pubsubx.Config {

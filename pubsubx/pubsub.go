@@ -6,6 +6,9 @@ import (
 
 // PubSub represents a generic interface for a publish-subscribe system.
 type PubSub interface {
+	// Bootstrap the pubsub instance
+	Bootstrap() error
+
 	// Publisher returns a Publisher instance for publishing messages.
 	Publisher() Publisher
 

@@ -85,21 +85,7 @@ func NewPubSub(l *logrusx.Logger, config *pubsubx.Config, opts *pubsubx.PubSubOp
 		return nil, errorx.InternalErrorf("failed to create kafka client: %v", err)
 	}
 
-	if config.PoisonQueue.Enabled {
-		poisonQueueTopic := messagex.TopicFromName(config.PoisonQueue.TopicName)
-		adminClient := kadm.NewClient(wc)
-		var replicationFactor int16 = math.MaxInt16
-		if len(config.Providers.Kafka.Brokers) <= math.MaxInt16 {
-			//nolint:all
-			replicationFactor = int16(len(config.Providers.Kafka.Brokers))
-		}
-		_, err := adminClient.CreateTopic(context.Background(), 1, replicationFactor, defaultCreateTopicConfigEntries, poisonQueueTopic.TopicName(config.Scope))
-		if err != nil && err.Error() != kerr.TopicAlreadyExists.Error() {
-			return nil, errorx.InternalErrorf("failed to create poison queue: %v", err)
-		}
-	}
-
-	return &PubSub{
+	ps := &PubSub{
 		l:                               l,
 		conf:                            config,
 		mp:                              mp,
@@ -108,7 +94,34 @@ func NewPubSub(l *logrusx.Logger, config *pubsubx.Config, opts *pubsubx.PubSubOp
 		defaultCreateTopicConfigEntries: defaultCreateTopicConfigEntries,
 		writeClient:                     wc,
 		consumers:                       make(map[messagex.ConsumerGroup]*consumer),
-	}, nil
+	}
+
+	if err := ps.Bootstrap(); err != nil {
+		return nil, err
+	}
+	return ps, nil
+}
+
+func (p *PubSub) Bootstrap() error {
+	if p.conf.PoisonQueue.Enabled {
+		if p.conf.PoisonQueue.TopicName == "" {
+			return errorx.InternalErrorf("failed to create poison queue since topice name is empty")
+		}
+		poisonQueueTopic := messagex.TopicFromName(p.conf.PoisonQueue.TopicName)
+		adminClient := kadm.NewClient(p.writeClient)
+		var replicationFactor int16 = math.MaxInt16
+		if len(p.conf.Providers.Kafka.Brokers) <= math.MaxInt16 {
+			//nolint:all
+			replicationFactor = int16(len(p.conf.Providers.Kafka.Brokers))
+		}
+		_, err := adminClient.CreateTopic(context.Background(), 1, replicationFactor, p.defaultCreateTopicConfigEntries, poisonQueueTopic.TopicName(p.conf.Scope))
+		if err != nil && err.Error() != kerr.TopicAlreadyExists.Error() {
+			return errorx.InternalErrorf("failed to create poison queue: %v", err)
+		} else if err == nil && p.l != nil {
+			p.l.Infof("poison queue topic %s created", poisonQueueTopic.TopicName(p.conf.Scope))
+		}
+	}
+	return nil
 }
 
 // Close implements pubsubx.PubSub.
@@ -202,5 +215,5 @@ func getContextLogger(ctx context.Context, fallback *logrusx.Logger) (l *logrusx
 	if l == nil {
 		l = fallback.WithContext(ctx)
 	}
-	return
+	return l
 }
