@@ -23,9 +23,13 @@ func (re RetryableError) Error() string {
 }
 
 func IsRetryableError(err error) (*RetryableError, bool) {
-	re, ok := err.(RetryableError)
+	re, ok := err.(*RetryableError)
 	if !ok {
-		return nil, false
+		cRe, ok := err.(RetryableError)
+		if !ok {
+			return nil, false
+		}
+		re = &cRe
 	}
-	return &re, true
+	return re, true
 }
