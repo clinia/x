@@ -6,15 +6,19 @@ package assertx
 import (
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestEqualAsJSONExcept(t *testing.T) {
 	a := map[string]interface{}{"foo": "bar", "baz": "bar", "bar": "baz"}
 	b := map[string]interface{}{"foo": "bar", "baz": "bar", "bar": "not-baz"}
 
-	EqualAsJSONExcept(t, a, b, []string{"bar"})
+	val := EqualAsJSONExcept(t, a, b, []string{"bar"})
+	require.True(t, val)
 }
 
 func TestTimeDifferenceLess(t *testing.T) {
-	TimeDifferenceLess(t, time.Now(), time.Now().Add(time.Second), 2)
+	val := TimeDifferenceLess(t, time.Now(), time.Now().Add(time.Second), 2)
+	require.True(t, val)
 }
