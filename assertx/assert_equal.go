@@ -6,6 +6,9 @@ import (
 )
 
 func Equal(t assert.TestingT, expected interface{}, actual interface{}, opts ...cmp.Option) (ok bool) {
+	if h, ok := t.(tHelper); ok {
+		h.Helper()
+	}
 	if !cmp.Equal(expected, actual, opts...) {
 		t.Errorf("Not equal: \n%s", cmp.Diff(expected, actual, opts...))
 		return false
