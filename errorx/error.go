@@ -5,7 +5,9 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/clinia/x/pointerx"
 	"github.com/pkg/errors"
+	"github.com/samber/lo"
 )
 
 type CliniaError struct {
@@ -20,17 +22,80 @@ type CliniaError struct {
 
 var _ error = (*CliniaError)(nil)
 
+type CliniaErrors []*CliniaError
+
+func (cErrs CliniaErrors) AsErrors() []error {
+	errs := make([]error, len(cErrs))
+	for i, cErr := range cErrs {
+		if cErr != nil {
+			errs[i] = error(cErr)
+		}
+	}
+	return errs
+}
+
+func CliniaErrorsFromCliniaErrorSlice(errs []CliniaError) CliniaErrors {
+	cErrs := make(CliniaErrors, len(errs))
+	for i, err := range errs {
+		if err.Type == "" && err.Message == "" && err.OriginalError == nil && len(err.Details) == 0 {
+			continue
+		}
+		cErrs[i] = &err
+	}
+	return cErrs
+}
+
+func CliniaErrorsFromErrorSlice(errs []error) CliniaErrors {
+	cErrs := make(CliniaErrors, len(errs))
+	for i, err := range errs {
+		if err == nil {
+			continue
+		}
+		var ok bool
+		cErrs[i], ok = IsCliniaError(err)
+		if !ok {
+			var mErr error
+			cErrs[i], mErr = NewCliniaErrorFromMessage(err.Error())
+			if mErr != nil {
+				cErrs[i] = pointerx.Ptr(NewCliniaInternalErrorFromError(err))
+			}
+		}
+	}
+	return cErrs
+}
+
 func (e CliniaError) Error() string {
 	return fmt.Sprintf("[%s] %s", e.Type.String(), e.Message)
 }
 
 // WithDetails allows to attach multiple errors to the error
 func (e *CliniaError) WithDetails(details ...CliniaError) CliniaError {
+	if len(details) == 0 {
+		return *e
+	}
 	if e.Details == nil {
 		e.Details = make([]CliniaError, 0, len(details))
 	}
 	e.Details = append(e.Details, details...)
 	return *e
+}
+
+// WithDetails allows to attach multiple errors to the error
+func (e *CliniaError) WithErrorDetails(details ...error) CliniaError {
+	if len(details) == 0 {
+		return *e
+	}
+	cDetails := lo.Map(details, func(item error, index int) CliniaError {
+		cErr, ok := IsCliniaError(item)
+		if !ok {
+			cErr, _ = NewCliniaErrorFromMessage(item.Error())
+			if cErr == nil {
+				cErr = pointerx.Ptr(NewCliniaInternalErrorFromError(item))
+			}
+		}
+		return *cErr
+	})
+	return e.WithDetails(cDetails...)
 }
 
 func (e *CliniaError) AsRetryableError() RetryableError {
@@ -40,6 +105,12 @@ func (e *CliniaError) AsRetryableError() RetryableError {
 func (e *CliniaError) IsRetryable() bool {
 	_, ok := IsRetryableError(e.OriginalError)
 	return ok
+}
+
+func NewCliniaInternalErrorFromError(err error) CliniaError {
+	cErr := InternalErrorf(err.Error())
+	cErr.OriginalError = err
+	return cErr
 }
 
 func NewCliniaErrorFromMessage(msg string) (*CliniaError, error) {
@@ -66,16 +137,20 @@ func NewCliniaErrorFromMessage(msg string) (*CliniaError, error) {
 
 func IsCliniaError(e error) (*CliniaError, bool) {
 	e = errors.Cause(e)
-	mE, ok := e.(CliniaError)
+	mE, ok := e.(*CliniaError)
 	if !ok {
-		return nil, false
+		mEs, ok := e.(CliniaError)
+		if !ok {
+			return nil, false
+		}
+		mE = &mEs
 	}
 
 	if mE.Type == ErrorTypeUnspecified {
 		return nil, false
 	}
 
-	return &mE, true
+	return mE, true
 }
 
 func IsAlreadyExistsError(e error) bool {
