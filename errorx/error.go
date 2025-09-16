@@ -34,7 +34,7 @@ func (cErrs CliniaErrors) AsErrors() []error {
 	return errs
 }
 
-func CliniaErrorsFromCliniaErrors(errs []CliniaError) CliniaErrors {
+func CliniaErrorsFromCliniaErrorSlice(errs []CliniaError) CliniaErrors {
 	cErrs := make(CliniaErrors, len(errs))
 	for i, err := range errs {
 		if err.Type == "" && err.Message == "" && err.OriginalError == nil && len(err.Details) == 0 {
@@ -45,7 +45,7 @@ func CliniaErrorsFromCliniaErrors(errs []CliniaError) CliniaErrors {
 	return cErrs
 }
 
-func CliniaErrorsFromErrors(errs []error) CliniaErrors {
+func CliniaErrorsFromErrorSlice(errs []error) CliniaErrors {
 	cErrs := make(CliniaErrors, len(errs))
 	for i, err := range errs {
 		if err == nil {

@@ -97,7 +97,7 @@ func TestError(t *testing.T) {
 		}
 		wrapde := NewCliniaInternalErrorFromError(de)
 
-		cErrs := CliniaErrorsFromErrors(errs)
+		cErrs := CliniaErrorsFromErrorSlice(errs)
 
 		assert.Len(t, cErrs, 5)
 		assert.Equal(t, cErrs[0], &nfe)
