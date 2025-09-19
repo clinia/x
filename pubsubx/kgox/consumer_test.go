@@ -12,9 +12,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/clinia/x/assertx"
 	"github.com/clinia/x/errorx"
 	"github.com/clinia/x/pubsubx"
 	"github.com/clinia/x/pubsubx/messagex"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/twmb/franz-go/pkg/kgo"
@@ -1031,7 +1033,7 @@ func consumer_Subscribe_Concurrency_test(t *testing.T, eae bool) {
 		case <-time.After(defaultExpectedReceiveTimeout):
 			t.Fatalf("timed out waiting for message to be consumed")
 		case msg := <-receivedMsgs:
-			assert.Equal(t, expectedMsg, msg)
+			assertx.Equal(t, expectedMsg, msg, cmpopts.IgnoreFields(messagex.Message{}, "Offset"))
 		}
 
 		// The consumer should stop if we fail up to the max retry attempts
@@ -1051,7 +1053,7 @@ func consumer_Subscribe_Concurrency_test(t *testing.T, eae bool) {
 			case <-time.After(defaultExpectedReceiveTimeout):
 				t.Fatalf("timed out waiting for message to be consumed")
 			case msg := <-receivedMsgs:
-				assert.Equal(t, expectedMsg, msg)
+				assertx.Equal(t, expectedMsg, msg, cmpopts.IgnoreFields(messagex.Message{}, "Offset"))
 			}
 
 			if i == 0 {

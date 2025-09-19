@@ -6,8 +6,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/clinia/x/assertx"
 	"github.com/clinia/x/pubsubx"
 	"github.com/clinia/x/pubsubx/messagex"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/twmb/franz-go/pkg/kerr"
@@ -50,10 +52,13 @@ func TestPublisher(t *testing.T) {
 	expectReceivedMessages := func(t *testing.T, msgsCh <-chan *messagex.Message, expectedMsgs ...*messagex.Message) {
 		t.Helper()
 
+		lastOffset := int64(-1)
 		for _, expectedMsg := range expectedMsgs {
 			select {
 			case receivedMsg := <-msgsCh:
-				require.Equal(t, expectedMsg, receivedMsg)
+				assertx.Equal(t, expectedMsg, receivedMsg, cmpopts.IgnoreFields(messagex.Message{}, "Offset"))
+				require.Greater(t, receivedMsg.Offset, lastOffset)
+				lastOffset = receivedMsg.Offset
 			case <-time.After(defaultExpectedReceiveTimeout):
 				t.Fatal("timed out waiting for message")
 			}
