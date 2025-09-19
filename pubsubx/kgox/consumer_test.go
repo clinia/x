@@ -850,11 +850,14 @@ func consumer_Subscribe_Concurrency_test(t *testing.T, eae bool) {
 		require.NoError(t, err)
 
 		// Wait for the message to be consumed
+		lastOffset := int64(-1)
 		select {
 		case <-time.After(defaultExpectedReceiveTimeout):
 			t.Fatalf("timed out waiting for message to be consumed")
 		case msg := <-receivedMsgs:
-			assert.Equal(t, expectedMsg2, msg)
+			assertx.Equal(t, expectedMsg2, msg, cmpopts.IgnoreFields(messagex.Message{}, "Offset"))
+			assert.Greater(t, msg.Offset, lastOffset)
+			lastOffset = msg.Offset
 		}
 
 		// Close the consumer
@@ -887,12 +890,15 @@ func consumer_Subscribe_Concurrency_test(t *testing.T, eae bool) {
 
 		// Wait for the messages to be consumed
 		expectedMsgs := []*messagex.Message{expectedMsg, expectedMsg2}
+		lastOffset = -1
 		for _, expectedMsg := range expectedMsgs {
 			select {
 			case <-time.After(defaultExpectedReceiveTimeout):
 				t.Fatalf("timed out waiting for message to be consumed")
 			case msg := <-anotherReceivedMsgs:
-				assert.Equal(t, expectedMsg, msg)
+				assertx.Equal(t, expectedMsg, msg, cmpopts.IgnoreFields(messagex.Message{}, "Offset"))
+				assert.Greater(t, msg.Offset, lastOffset)
+				lastOffset = msg.Offset
 			}
 		}
 	})
