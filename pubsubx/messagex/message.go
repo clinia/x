@@ -18,6 +18,8 @@ type Message struct {
 	ID       string
 	Metadata MessageMetadata
 	Payload  []byte
+	// The offset of the message. This is readonly and only set when consuming.
+	Offset int64
 }
 
 type MessageMetadata map[string]string
