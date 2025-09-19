@@ -88,6 +88,7 @@ func (m *DefaultMarshaler) Unmarshal(r *kgo.Record) (*messagex.Message, error) {
 	msg := &messagex.Message{
 		Metadata: make(messagex.MessageMetadata, len(r.Headers)),
 		Payload:  r.Value,
+		Offset:   r.Offset,
 	}
 
 	for _, header := range r.Headers {
