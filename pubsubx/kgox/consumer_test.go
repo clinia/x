@@ -980,6 +980,7 @@ func consumer_Subscribe_Concurrency_test(t *testing.T, eae bool) {
 		ctx := context.Background()
 		shouldFail := make(chan bool)
 		shouldPanic := make(chan bool)
+		panicMsg := "failed to process message"
 
 		topicHandlers := pubsubx.Handlers{
 			testTopic: func(ctx context.Context, msgs []*messagex.Message) ([]error, error) {
@@ -991,7 +992,7 @@ func consumer_Subscribe_Concurrency_test(t *testing.T, eae bool) {
 
 				select {
 				case <-shouldPanic:
-					panic("failed to process message")
+					panic(panicMsg)
 				case shouldFail := <-shouldFail:
 					if shouldFail {
 						return nil, assert.AnError
@@ -1067,8 +1068,10 @@ func consumer_Subscribe_Concurrency_test(t *testing.T, eae bool) {
 				assert.EventuallyWithT(t, func(t *assert.CollectT) {
 					str := buf.String()
 					containsPanic := strings.Contains(str, "panic while handling messages")
+					containsPanicMessage := strings.Contains(str, panicMsg)
 					containsStackTrace := strings.Contains(str, "consumer_test.go:")
 					assert.True(t, containsPanic, "expected panic message to be logged")
+					assert.True(t, containsPanicMessage, "expected the panic error to be logged")
 					assert.True(t, containsStackTrace, "expected stack trace to be logged")
 				}, defaultAssertTimeout, 100*time.Millisecond)
 			}

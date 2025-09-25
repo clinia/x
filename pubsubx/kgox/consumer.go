@@ -61,9 +61,9 @@ type handlerExecutor struct {
 func (he *handlerExecutor) handle(ctx context.Context, msgs []*messagex.Message) (outErrs []error, outErr error) {
 	defer func() {
 		if r := recover(); r != nil {
-			outErr = errorx.InternalErrorf("panic while handling messages")
+			outErr = errorx.InternalErrorf("panic while handling messages: %v", r)
 			stackTrace := tracex.GetStackTrace()
-			he.l.WithContext(ctx).WithFields(logrusx.NewLogFields(semconv.ExceptionStacktrace(stackTrace))).Errorf("panic while handling messages")
+			he.l.WithContext(ctx).WithFields(logrusx.NewLogFields(semconv.ExceptionStacktrace(stackTrace))).Errorf("panic while handling messages: %v", r)
 		}
 	}()
 	return he.h(ctx, msgs)
