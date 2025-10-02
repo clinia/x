@@ -7,10 +7,14 @@ import (
 	"time"
 
 	"github.com/clinia/x/errorx"
+	"github.com/clinia/x/logrusx"
 	"github.com/clinia/x/pubsubx"
 	"github.com/clinia/x/pubsubx/messagex"
 	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kgo"
+	"go.opentelemetry.io/otel/attribute"
+	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type poisonQueueHandler PubSub
@@ -26,11 +30,38 @@ var _ PoisonQueueHandler = (*poisonQueueHandler)(nil)
 
 const (
 	defaultMissingErrorString    = "important - error is missing"
+	originMessageIDHeaderKey     = "_clinia_origin_message_id"
 	originConsumerGroupHeaderKey = "_clinia_origin_consumer_group"
 	originErrorHeaderKey         = "_clinia_origin_error"
 	originTopicHeaderKey         = "_clinia_origin_topic"
 	pqConsumepollTimeout         = 5
+	keyMessagingPoisonQueue      = attribute.Key("messaging.message.poison_queue")
 )
+
+func (pqh *poisonQueueHandler) poisonQueueLogging(ctx context.Context, topic string, consumerGroup messagex.ConsumerGroup, msg *messagex.Message, err error) {
+	l := pqh.l.WithContext(ctx)
+	span := trace.SpanFromContext(ctx)
+	kvAttrs := []attribute.KeyValue{
+		keyMessagingPoisonQueue.Bool(true),
+		semconv.ExceptionType("poison-queue"),
+		semconv.MessagingDestinationName(string(topic)),
+		semconv.MessagingKafkaConsumerGroup(string(consumerGroup)),
+		semconv.MessagingMessageConversationID(msg.ID),
+		semconv.MessagingOperationName("publish"),
+	}
+	span.AddEvent("[POISON QUEUE] - pushing message to poison queue",
+		trace.WithAttributes(
+			semconv.ExceptionMessage(err.Error()),
+		),
+		trace.WithAttributes(
+			kvAttrs...,
+		))
+	l.WithError(err).
+		WithFields(logrusx.NewLogFields(
+			kvAttrs...,
+		)).
+		Errorf("[POISON QUEUE] - pushing to the poison queue a message coming from the topic '%s' and consumer group '%s'", topic, consumerGroup)
+}
 
 func (pqh *poisonQueueHandler) PublishMessagesToPoisonQueue(ctx context.Context, topic string, consumerGroup messagex.ConsumerGroup, msgErrs []error, msgs []*messagex.Message) error {
 	if !pqh.conf.PoisonQueue.Enabled && len(msgs) == 0 {
@@ -45,6 +76,7 @@ func (pqh *poisonQueueHandler) PublishMessagesToPoisonQueue(ctx context.Context,
 		if checkErrs && msgErrs[i] != nil {
 			msgErr = msgErrs[i]
 		}
+		pqh.poisonQueueLogging(ctx, topic, consumerGroup, msg, msgErr)
 		pqr, err := pqh.generatePoisonQueueRecord(ctx, topic, consumerGroup, msg, msgErr)
 		if err != nil {
 			errs = append(errs, err)
@@ -76,6 +108,7 @@ func (pqh *poisonQueueHandler) PublishMessagesToPoisonQueueWithGenericError(ctx 
 	poisonQueueRecords := make([]*kgo.Record, len(msgs))
 	errs := make([]error, 0, len(msgs))
 	for i, msg := range msgs {
+		pqh.poisonQueueLogging(ctx, topic, consumerGroup, msg, msgErr)
 		pqr, err := pqh.generatePoisonQueueRecord(ctx, topic, consumerGroup, msg, msgErr)
 		if err != nil {
 			errs = append(errs, err)
@@ -111,6 +144,7 @@ func (pqh *poisonQueueHandler) generatePoisonQueueRecord(ctx context.Context, to
 	}
 	pqmsg := messagex.NewMessage(payload,
 		messagex.WithMetadata(messagex.MessageMetadata{
+			originMessageIDHeaderKey:     msg.ID,
 			originConsumerGroupHeaderKey: string(consumerGroup),
 			originTopicHeaderKey:         topic,
 			originErrorHeaderKey:         errStr,
