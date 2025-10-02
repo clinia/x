@@ -76,13 +76,13 @@ func (pqh *poisonQueueHandler) PublishMessagesToPoisonQueue(ctx context.Context,
 		if checkErrs && msgErrs[i] != nil {
 			msgErr = msgErrs[i]
 		}
-		pqh.poisonQueueLogging(ctx, topic, consumerGroup, msg, msgErr)
 		pqr, err := pqh.generatePoisonQueueRecord(ctx, topic, consumerGroup, msg, msgErr)
 		if err != nil {
 			errs = append(errs, err)
 			l.WithError(err).Errorf("failed to generate poison queue record for message id '%s'", msg.ID)
 			continue
 		}
+		pqh.poisonQueueLogging(ctx, topic, consumerGroup, msg, msgErr)
 		poisonQueueRecords[i] = pqr
 	}
 	err := errors.Join(errs...)
@@ -108,12 +108,12 @@ func (pqh *poisonQueueHandler) PublishMessagesToPoisonQueueWithGenericError(ctx 
 	poisonQueueRecords := make([]*kgo.Record, len(msgs))
 	errs := make([]error, 0, len(msgs))
 	for i, msg := range msgs {
-		pqh.poisonQueueLogging(ctx, topic, consumerGroup, msg, msgErr)
 		pqr, err := pqh.generatePoisonQueueRecord(ctx, topic, consumerGroup, msg, msgErr)
 		if err != nil {
 			errs = append(errs, err)
 			continue
 		}
+		pqh.poisonQueueLogging(ctx, topic, consumerGroup, msg, msgErr)
 		poisonQueueRecords[i] = pqr
 	}
 	err := errors.Join(errs...)
