@@ -29,13 +29,14 @@ type PoisonQueueHandler interface {
 var _ PoisonQueueHandler = (*poisonQueueHandler)(nil)
 
 const (
-	defaultMissingErrorString    = "important - error is missing"
-	originMessageIDHeaderKey     = "_clinia_origin_message_id"
-	originConsumerGroupHeaderKey = "_clinia_origin_consumer_group"
-	originErrorHeaderKey         = "_clinia_origin_error"
-	originTopicHeaderKey         = "_clinia_origin_topic"
-	pqConsumepollTimeout         = 5
-	keyMessagingPoisonQueue      = attribute.Key("messaging.message.poison_queue")
+	defaultMissingErrorString                     = "important - error is missing"
+	originMessageIDHeaderKey                      = "_clinia_origin_message_id"
+	originConsumerGroupHeaderKey                  = "_clinia_origin_consumer_group"
+	originErrorHeaderKey                          = "_clinia_origin_error"
+	originTopicHeaderKey                          = "_clinia_origin_topic"
+	pqConsumepollTimeout                          = 5
+	keyMessagingPoisonQueue                       = attribute.Key("messaging.message.poison_queue")
+	keyMessagingPoisonQueueOriginalMessageHeaders = attribute.Key("messaging.message.poison_queue.original_message_headers")
 )
 
 func (pqh *poisonQueueHandler) poisonQueueLogging(ctx context.Context, topic string, consumerGroup messagex.ConsumerGroup, msg *messagex.Message, err error) {
@@ -49,13 +50,18 @@ func (pqh *poisonQueueHandler) poisonQueueLogging(ctx context.Context, topic str
 		semconv.MessagingMessageConversationID(msg.ID),
 		semconv.MessagingOperationName("publish"),
 	}
+	spanAttrs := append([]attribute.KeyValue{}, kvAttrs...)
+	if err != nil {
+		spanAttrs = append(spanAttrs, semconv.ExceptionMessage(err.Error()))
+	}
 	span.AddEvent("[POISON QUEUE] - pushing message to poison queue",
 		trace.WithAttributes(
-			semconv.ExceptionMessage(err.Error()),
-		),
-		trace.WithAttributes(
-			kvAttrs...,
+			spanAttrs...,
 		))
+	originalHeaderJson, err := json.Marshal(msg.Metadata)
+	if err != nil {
+		kvAttrs = append(kvAttrs, keyMessagingPoisonQueueOriginalMessageHeaders.String(string(originalHeaderJson)))
+	}
 	l.WithError(err).
 		WithFields(logrusx.NewLogFields(
 			kvAttrs...,
