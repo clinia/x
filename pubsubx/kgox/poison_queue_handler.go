@@ -48,6 +48,7 @@ func (pqh *poisonQueueHandler) poisonQueueLogging(ctx context.Context, topic str
 		semconv.MessagingDestinationName(string(topic)),
 		semconv.MessagingKafkaConsumerGroup(string(consumerGroup)),
 		semconv.MessagingMessageConversationID(msg.ID),
+		semconv.MessagingKafkaMessageOffset(msg.Offset),
 		semconv.MessagingOperationName("publish"),
 	}
 	spanAttrs := append([]attribute.KeyValue{}, kvAttrs...)
