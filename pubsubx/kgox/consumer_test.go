@@ -68,7 +68,6 @@ func TestConsumerLifecycle(t *testing.T) {
 	}
 
 	t.Run("should gracefully cleanup consumer on network failure and allow resubscribing", func(t *testing.T) {
-		t.SkipNow()
 		glopt := goleak.IgnoreCurrent()
 		defer goleak.VerifyNone(t, glopt)
 		wc := getWriteClient(t)
@@ -120,7 +119,6 @@ func TestConsumerLifecycle(t *testing.T) {
 	})
 
 	t.Run("should gracefully cleanup consumer on network failure while closing and allow resubscribing", func(t *testing.T) {
-		t.SkipNow()
 		glopt := goleak.IgnoreCurrent()
 		defer goleak.VerifyNone(t, glopt)
 		wc := getWriteClient(t)
@@ -177,7 +175,6 @@ func TestConsumerLifecycle(t *testing.T) {
 	})
 
 	t.Run("should allow to close a subscribe and reuse the subscriber", func(t *testing.T) {
-		t.SkipNow()
 		glopt := goleak.IgnoreCurrent()
 		defer goleak.VerifyNone(t, glopt)
 		wc := getWriteClient(t)
@@ -228,7 +225,6 @@ func TestConsumerLifecycle(t *testing.T) {
 	})
 
 	t.Run("should be able to close safely when consumer thread is faster than close", func(t *testing.T) {
-		t.SkipNow()
 		glopt := goleak.IgnoreCurrent()
 		defer goleak.VerifyNone(t, glopt)
 		wc := getWriteClient(t)
@@ -301,7 +297,6 @@ func TestConsumerLifecycle(t *testing.T) {
 	})
 
 	t.Run("should be able to close safely when consumer thread is faster than close with messages read", func(t *testing.T) {
-		t.SkipNow()
 		log := false
 		maybeLog := func(str string, args ...interface{}) {
 			if !log {
