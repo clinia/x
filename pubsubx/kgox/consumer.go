@@ -344,6 +344,19 @@ func (c *consumer) start(ctx context.Context) {
 				return shouldBreak
 			}
 
+			// We start a goroutine that will simply log if the context is cancelled while we are processing
+			// This is purely for logging purpose to know why closing the consumer might take a bit of time
+			logCtx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			go func() {
+				select {
+				case <-ctx.Done():
+					l.Infof("context canceled while processing, will finish processing before stopping consumer")
+					return
+				case <-logCtx.Done():
+					return
+				}
+			}()
 			var wg errgroup.Group
 			if c.opts.MaxParallelAsyncExecution <= 0 {
 				wg.SetLimit(-1)
