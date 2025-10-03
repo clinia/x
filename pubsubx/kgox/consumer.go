@@ -351,10 +351,13 @@ func (c *consumer) start(ctx context.Context) {
 				wg.SetLimit(int(c.opts.MaxParallelAsyncExecution))
 			}
 
+			// From here on, we use a background context as the main context might be cancelled in between this processing occurs and our check for ctx.Done().
+			// We want to ensure that the in-progress processing is done even if the main context is cancelled
+			backgroundCtx := context.Background()
 			var abortErr error
 			fetches.EachTopic(func(tp kgo.FetchTopic) {
 				processTopic := func() error {
-					if err := c.handleTopic(ctx, tp); err != nil {
+					if err := c.handleTopic(backgroundCtx, tp); err != nil {
 						switch err {
 						case pubsubx.AbortSubscribeError():
 							l.WithField("topic", tp.Topic).WithError(err).Errorf("critical error received, stopping consumer")
@@ -385,7 +388,7 @@ func (c *consumer) start(ctx context.Context) {
 
 			if !c.conf.EnableAutoCommit {
 				// If commiting the offsets fails, kill the loop by returning
-				if err := c.cl.CommitUncommittedOffsets(ctx); err != nil {
+				if err := c.cl.CommitUncommittedOffsets(backgroundCtx); err != nil {
 					l.WithError(err).Errorf("failed to commit records")
 					shouldBreak = true
 					return shouldBreak
