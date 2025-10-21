@@ -117,7 +117,7 @@ func (p *PubSub) Bootstrap() error {
 		//nolint:all
 		replicationFactor = int16(len(p.conf.Providers.Kafka.Brokers))
 	}
-	m, err := adminClient.Metadata(context.Background(), poisonQueueTopic.TopicName(p.conf.Scope))
+	m, err := adminClient.Metadata(context.Background())
 	if err != nil {
 		return errorx.InternalErrorf("failed to validate poison queue existance : %s", err.Error())
 	}
@@ -129,7 +129,9 @@ func (p *PubSub) Bootstrap() error {
 			p.l.Infof("poison queue topic %s created", poisonQueueTopic.TopicName(p.conf.Scope))
 		}
 	} else {
-		p.l.Debugf("poison queue topic %s already exist", poisonQueueTopic.TopicName(p.conf.Scope))
+		if p.l != nil {
+			p.l.Debugf("poison queue topic %s already exist", poisonQueueTopic.TopicName(p.conf.Scope))
+		}
 	}
 
 	return nil
