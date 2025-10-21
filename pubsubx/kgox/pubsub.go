@@ -103,24 +103,35 @@ func NewPubSub(l *logrusx.Logger, config *pubsubx.Config, opts *pubsubx.PubSubOp
 }
 
 func (p *PubSub) Bootstrap() error {
-	if p.conf.PoisonQueue.Enabled {
-		if p.conf.PoisonQueue.TopicName == "" {
-			return errorx.InternalErrorf("failed to create poison queue since topice name is empty")
-		}
-		poisonQueueTopic := messagex.TopicFromName(p.conf.PoisonQueue.TopicName)
-		adminClient := kadm.NewClient(p.writeClient)
-		var replicationFactor int16 = math.MaxInt16
-		if len(p.conf.Providers.Kafka.Brokers) <= math.MaxInt16 {
-			//nolint:all
-			replicationFactor = int16(len(p.conf.Providers.Kafka.Brokers))
-		}
-		_, err := adminClient.CreateTopic(context.Background(), 1, replicationFactor, p.defaultCreateTopicConfigEntries, poisonQueueTopic.TopicName(p.conf.Scope))
+	if !p.conf.PoisonQueue.Enabled {
+		return nil
+	}
+
+	if p.conf.PoisonQueue.TopicName == "" {
+		return errorx.InternalErrorf("failed to create poison queue since topice name is empty")
+	}
+	poisonQueueTopic := messagex.TopicFromName(p.conf.PoisonQueue.TopicName)
+	adminClient := kadm.NewClient(p.writeClient)
+	var replicationFactor int16 = math.MaxInt16
+	if len(p.conf.Providers.Kafka.Brokers) <= math.MaxInt16 {
+		//nolint:all
+		replicationFactor = int16(len(p.conf.Providers.Kafka.Brokers))
+	}
+	m, err := adminClient.Metadata(context.Background(), poisonQueueTopic.TopicName(p.conf.Scope))
+	if err != nil {
+		return errorx.InternalErrorf("failed to validate poison queue existance : %s", err.Error())
+	}
+	if !m.Topics.Has(poisonQueueTopic.TopicName(p.conf.Scope)) {
+		_, err = adminClient.CreateTopic(context.Background(), 1, replicationFactor, p.defaultCreateTopicConfigEntries, poisonQueueTopic.TopicName(p.conf.Scope))
 		if err != nil && err.Error() != kerr.TopicAlreadyExists.Error() {
-			return errorx.InternalErrorf("failed to create poison queue: %v", err)
+			return errorx.InternalErrorf("failed to create poison queue: %s", err.Error())
 		} else if err == nil && p.l != nil {
 			p.l.Infof("poison queue topic %s created", poisonQueueTopic.TopicName(p.conf.Scope))
 		}
+	} else {
+		p.l.Debugf("poison queue topic %s already exist", poisonQueueTopic.TopicName(p.conf.Scope))
 	}
+
 	return nil
 }
 
