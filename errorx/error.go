@@ -15,7 +15,7 @@ type CliniaError struct {
 	Message string    `json:"message"`
 
 	// Not returned to clients
-	OriginalError error
+	OriginalError error `json:"-"`
 	// List of errors that caused the error if applicable
 	Details []CliniaError
 }

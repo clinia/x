@@ -1,6 +1,7 @@
 package errorx
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/clinia/x/pointerx"
@@ -113,5 +114,16 @@ func TestError(t *testing.T) {
 		assert.Equal(t, outErrs[2], error(&wrapde))
 		assert.Nil(t, outErrs[3])
 		assert.Equal(t, outErrs[4], error(&nfe))
+	})
+
+	t.Run("unmarshalling into CliniaError should not fail", func(t *testing.T) {
+		cerr, _ := NewCliniaErrorFromMessage("[INTERNAL] some error")
+
+		bs, err := json.Marshal(cerr)
+		assert.NoError(t, err)
+		cerr2 := CliniaError{}
+		assert.NoError(t, json.Unmarshal(bs, &cerr2))
+
+		assert.Equal(t, *cerr, cerr2)
 	})
 }
