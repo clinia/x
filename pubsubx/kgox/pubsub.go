@@ -108,7 +108,7 @@ func (p *PubSub) Bootstrap() error {
 	}
 
 	if p.conf.PoisonQueue.TopicName == "" {
-		return errorx.InternalErrorf("failed to create poison queue since topice name is empty")
+		return errorx.InternalErrorf("failed to create poison queue since topic name is empty")
 	}
 	poisonQueueTopic := messagex.TopicFromName(p.conf.PoisonQueue.TopicName)
 	adminClient := kadm.NewClient(p.writeClient)
