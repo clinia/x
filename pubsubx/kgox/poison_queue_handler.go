@@ -59,9 +59,11 @@ func (pqh *poisonQueueHandler) poisonQueueLogging(ctx context.Context, topic str
 		trace.WithAttributes(
 			spanAttrs...,
 		))
-	originalHeaderJson, err := json.Marshal(msg.Metadata)
-	if err != nil {
-		kvAttrs = append(kvAttrs, keyMessagingPoisonQueueOriginalMessageHeaders.String(string(originalHeaderJson)))
+	originalHeaderJSON, jmErr := json.Marshal(msg.Metadata)
+	if jmErr == nil {
+		kvAttrs = append(kvAttrs, keyMessagingPoisonQueueOriginalMessageHeaders.String(string(originalHeaderJSON)))
+	} else {
+		l.WithError(jmErr).Warnf("failed to marshal poison queue message headers, omiting them from the logging")
 	}
 	l.WithError(err).
 		WithFields(logrusx.NewLogFields(
