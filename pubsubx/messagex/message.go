@@ -15,7 +15,9 @@ const (
 
 // Message intentionally has no json marshalling fields as we want to pass by our own kgox.DefaultMarshaler
 type Message struct {
-	ID       string
+	ID string
+	// When specified, Key is used as the Kafka message key.
+	Key      []byte
 	Metadata MessageMetadata
 	Payload  []byte
 	// The offset of the message. This is readonly and only set when consuming.
@@ -32,7 +34,7 @@ type MessageMetadata map[string]string
 //
 // Returns:
 //   - *Message: A pointer to the created Message.
-func NewMessage(payload []byte, opts ...newMessageOption) *Message {
+func NewMessage(payload []byte, opts ...NewMessageOption) *Message {
 	o := newMessageOptions{}
 	for _, opt := range opts {
 		opt(&o)
@@ -52,28 +54,42 @@ func NewMessage(payload []byte, opts ...newMessageOption) *Message {
 
 	return &Message{
 		ID:       o.id,
+		Key:      o.key,
 		Metadata: o.m,
 		Payload:  payload,
 	}
 }
 
 type newMessageOptions struct {
-	id string
-	m  MessageMetadata
+	key []byte
+	id  string
+	m   MessageMetadata
 }
 
-type newMessageOption func(*newMessageOptions)
+type NewMessageOption func(*newMessageOptions)
 
 // WithID sets the ID of the message.
 // A ksuid will be generated if no ID is provided.
-func WithID(id string) newMessageOption {
+func WithID(id string) NewMessageOption {
 	return func(o *newMessageOptions) {
 		o.id = id
 	}
 }
 
+// WithStringKey sets the key of the message using a string.
+func WithStringKey(key string) NewMessageOption {
+	return WithKey([]byte(key))
+}
+
+// WithKey sets the key of the message.
+func WithKey(key []byte) NewMessageOption {
+	return func(o *newMessageOptions) {
+		o.key = key
+	}
+}
+
 // WithMetadata sets the metadata of the message.
-func WithMetadata(m MessageMetadata) newMessageOption {
+func WithMetadata(m MessageMetadata) NewMessageOption {
 	return func(o *newMessageOptions) {
 		o.m = m
 	}
