@@ -80,6 +80,7 @@ func (m *DefaultMarshaler) Marshal(ctx context.Context, msg *messagex.Message, t
 		Topic:   topic,
 		Headers: headers,
 		Value:   msg.Payload,
+		Key:     msg.Key,
 	}, nil
 }
 
