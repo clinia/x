@@ -173,12 +173,11 @@ func (e *engine) MultiGet(ctx context.Context, items []types.MgetOperation) (*mg
 	}
 
 	for i, item := range items {
-		if item.Index_ != nil {
-			indexName := NewIndexName(enginesIndexNameSegment, pathEscape(e.name), pathEscape(*item.Index_)).String()
-			items[i].Index_ = &indexName
-		} else {
+		if item.Index_ == nil {
 			return nil, errorx.InvalidArgumentErrorf("index is required for mget operation at position %d", i)
 		}
+		indexName := NewIndexName(enginesIndexNameSegment, pathEscape(e.name), pathEscape(*item.Index_)).String()
+		items[i].Index_ = &indexName
 	}
 	ms := e.es.Mget().Request(&mget.Request{
 		Docs: items,
