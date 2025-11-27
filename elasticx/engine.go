@@ -7,6 +7,7 @@ import (
 	elasticxmsearch "github.com/clinia/x/elasticx/msearch"
 	elasticxsearch "github.com/clinia/x/elasticx/search"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/core/bulk"
+	"github.com/elastic/go-elasticsearch/v8/typedapi/core/mget"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/core/msearch"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/core/scroll"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/core/search"
@@ -39,6 +40,9 @@ type Engine interface {
 
 	// Bulk performs a bulk request to Elastic Search
 	Bulk(ctx context.Context, ops []elasticxbulk.Operation, opts ...elasticxbulk.Option) (*bulk.Response, error)
+
+	// MultiGet performs a multi get request to Elastic Search
+	MultiGet(ctx context.Context, items []types.MgetOperation) (*mget.Response, error)
 }
 
 type EngineInfo struct {
