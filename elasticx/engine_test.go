@@ -569,11 +569,11 @@ func TestEngineGets(t *testing.T) {
 
 		actual, err := engine.MultiGet(ctx, nil)
 		assert.NoError(t, err)
-		assert.Equal(t, actual, expected)
+		assert.Equal(t, expected, actual)
 
 		actual, err = engine.MultiGet(ctx, []types.MgetOperation{})
 		assert.NoError(t, err)
-		assert.Equal(t, actual, expected)
+		assert.Equal(t, expected, actual)
 	})
 
 	t.Run("should be able to execute multi get", func(t *testing.T) {
