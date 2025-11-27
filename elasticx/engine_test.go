@@ -11,6 +11,7 @@ import (
 	"github.com/clinia/x/jsonx"
 	"github.com/clinia/x/pointerx"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/core/bulk"
+	"github.com/elastic/go-elasticsearch/v8/typedapi/core/mget"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/core/msearch"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/core/scroll"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/core/search"
@@ -540,6 +541,127 @@ func TestEngineQueries(t *testing.T) {
 				cmpopts.IgnoreFields(types.Hit{}, "Id_", "Index_", "Score_"),
 			)
 		}
+	})
+
+	t.Cleanup(func() {
+		err := engine.Remove(ctx)
+		assert.NoError(t, err)
+	})
+}
+
+func TestEngineGets(t *testing.T) {
+	f := newTestFixture(t)
+	ctx := f.ctx
+
+	name := "test-engine-gets"
+	if exists, err := f.client.EngineExists(ctx, name); err == nil && exists {
+		engine, err := f.client.Engine(ctx, name)
+		require.NoError(t, err)
+		require.NoError(t, engine.Remove(ctx))
+	}
+	engine, err := f.client.CreateEngine(ctx, name)
+	assert.NoError(t, err)
+
+	t.Run("should not return an error when no requests are provided", func(t *testing.T) {
+		expected := &mget.Response{
+			Docs: make([]types.MgetResponseItem, 0),
+		}
+
+		actual, err := engine.MultiGet(ctx, nil)
+		assert.NoError(t, err)
+		assert.Equal(t, expected, actual)
+
+		actual, err = engine.MultiGet(ctx, []types.MgetOperation{})
+		assert.NoError(t, err)
+		assert.Equal(t, expected, actual)
+	})
+
+	t.Run("should be able to execute multi get", func(t *testing.T) {
+		index, err := engine.CreateIndex(ctx, "index-1", &CreateIndexOptions{
+			Settings: &types.IndexSettings{},
+			Mappings: &types.TypeMapping{
+				Properties: map[string]types.Property{
+					"id":   types.NewKeywordProperty(),
+					"name": &types.TextProperty{},
+				},
+			},
+		})
+		assert.NoError(t, err)
+
+		_, err = f.es.Index(NewIndexName(enginesIndexNameSegment, name, index.Info().Name).String()).
+			Id("1").
+			Document(map[string]interface{}{
+				"id":   "1",
+				"name": "test",
+			}).
+			Refresh(refresh.Waitfor).
+			Do(ctx)
+		assert.NoError(t, err)
+
+		res, err := engine.MultiGet(ctx, []types.MgetOperation{
+			{
+				Index_: pointerx.Ptr(index.Info().Name),
+				Id_:    "1",
+			},
+			{
+				Index_: pointerx.Ptr(index.Info().Name),
+				Id_:    "1",
+				Source_: types.SourceFilter{
+					Excludes: []string{"name"},
+				},
+			},
+			{
+				Index_: pointerx.Ptr(index.Info().Name),
+				Id_:    "nope",
+			},
+			{
+				Index_: pointerx.Ptr("nope"),
+				Id_:    "1",
+			},
+		})
+
+		assert.NoError(t, err)
+		assert.Len(t, res.Docs, 4)
+
+		actual := res.Docs[0]
+		assertx.Equal(t, &types.GetResult{
+			Id_:     "1",
+			Found:   true,
+			Source_: jsonx.RawMessage(`{"id":"1","name":"test"}`),
+			Index_:  NewIndexName(enginesIndexNameSegment, name, index.Info().Name).String(),
+		}, actual,
+			cmpopts.IgnoreFields(types.GetResult{}, "Fields", "Version_", "SeqNo_", "PrimaryTerm_"),
+		)
+
+		actual = res.Docs[1]
+		assertx.Equal(t, &types.GetResult{
+			Id_:     "1",
+			Found:   true,
+			Index_:  NewIndexName(enginesIndexNameSegment, name, index.Info().Name).String(),
+			Source_: jsonx.RawMessage(`{"id":"1"}`),
+		}, actual,
+			cmpopts.IgnoreFields(types.GetResult{}, "Fields", "Version_", "SeqNo_", "PrimaryTerm_"),
+		)
+
+		actual = res.Docs[2]
+		assertx.Equal(t, &types.GetResult{
+			Id_:    "nope",
+			Found:  false,
+			Index_: NewIndexName(enginesIndexNameSegment, name, index.Info().Name).String(),
+		}, actual,
+			cmpopts.IgnoreFields(types.GetResult{}, "Fields", "Version_", "SeqNo_", "PrimaryTerm_"),
+		)
+
+		actual = res.Docs[3]
+		assertx.Equal(t, &types.MultiGetError{
+			Id_:    "1",
+			Index_: NewIndexName(enginesIndexNameSegment, name, "nope").String(),
+			Error: types.ErrorCause{
+				Type: "index_not_found_exception",
+			},
+		}, actual,
+			cmpopts.IgnoreFields(types.ErrorCause{}, "Metadata", "Reason", "RootCause"),
+		)
 	})
 
 	t.Cleanup(func() {

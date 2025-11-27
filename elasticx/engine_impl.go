@@ -14,6 +14,7 @@ import (
 	"github.com/clinia/x/pointerx"
 	"github.com/elastic/go-elasticsearch/v8"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/core/bulk"
+	"github.com/elastic/go-elasticsearch/v8/typedapi/core/mget"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/core/msearch"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/core/scroll"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/core/search"
@@ -29,6 +30,8 @@ type engine struct {
 	name string
 	es   *elasticsearch.TypedClient
 }
+
+var _ Engine = (*engine)(nil)
 
 // newEngine creates a new Engine implementation.
 func newEngine(name string, es *elasticsearch.TypedClient) (Engine, error) {
@@ -155,6 +158,34 @@ func (e *engine) Scroll(ctx context.Context, req *scroll.Request) (*scroll.Respo
 
 	for _, hit := range res.Hits.Hits {
 		hit.Index_ = IndexName(hit.Index_).Name()
+	}
+
+	return res, nil
+}
+
+// MultiGet implements Engine.
+func (e *engine) MultiGet(ctx context.Context, items []types.MgetOperation) (*mget.Response, error) {
+	// No queries, we protect against empty requests
+	if len(items) == 0 {
+		return &mget.Response{
+			Docs: []types.MgetResponseItem{},
+		}, nil
+	}
+
+	for i, item := range items {
+		if item.Index_ == nil {
+			return nil, errorx.InvalidArgumentErrorf("index is required for mget operation at position %d", i)
+		}
+		indexName := NewIndexName(enginesIndexNameSegment, pathEscape(e.name), pathEscape(*item.Index_)).String()
+		items[i].Index_ = &indexName
+	}
+	ms := e.es.Mget().Request(&mget.Request{
+		Docs: items,
+	})
+
+	res, err := ms.Do(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	return res, nil
