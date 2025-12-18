@@ -35,7 +35,7 @@ func assertScopeMetrics(t *testing.T, sm metricdata.ScopeMetrics, attrs attribut
 		Name: "github.com/clinia/x/otelhttpx",
 	}, sm.Scope)
 
-	require.Len(t, sm.Metrics, 3)
+	require.Len(t, sm.Metrics, 4)
 
 	want := metricdata.Metrics{
 		Name:        "http.server.request.size",
@@ -62,6 +62,18 @@ func assertScopeMetrics(t *testing.T, sm metricdata.ScopeMetrics, attrs attribut
 	metricdatatest.AssertEqual(t, want, sm.Metrics[1], metricdatatest.IgnoreTimestamp())
 
 	want = metricdata.Metrics{
+		Name:        "http.server.requests.total",
+		Description: "Counts the number of HTTP requests processed.",
+		Unit:        "",
+		Data: metricdata.Sum[int64]{
+			DataPoints:  []metricdata.DataPoint[int64]{{Attributes: attrs, Value: 1}},
+			Temporality: metricdata.CumulativeTemporality,
+			IsMonotonic: true,
+		},
+	}
+	metricdatatest.AssertEqual(t, want, sm.Metrics[2], metricdatatest.IgnoreTimestamp(), metricdatatest.IgnoreValue())
+
+	want = metricdata.Metrics{
 		Name:        "http.server.duration",
 		Description: "Measures the duration of inbound HTTP requests.",
 		Unit:        "ms",
@@ -70,7 +82,7 @@ func assertScopeMetrics(t *testing.T, sm metricdata.ScopeMetrics, attrs attribut
 			Temporality: metricdata.CumulativeTemporality,
 		},
 	}
-	metricdatatest.AssertEqual(t, want, sm.Metrics[2], metricdatatest.IgnoreTimestamp(), metricdatatest.IgnoreValue())
+	metricdatatest.AssertEqual(t, want, sm.Metrics[3], metricdatatest.IgnoreTimestamp(), metricdatatest.IgnoreValue())
 }
 
 func TestHandlerBasics(t *testing.T) {
