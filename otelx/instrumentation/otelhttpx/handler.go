@@ -39,6 +39,7 @@ type middleware struct {
 
 	requestBytesCounter  metric.Int64Counter
 	responseBytesCounter metric.Int64Counter
+	requestsCounter      metric.Int64Counter
 	serverLatencyMeasure metric.Float64Histogram
 }
 
@@ -111,6 +112,12 @@ func (h *middleware) createMeasures() {
 		serverResponseSize,
 		metric.WithUnit("By"),
 		metric.WithDescription("Measures the size of HTTP response messages."),
+	)
+	handleErr(err)
+
+	h.requestsCounter, err = h.meter.Int64Counter(
+		serverRequestsCount,
+		metric.WithDescription("Counts the number of HTTP requests processed."),
 	)
 	handleErr(err)
 
@@ -227,6 +234,7 @@ func (h *middleware) serveHTTP(w http.ResponseWriter, r *http.Request, next http
 	o := metric.WithAttributes(attributes...)
 	h.requestBytesCounter.Add(ctx, bw.read.Load(), o)
 	h.responseBytesCounter.Add(ctx, rww.written, o)
+	h.requestsCounter.Add(ctx, 1, o)
 
 	// Use floating point division here for higher precision (instead of Millisecond method).
 	elapsedTime := float64(time.Since(requestStartTime)) / float64(time.Millisecond)

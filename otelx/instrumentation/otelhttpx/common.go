@@ -20,9 +20,10 @@ const (
 
 // Server HTTP metrics.
 const (
-	serverRequestSize  = "http.server.request.size"  // Incoming request bytes total
-	serverResponseSize = "http.server.response.size" // Incoming response bytes total
-	serverDuration     = "http.server.duration"      // Incoming end to end duration, milliseconds
+	serverRequestSize   = "http.server.request.size"   // Incoming request bytes total
+	serverResponseSize  = "http.server.response.size"  // Incoming response bytes total
+	serverDuration      = "http.server.duration"       // Incoming end to end duration, milliseconds
+	serverRequestsCount = "http.server.requests.total" // Incoming requests count
 )
 
 // Client HTTP metrics.
