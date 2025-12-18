@@ -117,7 +117,6 @@ func (h *middleware) createMeasures() {
 
 	h.requestsCounter, err = h.meter.Int64Counter(
 		serverRequestsCount,
-		metric.WithUnit("1"),
 		metric.WithDescription("Counts the number of HTTP requests processed."),
 	)
 	handleErr(err)
