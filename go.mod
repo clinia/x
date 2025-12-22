@@ -59,6 +59,7 @@ require (
 	github.com/prometheus/procfs v0.15.1 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/twmb/franz-go/pkg/kmsg v1.8.0 // indirect
+	github.com/veqryn/slog-context v0.8.0 // indirect
 )
 
 require (
