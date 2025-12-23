@@ -4,10 +4,11 @@ import (
 	"context"
 	"log/slog"
 
+	internaltracex "github.com/clinia/x/internal/tracex"
 	"github.com/clinia/x/slogx"
-	"github.com/clinia/x/tracex"
 	"go.opentelemetry.io/otel/attribute"
 	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type Logger struct {
@@ -23,8 +24,14 @@ func (l *Logger) Panic(ctx context.Context, msg string, kvs ...attribute.KeyValu
 	panic(msg)
 }
 
+func (l *Logger) WithSpanStartOptions(opts ...trace.SpanStartOption) *Logger {
+	sc := trace.NewSpanStartConfig(opts...)
+	ll := l.WithFields(sc.Attributes()...)
+	return ll
+}
+
 func (l *Logger) WithStackTrace() *Logger {
-	stackTrace := tracex.GetStackTrace()
+	stackTrace := internaltracex.GetStackTrace(3)
 	return l.WithFields(semconv.ExceptionStacktrace(stackTrace))
 }
 
