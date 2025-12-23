@@ -15,8 +15,12 @@ type Logger struct {
 	*slog.Logger
 }
 
+func NewDefaultLogger() *Logger {
+	return &Logger{Logger: slog.Default()}
+}
+
 func (l *Logger) WithError(err error) *Logger {
-	return &Logger{l.Logger.With(slogx.ErrorAttr(err))}
+	return &Logger{Logger: l.Logger.With(slogx.ErrorAttr(err))}
 }
 
 func (l *Logger) Panic(ctx context.Context, msg string, kvs ...attribute.KeyValue) *Logger {
