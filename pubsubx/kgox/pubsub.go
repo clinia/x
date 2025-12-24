@@ -10,9 +10,10 @@ import (
 	"github.com/clinia/x/pointerx"
 	"github.com/clinia/x/pubsubx"
 	"go.opentelemetry.io/otel/metric"
-	"go.opentelemetry.io/otel/metric/noop"
+	metricnoop "go.opentelemetry.io/otel/metric/noop"
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 	"go.opentelemetry.io/otel/trace"
+	tracenoop "go.opentelemetry.io/otel/trace/noop"
 
 	"github.com/clinia/x/errorx"
 	"github.com/clinia/x/logrusx"
@@ -82,11 +83,11 @@ func NewPubSub(l *logrusx.Logger, config *pubsubx.Config, opts *pubsubx.PubSubOp
 	}
 	if mp == nil {
 		l.Warnf("no meter provider was defined in pubsub options, using noop")
-		mp = noop.NewMeterProvider()
+		mp = metricnoop.NewMeterProvider()
 	}
 	if tp == nil {
 		l.Warnf("no tracer provider was defined in pubsub options, using noop")
-		tp = trace.NewNoopTracerProvider()
+		tp = tracenoop.NewTracerProvider()
 	}
 
 	wc, err := kgo.NewClient(kopts...)
