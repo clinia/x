@@ -81,6 +81,8 @@ const (
 	// We want to wait a max of 3 seconds between retries
 	maxRetryInterval = 3 * time.Second
 	maxRetryCount    = 3
+
+	componentName = "kgox.consumer"
 )
 
 func newConsumerMetric(m metric.Meter) (*consumerMetric, error) {
@@ -247,9 +249,12 @@ func (c *consumer) handleTopic(ctx context.Context, tp kgo.FetchTopic) error {
 		return errorx.InternalErrorf("no handler for topic")
 	}
 	records := tp.Records()
-	span.SetAttributes(semconv.MessagingBatchMessageCount(len(records)))
+	span.SetAttributes(
+		semconv.MessagingBatchMessageCount(len(records)),
+	)
 	if len(records) == 0 {
 		l.Debugf("no records to process")
+		span.AddEvent("no records to process")
 		return nil
 	}
 	go func() {
@@ -270,7 +275,11 @@ func (c *consumer) handleTopic(ctx context.Context, tp kgo.FetchTopic) error {
 	bc.MaxInterval = maxRetryInterval
 	retries := 0
 	err := backoff.Retry(func() (outErr error) {
-		ctx, span := c.tracer.Start(ctx, "kgox.consumer.handleTopic.handle", trace.WithAttributes(attribute.Int("handle_retry.count", retries)))
+		ctx, span := c.tracer.Start(ctx, componentName+".handleTopic.handle",
+			trace.WithAttributes(
+				attribute.Int("messaging.batch.handle.retry_count", retries),
+			),
+		)
 		defer func() {
 			span.RecordError(outErr)
 			span.End()
@@ -328,7 +337,9 @@ func (c *consumer) start(ctx context.Context) {
 			// Sync task that hang until it receive at least one record
 			// When records are pulled, metadata is also updated within the client
 			fetches := c.cl.PollRecords(ctx, int(c.opts.MaxBatchSize))
-			ctx, span := c.tracer.Start(ctx, "kgox.consumer.workLoop", trace.WithSpanKind(trace.SpanKindConsumer))
+			ctx, span := c.tracer.Start(ctx, componentName+".workLoop",
+				trace.WithSpanKind(trace.SpanKindConsumer),
+			)
 			defer func() {
 				if shouldBreak {
 					span.SetStatus(codes.Error, "stopping consumer loop")
@@ -392,9 +403,13 @@ func (c *consumer) start(ctx context.Context) {
 			backgroundCtx := context.Background()
 			var abortErr error
 			fetches.EachTopic(func(tp kgo.FetchTopic) {
-				backgroundCtx, span := c.tracer.Start(backgroundCtx, "kgox.consumer.handleTopic",
+				backgroundCtx, span := c.tracer.Start(backgroundCtx, componentName+".handleTopic",
 					trace.WithSpanKind(trace.SpanKindConsumer),
-					trace.WithAttributes(semconv.MessagingSourceKindTopic, semconv.MessagingSourceName(tp.Topic)),
+					trace.WithAttributes(
+						semconv.MessagingOperationProcess,
+						semconv.MessagingSourceKindTopic,
+						semconv.MessagingSourceName(tp.Topic),
+					),
 				)
 				defer span.End()
 				processTopic := func() error {
