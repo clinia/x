@@ -1,74 +1,76 @@
 package kgox
 
 import (
+	"context"
 	"fmt"
+	"log/slog"
 
-	"github.com/clinia/x/logrusx"
-	"github.com/sirupsen/logrus"
+	"github.com/clinia/x/loggerx"
 	"github.com/twmb/franz-go/pkg/kgo"
 )
 
 type pubsubLogger struct {
-	l *logrusx.Logger
+	l *loggerx.Logger
 }
 
-func kgoLogLevelToLogrusLogLevel(l kgo.LogLevel) logrus.Level {
+func kgoLogLevelToSlogLevel(l kgo.LogLevel) slog.Level {
 	switch l {
 	case kgo.LogLevelNone:
-		return logrus.TraceLevel
+		return slog.LevelDebug - 4 // Below debug, similar to trace
 	case kgo.LogLevelDebug:
-		return logrus.DebugLevel
+		return slog.LevelDebug
 	case kgo.LogLevelInfo:
-		return logrus.InfoLevel
+		return slog.LevelInfo
 	case kgo.LogLevelWarn:
-		return logrus.WarnLevel
+		return slog.LevelWarn
 	case kgo.LogLevelError:
-		return logrus.ErrorLevel
+		return slog.LevelError
 	default:
-		return logrus.InfoLevel
-	}
-}
-
-func logrusLogLevelToKgoLogLevel(l logrus.Level) kgo.LogLevel {
-	switch l {
-	case logrus.TraceLevel, logrus.DebugLevel:
-		return kgo.LogLevelDebug
-	case logrus.InfoLevel:
-		return kgo.LogLevelInfo
-	case logrus.WarnLevel:
-		return kgo.LogLevelWarn
-	case logrus.ErrorLevel, logrus.FatalLevel, logrus.PanicLevel:
-		return kgo.LogLevelError
-	default:
-		return kgo.LogLevelInfo
+		return slog.LevelInfo
 	}
 }
 
 func (cl *pubsubLogger) Level() kgo.LogLevel {
-	return logrusLogLevelToKgoLogLevel(cl.l.Logrus().GetLevel())
+	ctx := context.Background()
+	// Check from most verbose to least verbose
+	switch {
+	case cl.l.Logger.Enabled(ctx, slog.LevelDebug-4):
+		return kgo.LogLevelNone // Trace-like level
+	case cl.l.Logger.Enabled(ctx, slog.LevelDebug):
+		return kgo.LogLevelDebug
+	case cl.l.Logger.Enabled(ctx, slog.LevelInfo):
+		return kgo.LogLevelInfo
+	case cl.l.Logger.Enabled(ctx, slog.LevelWarn):
+		return kgo.LogLevelWarn
+	case cl.l.Logger.Enabled(ctx, slog.LevelError):
+		return kgo.LogLevelError
+	default:
+		return kgo.LogLevelNone
+	}
 }
 
 func (cl *pubsubLogger) Log(level kgo.LogLevel, msg string, keyvals ...any) {
+	ctx := context.Background()
 	defer func() {
 		if r := recover(); r != nil {
-			cl.l.Errorf("pubsub logger panic : %v", r)
+			cl.l.Error(ctx, fmt.Sprintf("pubsub logger panic : %v", r))
 		}
 	}()
-	fields := make(logrus.Fields, len(keyvals)/2)
+	fields := []slog.Attr{}
 	// By design, the keyvals slice should always be a pair length as each key comes
 	// with a subsequent entry that is a val
 	if len(keyvals)%2 != 0 {
-		cl.l.Errorf("failed to evaluate keyvals as the vals count is odd (%d)", len(keyvals))
+		cl.l.Error(ctx, fmt.Sprintf("failed to evaluate keyvals as the vals count is odd (%d)", len(keyvals)))
 	} else if len(keyvals) > 0 {
 		for i := 0; i < len(keyvals)-1; i += 2 {
 			if key, ok := keyvals[i].(string); ok {
 				fk := fmt.Sprintf("pubsub.%s", key)
-				fields[fk] = keyvals[i+1]
+				slog.Any(fk, keyvals[i+1])
 			} else {
-				cl.l.Errorf("key is not a string type for kgo keyval pair, unable to add field key : %v", keyvals[i])
+				cl.l.Error(ctx, fmt.Sprintf("key is not a string type for kgo keyval pair, unable to add field key : %v", keyvals[i]))
 			}
 		}
 	}
-	lev := kgoLogLevelToLogrusLogLevel(level)
-	cl.l.WithFields(fields).Logf(lev, "%s", msg)
+	lev := kgoLogLevelToSlogLevel(level)
+	cl.l.Logger.LogAttrs(ctx, lev, msg, fields...)
 }

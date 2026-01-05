@@ -7,13 +7,13 @@ import (
 	"math"
 	"sync"
 
+	"github.com/clinia/x/loggerx"
 	"github.com/clinia/x/pointerx"
 	"github.com/clinia/x/pubsubx"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/metric/noop"
 
 	"github.com/clinia/x/errorx"
-	"github.com/clinia/x/logrusx"
 	"github.com/clinia/x/pubsubx/messagex"
 	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kerr"
@@ -27,7 +27,7 @@ type PubSub struct {
 	defaultCreateTopicConfigEntries map[string]*string
 	kotelService                    *kotel.Kotel
 	writeClient                     *kgo.Client
-	l                               *logrusx.Logger
+	l                               *loggerx.Logger
 	mp                              metric.MeterProvider
 
 	mu        sync.RWMutex
@@ -40,7 +40,7 @@ type contextLoggerKey string
 
 const ctxLoggerKey contextLoggerKey = "consumer_logger"
 
-func NewPubSub(l *logrusx.Logger, config *pubsubx.Config, opts *pubsubx.PubSubOptions) (*PubSub, error) {
+func NewPubSub(ctx context.Context, l *loggerx.Logger, config *pubsubx.Config, opts *pubsubx.PubSubOptions) (*PubSub, error) {
 	if l == nil {
 		return nil, errorx.FailedPreconditionErrorf("logger is required")
 	}
@@ -76,7 +76,7 @@ func NewPubSub(l *logrusx.Logger, config *pubsubx.Config, opts *pubsubx.PubSubOp
 		}
 	}
 	if mp == nil {
-		l.Warnf("no meter provider was defined in pubsub options, using noop")
+		l.Warn(ctx, "no meter provider was defined in pubsub options, using noop")
 		mp = noop.NewMeterProvider()
 	}
 
@@ -103,6 +103,7 @@ func NewPubSub(l *logrusx.Logger, config *pubsubx.Config, opts *pubsubx.PubSubOp
 }
 
 func (p *PubSub) Bootstrap() error {
+	ctx := context.Background()
 	if !p.conf.PoisonQueue.Enabled {
 		return nil
 	}
@@ -126,11 +127,11 @@ func (p *PubSub) Bootstrap() error {
 		if err != nil && err.Error() != kerr.TopicAlreadyExists.Error() {
 			return errorx.InternalErrorf("failed to create poison queue: %s", err.Error())
 		} else if err == nil && p.l != nil {
-			p.l.Infof("poison queue topic %s created", poisonQueueTopic.TopicName(p.conf.Scope))
+			p.l.Info(ctx, fmt.Sprintf("poison queue topic %s created", poisonQueueTopic.TopicName(p.conf.Scope)))
 		}
 	} else {
 		if p.l != nil {
-			p.l.Debugf("poison queue topic %s already exist", poisonQueueTopic.TopicName(p.conf.Scope))
+			p.l.Debug(ctx, fmt.Sprintf("poison queue topic %s already exist", poisonQueueTopic.TopicName(p.conf.Scope)))
 		}
 	}
 
@@ -187,7 +188,7 @@ func (p *PubSub) Subscriber(group string, topics []messagex.Topic, opts ...pubsu
 	}
 	cs, err := newConsumer(context.Background(), p.l, p.kotelService, p.conf, consumerGroup, topics, o, p.eventRetryHandler(consumerGroup, o), p.PoisonQueueHandler(), m)
 	if err != nil {
-		p.l.Errorf("failed to create consumer: %v", err)
+		p.l.WithError(err).Error(context.Background(), "failed to create consumer")
 		return nil, errorx.InternalErrorf("failed to create consumer: %v", err)
 	}
 
@@ -219,14 +220,14 @@ func (p *PubSub) AdminClient() (pubsubx.PubSubAdminClient, error) {
 
 // getContextLogger allows to extract the logger set in the context if we have some contextual logger
 // that is used
-func getContextLogger(ctx context.Context, fallback *logrusx.Logger) (l *logrusx.Logger) {
+func getContextLogger(ctx context.Context, fallback *loggerx.Logger) (l *loggerx.Logger) {
 	if ctxL := ctx.Value(ctxLoggerKey); ctxL != nil {
-		if ctxL, ok := ctxL.(*logrusx.Logger); ok {
-			l = ctxL.WithContext(ctx)
+		if ctxL, ok := ctxL.(*loggerx.Logger); ok {
+			l = ctxL
 		}
 	}
 	if l == nil {
-		l = fallback.WithContext(ctx)
+		l = fallback
 	}
 	return l
 }

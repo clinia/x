@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strconv"
 	"strings"
 	"sync"
@@ -43,7 +44,7 @@ func TestConsumerLifecycle(t *testing.T) {
 	t.Cleanup(tf.EnableAll)
 	config := getPubsubConfig(t, false)
 	opts := &pubsubx.SubscriberOptions{MaxBatchSize: 10, MaxTopicRetryCount: 3, EnableAsyncExecution: false, RebalanceTimeout: kafkaTimeouts, DialTimeout: kafkaTimeouts}
-	pubSub, err := NewPubSub(l, config, nil)
+	pubSub, err := NewPubSub(t.Context(), l, config, nil)
 	require.NoError(t, err)
 	pqh := pubSub.PoisonQueueHandler().(*poisonQueueHandler)
 	defer pubSub.Close()
@@ -1009,7 +1010,9 @@ func consumer_Subscribe_Concurrency_test(t *testing.T, eae bool) {
 
 		// Buffer to intercept logs
 		buf := newConcurrentBuffer(t)
-		l.Entry.Logger.SetOutput(buf)
+		l.Logger = slog.New(slog.NewTextHandler(buf, &slog.HandlerOptions{
+			Level: slog.LevelDebug,
+		}))
 
 		receivedMsgs := make(chan *messagex.Message, 10)
 		cg := messagex.ConsumerGroup(group)

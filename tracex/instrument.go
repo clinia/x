@@ -47,6 +47,10 @@ func InstrumentNext(ctx context.Context, lp loggerNextProvider, tp tracerProvide
 	ctx, span := tp(ctx).Tracer().Start(ctx, fullComponentName, opts...)
 	l := lp().
 		WithSpanStartOptions(opts...).
-		WithFields(attribute.Key("component").String(fullComponentName))
+		WithFields(Component(fullComponentName))
 	return ctx, span, l
+}
+
+func Component(name string) attribute.KeyValue {
+	return attribute.String("component", name)
 }
