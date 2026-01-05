@@ -3,6 +3,8 @@ package loggerx
 import (
 	"context"
 	"log/slog"
+	"runtime"
+	"time"
 
 	internaltracex "github.com/clinia/x/internal/tracex"
 	"github.com/clinia/x/slogx"
@@ -40,23 +42,40 @@ func (l *Logger) WithStackTrace() *Logger {
 }
 
 func (l *Logger) Error(ctx context.Context, msg string, kvs ...attribute.KeyValue) {
-	l.Logger.LogAttrs(ctx, slog.LevelError, msg, slogx.NewLogFields(kvs...)...)
+	l.log(ctx, slog.LevelError, msg, kvs...)
 }
 
 func (l *Logger) Warn(ctx context.Context, msg string, kvs ...attribute.KeyValue) {
-	l.Logger.LogAttrs(ctx, slog.LevelWarn, msg, slogx.NewLogFields(kvs...)...)
+	l.log(ctx, slog.LevelWarn, msg, kvs...)
 }
 
 func (l *Logger) Info(ctx context.Context, msg string, kvs ...attribute.KeyValue) {
-	l.Logger.LogAttrs(ctx, slog.LevelInfo, msg, slogx.NewLogFields(kvs...)...)
+	l.log(ctx, slog.LevelInfo, msg, kvs...)
 }
 
 func (l *Logger) Debug(ctx context.Context, msg string, kvs ...attribute.KeyValue) {
-	l.Logger.LogAttrs(ctx, slog.LevelDebug, msg, slogx.NewLogFields(kvs...)...)
+	l.log(ctx, slog.LevelDebug, msg, kvs...)
 }
 
 func (l *Logger) WithFields(kvs ...attribute.KeyValue) *Logger {
 	lfs := slogx.NewLogFields(kvs...)
 	// This is a workaround until we get a nice slog.WithAttrs method - See https://github.com/golang/go/issues/66937#issuecomment-2730350514
 	return &Logger{l.Logger.With("", slog.GroupValue(lfs...))}
+}
+
+func (l *Logger) log(ctx context.Context, level slog.Level, msg string, kvs ...attribute.KeyValue) {
+	if !l.Logger.Enabled(ctx, level) {
+		return
+	}
+
+	var pc uintptr
+	var pcs [1]uintptr
+	// Skip 3: runtime.Callers + l.log + l.Info/Error
+	runtime.Callers(3, pcs[:])
+	pc = pcs[0]
+
+	r := slog.NewRecord(time.Now(), level, msg, pc)
+	r.AddAttrs(slogx.NewLogFields(kvs...)...)
+
+	_ = l.Logger.Handler().Handle(ctx, r)
 }
