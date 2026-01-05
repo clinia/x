@@ -20,7 +20,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/twmb/franz-go/pkg/kgo"
-	"go.opentelemetry.io/otel/metric/noop"
+	metricnoop "go.opentelemetry.io/otel/metric/noop"
+	tracenoop "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/goleak"
 	"golang.org/x/exp/rand"
 )
@@ -37,7 +38,8 @@ func TestConsumerLifecycle(t *testing.T) {
 	const kafkaTimeouts = 5 * time.Second
 	const msgFailureTimeout = kafkaTimeouts * 3
 	l := getLogger()
-	m := noop.NewMeterProvider().Meter("test")
+	m := metricnoop.NewMeterProvider().Meter("test")
+	tracer := tracenoop.NewTracerProvider().Tracer("test")
 	tf := newProxyFixture(t)
 	tf.EnableAll()
 	t.Cleanup(tf.EnableAll)
@@ -76,7 +78,7 @@ func TestConsumerLifecycle(t *testing.T) {
 		createTopic(t, config, topics[0])
 		cg := messagex.ConsumerGroup(group)
 		erh := pubSub.eventRetryHandler(cg, nil)
-		c, err := newConsumer(context.Background(), l, nil, config, cg, topics, opts, erh, pqh, m)
+		c, err := newConsumer(context.Background(), l, nil, config, cg, topics, opts, erh, pqh, m, tracer)
 		require.NoError(t, err)
 		defer c.Close()
 		subCtx := context.Background()
@@ -127,7 +129,7 @@ func TestConsumerLifecycle(t *testing.T) {
 		createTopic(t, config, topics[0])
 		cg := messagex.ConsumerGroup(group)
 		erh := pubSub.eventRetryHandler(cg, nil)
-		c, err := newConsumer(context.Background(), l, nil, config, cg, topics, opts, erh, pqh, m)
+		c, err := newConsumer(context.Background(), l, nil, config, cg, topics, opts, erh, pqh, m, tracer)
 		require.NoError(t, err)
 		defer c.Close()
 		subCtx := context.Background()
@@ -183,7 +185,7 @@ func TestConsumerLifecycle(t *testing.T) {
 		createTopic(t, config, topics[0])
 		cg := messagex.ConsumerGroup(group)
 		erh := pubSub.eventRetryHandler(cg, nil)
-		c, err := newConsumer(context.Background(), l, nil, config, cg, topics, opts, erh, pqh, m)
+		c, err := newConsumer(context.Background(), l, nil, config, cg, topics, opts, erh, pqh, m, tracer)
 		require.NoError(t, err)
 		defer c.Close()
 		subCtx := context.Background()
@@ -233,7 +235,7 @@ func TestConsumerLifecycle(t *testing.T) {
 		createTopic(t, config, topics[0])
 		cg := messagex.ConsumerGroup(group)
 		erh := pubSub.eventRetryHandler(cg, nil)
-		c, err := newConsumer(context.Background(), l, nil, config, cg, topics, opts, erh, pqh, m)
+		c, err := newConsumer(context.Background(), l, nil, config, cg, topics, opts, erh, pqh, m, tracer)
 		require.NoError(t, err)
 		defer c.Close()
 		subCtx := context.Background()
@@ -313,7 +315,7 @@ func TestConsumerLifecycle(t *testing.T) {
 		createTopic(t, config, topics[0])
 		cg := messagex.ConsumerGroup(group)
 		erh := pubSub.eventRetryHandler(cg, nil)
-		c, err := newConsumer(context.Background(), l, nil, config, cg, topics, opts, erh, pqh, m)
+		c, err := newConsumer(context.Background(), l, nil, config, cg, topics, opts, erh, pqh, m, tracer)
 		require.NoError(t, err)
 		defer c.Close()
 		subCtx := context.Background()
@@ -403,7 +405,7 @@ func TestConsumerLifecycle(t *testing.T) {
 		createTopic(t, config, topics[0])
 		cg := messagex.ConsumerGroup(group)
 		erh := pubSub.eventRetryHandler(cg, nil)
-		c, err := newConsumer(context.Background(), l, nil, config, cg, topics, opts, erh, pqh, m)
+		c, err := newConsumer(context.Background(), l, nil, config, cg, topics, opts, erh, pqh, m, tracer)
 		require.NoError(t, err)
 		defer c.Close()
 		subCtx, cancel := context.WithCancel(context.Background())
@@ -446,7 +448,8 @@ func consumer_Subscribe_Handling_test(t *testing.T, eae bool) {
 	config := getPubsubConfig(t, true)
 	opts := &pubsubx.SubscriberOptions{MaxBatchSize: 10, MaxTopicRetryCount: 3, EnableAsyncExecution: eae, RebalanceTimeout: 1 * time.Second, DialTimeout: 1 * time.Second}
 	pqh := getPoisonQueueHandler(t, l, config)
-	m := noop.NewMeterProvider().Meter("test")
+	m := metricnoop.NewMeterProvider().Meter("test")
+	tracer := tracenoop.NewTracerProvider().Tracer("test")
 
 	getWriteClient := func(t *testing.T) *kgo.Client {
 		t.Helper()
@@ -473,7 +476,7 @@ func consumer_Subscribe_Handling_test(t *testing.T, eae bool) {
 		createTopic(t, config, topics[0])
 		cg := messagex.ConsumerGroup(group)
 		erh := getEventRetryHandler(t, l, config, cg, nil)
-		consumer, err := newConsumer(context.Background(), l, nil, config, cg, topics, opts, erh, pqh, m)
+		consumer, err := newConsumer(context.Background(), l, nil, config, cg, topics, opts, erh, pqh, m, tracer)
 		if err != nil {
 			t.Fatalf("failed to create consumer: %v", err)
 		}
@@ -520,7 +523,7 @@ func consumer_Subscribe_Handling_test(t *testing.T, eae bool) {
 		createTopic(t, config, topics[0])
 		cg := messagex.ConsumerGroup(group)
 		erh := getEventRetryHandler(t, l, config, cg, nil)
-		consumer, err := newConsumer(context.Background(), l, nil, config, cg, topics, opts, erh, pqh, m)
+		consumer, err := newConsumer(context.Background(), l, nil, config, cg, topics, opts, erh, pqh, m, tracer)
 		if err != nil {
 			t.Fatalf("failed to create consumer: %v", err)
 		}
@@ -570,7 +573,7 @@ func consumer_Subscribe_Handling_test(t *testing.T, eae bool) {
 		cg := messagex.ConsumerGroup(group)
 		erh := getEventRetryHandler(t, l, config, cg, nil)
 		ctx := context.Background()
-		consumer, err := newConsumer(ctx, l, nil, config, cg, topics, opts, erh, pqh, m)
+		consumer, err := newConsumer(ctx, l, nil, config, cg, topics, opts, erh, pqh, m, tracer)
 		require.NoError(t, err)
 		wClient := getWriteClient(t)
 		cMu := sync.Mutex{}
@@ -627,7 +630,7 @@ func consumer_Subscribe_Handling_test(t *testing.T, eae bool) {
 		t.Log("proxies enabled")
 
 		ctx = context.Background()
-		consumer2, err := newConsumer(ctx, l, nil, config, cg, topics, opts, erh, pqh, m)
+		consumer2, err := newConsumer(ctx, l, nil, config, cg, topics, opts, erh, pqh, m, tracer)
 		require.NoError(t, err)
 		t.Cleanup(func() { consumer2.Close() })
 
@@ -657,7 +660,7 @@ func consumer_Subscribe_Handling_test(t *testing.T, eae bool) {
 		createTopic(t, config, topics[0])
 		cg := messagex.ConsumerGroup(group)
 		erh := getEventRetryHandler(t, l, config, cg, nil)
-		consumer, err := newConsumer(context.Background(), l, nil, config, cg, topics, opts, erh, pqh, m)
+		consumer, err := newConsumer(context.Background(), l, nil, config, cg, topics, opts, erh, pqh, m, tracer)
 		if err != nil {
 			t.Fatalf("failed to create consumer: %v", err)
 		}
@@ -722,7 +725,8 @@ func consumer_Subscribe_Concurrency_test(t *testing.T, eae bool) {
 	t.Cleanup(tf.EnableAll)
 	config := getPubsubConfig(t, false)
 	pqh := getPoisonQueueHandler(t, l, config)
-	m := noop.NewMeterProvider().Meter("test")
+	m := metricnoop.NewMeterProvider().Meter("test")
+	tracer := tracenoop.NewTracerProvider().Tracer("test")
 	opts := &pubsubx.SubscriberOptions{MaxBatchSize: 10, EnableAsyncExecution: eae, RebalanceTimeout: 1 * time.Second, DialTimeout: 1 * time.Second}
 
 	getWriteClient := func(t *testing.T) *kgo.Client {
@@ -749,7 +753,7 @@ func consumer_Subscribe_Concurrency_test(t *testing.T, eae bool) {
 		group, topics := getRandomGroupTopics(t, 3)
 		cg := messagex.ConsumerGroup(group)
 		erh := getEventRetryHandler(t, l, config, cg, nil)
-		consumer, err := newConsumer(context.Background(), l, nil, config, cg, topics, opts, erh, pqh, m)
+		consumer, err := newConsumer(context.Background(), l, nil, config, cg, topics, opts, erh, pqh, m, tracer)
 		if err != nil {
 			t.Fatalf("failed to create consumer: %v", err)
 		}
@@ -782,7 +786,7 @@ func consumer_Subscribe_Concurrency_test(t *testing.T, eae bool) {
 
 		cg := messagex.ConsumerGroup(group)
 		erh := getEventRetryHandler(t, l, config, cg, nil)
-		consumer, err := newConsumer(context.Background(), l, nil, config, cg, topics, opts, erh, pqh, m)
+		consumer, err := newConsumer(context.Background(), l, nil, config, cg, topics, opts, erh, pqh, m, tracer)
 		if err != nil {
 			t.Fatalf("failed to create consumer: %v", err)
 		}
@@ -841,7 +845,7 @@ func consumer_Subscribe_Concurrency_test(t *testing.T, eae bool) {
 		receivedMsgs := make(chan *messagex.Message, 10)
 		cg := messagex.ConsumerGroup(group)
 		erh := getEventRetryHandler(t, l, config, cg, nil)
-		consumer, err := newConsumer(context.Background(), l, nil, config, cg, topics, opts, erh, pqh, m)
+		consumer, err := newConsumer(context.Background(), l, nil, config, cg, topics, opts, erh, pqh, m, tracer)
 		if err != nil {
 			t.Fatalf("failed to create consumer: %v", err)
 		}
@@ -911,7 +915,7 @@ func consumer_Subscribe_Concurrency_test(t *testing.T, eae bool) {
 		anotherGroup, _ := getRandomGroupTopics(t, 1)
 		acg := messagex.ConsumerGroup(anotherGroup)
 		aerh := getEventRetryHandler(t, l, config, acg, nil)
-		anotherConsumer, err := newConsumer(context.Background(), l, nil, config, acg, topics, opts, aerh, pqh, m)
+		anotherConsumer, err := newConsumer(context.Background(), l, nil, config, acg, topics, opts, aerh, pqh, m, tracer)
 		t.Cleanup(func() {
 			anotherConsumer.Close()
 		})
@@ -973,7 +977,7 @@ func consumer_Subscribe_Concurrency_test(t *testing.T, eae bool) {
 		}
 		cg := messagex.ConsumerGroup(group)
 		erh := getEventRetryHandler(t, l, config, cg, nil)
-		c, err := newConsumer(context.Background(), l, nil, config, cg, topics, opts, erh, pqh, m)
+		c, err := newConsumer(context.Background(), l, nil, config, cg, topics, opts, erh, pqh, m, tracer)
 		require.NoError(t, err)
 		require.NoError(t, c.Subscribe(ctx, hs))
 		t.Cleanup(func() { c.Close() })
@@ -1014,7 +1018,7 @@ func consumer_Subscribe_Concurrency_test(t *testing.T, eae bool) {
 		receivedMsgs := make(chan *messagex.Message, 10)
 		cg := messagex.ConsumerGroup(group)
 		erh := getEventRetryHandler(t, l, config, cg, nil)
-		consumer, err := newConsumer(context.Background(), l, nil, config, cg, topics, opts, erh, pqh, m)
+		consumer, err := newConsumer(context.Background(), l, nil, config, cg, topics, opts, erh, pqh, m, tracer)
 		if err != nil {
 			t.Fatalf("failed to create consumer: %v", err)
 		}
