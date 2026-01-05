@@ -42,6 +42,8 @@ var _ pubsubx.PubSub = (*PubSub)(nil)
 
 type contextLoggerKey string
 
+const pubsubConsumerInstrumentationName = "pubsubx_consumer"
+
 const ctxLoggerKey contextLoggerKey = "consumer_logger"
 
 func NewPubSub(l *logrusx.Logger, config *pubsubx.Config, opts *pubsubx.PubSubOptions) (*PubSub, error) {
@@ -195,12 +197,18 @@ func (p *PubSub) Subscriber(group string, topics []messagex.Topic, opts ...pubsu
 	var m metric.Meter
 	var t trace.Tracer
 	if p.mp != nil {
-		m = p.mp.Meter("pubsubx_consumer")
-	}
-	if p.tp != nil {
-		t = p.tp.Tracer("pubsubx_consumer", trace.WithInstrumentationAttributes(
+		m = p.mp.Meter(pubsubConsumerInstrumentationName, metric.WithInstrumentationAttributes(
 			semconv.MessagingKafkaConsumerGroup(consumerGroup.ConsumerGroup(p.conf.Scope)),
 		))
+	} else {
+		m = metricnoop.NewMeterProvider().Meter(pubsubConsumerInstrumentationName)
+	}
+	if p.tp != nil {
+		t = p.tp.Tracer(pubsubConsumerInstrumentationName, trace.WithInstrumentationAttributes(
+			semconv.MessagingKafkaConsumerGroup(consumerGroup.ConsumerGroup(p.conf.Scope)),
+		))
+	} else {
+		t = tracenoop.NewTracerProvider().Tracer(pubsubConsumerInstrumentationName)
 	}
 	cs, err := newConsumer(context.Background(), p.l, p.kotelService, p.conf, consumerGroup, topics, o, p.eventRetryHandler(consumerGroup, o), p.PoisonQueueHandler(), m, t)
 	if err != nil {

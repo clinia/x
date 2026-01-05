@@ -20,7 +20,6 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
 	"go.opentelemetry.io/otel/trace"
-	"go.opentelemetry.io/otel/trace/noop"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -113,11 +112,6 @@ func newConsumer(ctx context.Context, l *logrusx.Logger, kotelService *kotel.Kot
 	if err != nil {
 		l.WithContext(ctx).WithError(err).Errorf("failed to create consumer metrics, not recording any library metrics")
 	}
-
-	if t == nil {
-		t = noop.NewTracerProvider().Tracer("kgox_consumer")
-	}
-
 	cons := &consumer{l: l, kotelService: kotelService, group: group, conf: config, topics: topics, opts: opts, erh: erh, pqh: pqh, consumerMetric: cm, tracer: t}
 
 	return cons, nil
