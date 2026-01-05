@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"strings"
 )
 
 var (
@@ -16,7 +17,7 @@ var (
 // Note that this will be applied globally to all loggers using slogx.
 func ConfigureSensitiveHeaders(sensitiveHeaders ...string) {
 	for _, header := range sensitiveHeaders {
-		sensitiveHeadersMap[header] = true
+		sensitiveHeadersMap[strings.ToLower(header)] = true
 	}
 }
 
@@ -40,7 +41,7 @@ func ConfigureDefaultSensitiveHeaders() {
 func RedactHeaders(headers http.Header) slog.Attr {
 	headerMap := make(map[string][]string, 0)
 	for key, values := range headers {
-		if sensitiveHeadersMap[key] {
+		if sensitiveHeadersMap[strings.ToLower(key)] {
 			headerMap[key] = []string{redactionText}
 		} else {
 			headerMap[key] = values
