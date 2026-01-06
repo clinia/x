@@ -3,7 +3,7 @@ package otelx
 import (
 	"testing"
 
-	"github.com/clinia/x/logrusx"
+	"github.com/clinia/x/loggerx"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -23,7 +23,7 @@ func TestNewWithTracerConfig(t *testing.T) {
 		},
 	}
 
-	otel, err := New(logrusx.New("clinia/x", "1"), WithTracer(tracerConfig))
+	otel, err := New(t.Context(), loggerx.NewDefaultLogger(), WithTracer(tracerConfig))
 
 	assert.NoError(t, err)
 	assert.NotNil(t, otel.Tracer())
@@ -59,7 +59,7 @@ func TestNewWithMeterConfig(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		otel, err := New(logrusx.New("clinia/x", "1"), WithMeterConfig(tc.config))
+		otel, err := New(t.Context(), loggerx.NewDefaultLogger(), WithMeterConfig(tc.config))
 
 		assert.NoError(t, err)
 		assert.NotNil(t, otel.MeterProvider())

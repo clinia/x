@@ -24,7 +24,7 @@ import (
 
 	tracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 
-	"github.com/clinia/x/logrusx"
+	"github.com/clinia/x/loggerx"
 )
 
 func decodeResponseBody(t *testing.T, r *http.Request) []byte {
@@ -95,7 +95,7 @@ func TestHTTPOTLPTracer(t *testing.T) {
 	}
 
 	tr := &Tracer{}
-	err = tr.setup(logrusx.New("clinia/x", "1"), tracerConfig)
+	err = tr.setup(t.Context(), loggerx.NewDefaultLogger(), tracerConfig)
 	assert.NoError(t, err)
 
 	_, span := tr.Tracer().Start(context.Background(), "testSpan")
@@ -163,7 +163,7 @@ func TestGRPCOTLPTracer(t *testing.T) {
 	}
 
 	tr := &Tracer{}
-	err = tr.setup(logrusx.New("clinia/x", "1"), tracerConfig)
+	err = tr.setup(t.Context(), loggerx.NewDefaultLogger(), tracerConfig)
 	assert.NoError(t, err)
 
 	_, span := tr.Tracer().Start(context.Background(), "testSpan")

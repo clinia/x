@@ -5,13 +5,14 @@ package otelx
 
 import (
 	"context"
+	"fmt"
 
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/otel/trace/embedded"
 	"go.opentelemetry.io/otel/trace/noop"
 
-	"github.com/clinia/x/logrusx"
+	"github.com/clinia/x/loggerx"
 	"github.com/clinia/x/stringsx"
 )
 
@@ -22,7 +23,7 @@ type Tracer struct {
 }
 
 // setup constructs the tracer based on the given configuration.
-func (t *Tracer) setup(l *logrusx.Logger, c *TracerConfig) error {
+func (t *Tracer) setup(ctx context.Context, l *loggerx.Logger, c *TracerConfig) error {
 	switch f := stringsx.SwitchExact(c.Provider); {
 	case f.AddCase("jaeger"):
 		tracer, prop, err := SetupJaegerTracer(c.Name, c)
@@ -32,7 +33,7 @@ func (t *Tracer) setup(l *logrusx.Logger, c *TracerConfig) error {
 
 		t.tracer = tracer
 		t.propagator = prop
-		l.Infof("Jaeger tracer configured! Sending spans to %s", c.Providers.Jaeger.LocalAgentAddress)
+		l.Info(ctx, fmt.Sprintf("jaeger tracer configured! Sending spans to %s", c.Providers.Jaeger.LocalAgentAddress))
 	case f.AddCase("otel"):
 		tp, tracer, prop, err := SetupOTLPTracer(c.Name, c)
 		if err != nil {
@@ -42,7 +43,7 @@ func (t *Tracer) setup(l *logrusx.Logger, c *TracerConfig) error {
 		t.tracer = tracer
 		t.tp = tp
 		t.propagator = prop
-		l.Infof("OTLP tracer configured! Sending spans to %s", c.Providers.OTLP.ServerURL)
+		l.Info(ctx, fmt.Sprintf("OTLP tracer configured! Sending spans to %s", c.Providers.OTLP.ServerURL))
 	case f.AddCase("stdout"):
 		tracer, prop, err := SetupStdoutTracer(c.Name, c)
 		if err != nil {
@@ -51,9 +52,9 @@ func (t *Tracer) setup(l *logrusx.Logger, c *TracerConfig) error {
 
 		t.tracer = tracer
 		t.propagator = prop
-		l.Infof("Stdout tracer configured! Sending spans to stdout")
+		l.Info(ctx, "stdout tracer configured! Sending spans to stdout")
 	case f.AddCase(""):
-		l.Infof("Missing provider in config - skipping tracing setup")
+		l.Info(ctx, "missing provider in config - skipping tracing setup")
 		noopTracer := NewNoopTracer(c.Name)
 		t.tracer = noopTracer.tracer
 		t.propagator = noopTracer.propagator
