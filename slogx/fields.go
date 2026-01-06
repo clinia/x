@@ -30,3 +30,7 @@ func NewLogFields(kvs ...attribute.KeyValue) []slog.Attr {
 func ErrorAttr(err error) slog.Attr {
 	return slog.Any("error", err)
 }
+
+func ErrorsAttr(errs ...error) slog.Attr {
+	return slog.Any("errors", errs)
+}

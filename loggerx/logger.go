@@ -25,6 +25,10 @@ func (l *Logger) WithError(err error) *Logger {
 	return &Logger{Logger: l.Logger.With(slogx.ErrorAttr(err))}
 }
 
+func (l *Logger) WithErrors(errs ...error) *Logger {
+	return &Logger{Logger: l.Logger.With(slogx.ErrorsAttr(errs...))}
+}
+
 func (l *Logger) Panic(ctx context.Context, msg string, kvs ...attribute.KeyValue) *Logger {
 	l.Error(ctx, msg, kvs...)
 	panic(msg)
