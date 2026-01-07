@@ -46,7 +46,7 @@ func TestPubSubLoggerLog(t *testing.T) {
 			slog.LevelError,
 		}
 		expected := []kgo.LogLevel{
-			kgo.LogLevelError,
+			kgo.LogLevelNone,
 			kgo.LogLevelDebug,
 			kgo.LogLevelInfo,
 			kgo.LogLevelWarn,
@@ -72,7 +72,7 @@ func TestPubSubLoggerLog(t *testing.T) {
 			slog.LevelError,
 		}
 		value := []kgo.LogLevel{
-			kgo.LogLevelError,
+			kgo.LogLevelNone,
 			kgo.LogLevelDebug,
 			kgo.LogLevelInfo,
 			kgo.LogLevelWarn,
