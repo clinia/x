@@ -3,6 +3,7 @@ package kgox
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math"
 	"slices"
 	"strconv"
@@ -22,9 +23,9 @@ type eventRetryHandler struct {
 }
 
 func (erh *eventRetryHandler) generateRetryTopics(ctx context.Context, topics ...messagex.Topic) ([]messagex.Topic, []error, error) {
-	l := erh.l.WithContext(ctx)
+	l := erh.l
 	if !erh.canTopicRetry() || len(topics) == 0 {
-		l.Debugf("not generating any retry topics, configuration is either disable, max topic count is <= 0 or no topic are passed in")
+		l.Debug(ctx, "not generating any retry topics, configuration is either disable, max topic count is <= 0 or no topic are passed in")
 		return []messagex.Topic{}, []error{}, nil
 	}
 	retryTopics := lo.Map(topics, func(topic messagex.Topic, _ int) messagex.Topic {
@@ -33,7 +34,7 @@ func (erh *eventRetryHandler) generateRetryTopics(ctx context.Context, topics ..
 
 	pbac, err := erh.AdminClient()
 	if err != nil {
-		l.WithError(err).Errorf("failed to generate admin client on retry topic creation")
+		l.WithError(err).Error(ctx, "failed to generate admin client on retry topic creation")
 		return []messagex.Topic{}, []error{}, err
 	}
 	defer pbac.Close()
@@ -48,7 +49,7 @@ func (erh *eventRetryHandler) generateRetryTopics(ctx context.Context, topics ..
 	}
 	res, err := pbac.CreateTopics(ctx, 1, replicationFactor, scopedRetryTopics, erh.defaultCreateTopicConfigEntries)
 	if err != nil {
-		l.WithError(err).Errorf("failed to execute retry topic creation")
+		l.WithError(err).Error(ctx, "failed to execute retry topic creation")
 		return []messagex.Topic{}, []error{}, err
 	}
 	out := make([]messagex.Topic, 0, len(topics))
@@ -57,12 +58,12 @@ func (erh *eventRetryHandler) generateRetryTopics(ctx context.Context, topics ..
 		scopeTopic := retryTopic.TopicName(erh.conf.Scope)
 		tr, ok := res[scopeTopic]
 		if !ok {
-			l.Errorf("retry topic [%s] not included in topic creation response", scopeTopic)
+			l.Error(ctx, fmt.Sprintf("retry topic [%s] not included in topic creation response", scopeTopic))
 			errs[i] = errorx.InvalidArgumentErrorf("retry topic [%s] not included in topic creation response", scopeTopic)
 			continue
 		}
 		if tr.Err != nil && tr.Err.Error() != kerr.TopicAlreadyExists.Error() {
-			l.WithError(tr.Err).Errorf("failed to create retry topic [%s]", scopeTopic)
+			l.WithError(tr.Err).Error(ctx, fmt.Sprintf("failed to create retry topic [%s]", scopeTopic))
 			errs[i] = tr.Err
 			continue
 		}
@@ -86,11 +87,11 @@ func (c *eventRetryHandler) parseRetryMessages(ctx context.Context, errs []error
 	var referErr error
 	if !checkErrs {
 		if len(errs) == 1 {
-			l.Debugf("using first error as reference to if we should retry the batch")
+			l.Debug(ctx, "using first error as reference to if we should retry the batch")
 			_, retryable = errorx.IsRetryableError(errs[0])
 			referErr = errs[0]
 		} else {
-			l.Warnf("errors handler result mismatch messages length, can't identify which message failed, sending them all back")
+			l.Warn(ctx, "errors handler result mismatch messages length, can't identify which message failed, sending them all back")
 		}
 	}
 	for i, msg := range allMsgs {
@@ -113,12 +114,12 @@ func (c *eventRetryHandler) parseRetryMessages(ctx context.Context, errs []error
 		}
 		retryCount, ok := msg.Metadata[messagex.RetryCountHeaderKey]
 		if !ok {
-			l.Warnf("message is missing %s header, setting it to '1'", messagex.RetryCountHeaderKey)
+			l.Warn(ctx, fmt.Sprintf("message is missing %s header, setting it to '1'", messagex.RetryCountHeaderKey))
 			copiedMsg.Metadata[messagex.RetryCountHeaderKey] = "1"
 		} else {
 			numericRetryCount, err := strconv.Atoi(retryCount)
 			if !c.canTopicRetry() || err != nil || numericRetryCount >= int(c.opts.MaxTopicRetryCount)-1 {
-				l.Errorf("not retrying, adding message to poison queue messages")
+				l.WithError(err).Error(ctx, "not retrying, adding message to poison queue messages")
 				poisonQueueMessages = append(poisonQueueMessages, copiedMsg)
 				poisonQueueErrs = append(poisonQueueErrs, referErr)
 				continue

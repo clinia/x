@@ -24,7 +24,7 @@ func TestPublisher(t *testing.T) {
 		msgsCh := make(chan *messagex.Message, 10)
 		ctx, cancel := context.WithCancel(context.Background())
 
-		pubSub, err := NewPubSub(l, config, nil)
+		pubSub, err := NewPubSub(ctx, l, config, nil)
 		require.NoError(t, err)
 
 		sub, err := pubSub.Subscriber(group, []messagex.Topic{topic})

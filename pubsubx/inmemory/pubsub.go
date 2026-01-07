@@ -5,7 +5,7 @@ import (
 	"sync"
 
 	"github.com/clinia/x/errorx"
-	"github.com/clinia/x/logrusx"
+	"github.com/clinia/x/loggerx"
 	"github.com/clinia/x/pubsubx"
 	"github.com/clinia/x/pubsubx/messagex"
 	"github.com/samber/lo"
@@ -32,7 +32,7 @@ var (
 	_ pubsubx.Subscriber = (*memorySubscriber)(nil)
 )
 
-func SetupInMemoryPubSub(l *logrusx.Logger, c *pubsubx.Config) (*memoryPubSub, error) {
+func SetupInMemoryPubSub(l *loggerx.Logger, c *pubsubx.Config) (*memoryPubSub, error) {
 	return &memoryPubSub{
 		scope:       c.Scope,
 		subscribers: make([]*memorySubscriber, 0),

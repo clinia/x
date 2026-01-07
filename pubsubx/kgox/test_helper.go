@@ -4,14 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
+	"log/slog"
 	"os"
 	"strings"
 	"testing"
 	"time"
 
 	toxiproxy "github.com/Shopify/toxiproxy/v2/client"
-	"github.com/clinia/x/logrusx"
+	"github.com/clinia/x/loggerx"
 	"github.com/clinia/x/pubsubx"
 	"github.com/clinia/x/pubsubx/messagex"
 	"github.com/samber/lo"
@@ -138,33 +138,34 @@ func createTopic(t *testing.T, conf *pubsubx.Config, topic messagex.Topic) {
 	})
 }
 
-func getPublisher(t *testing.T, l *logrusx.Logger, conf *pubsubx.Config) *publisher {
+func getPublisher(t *testing.T, l *loggerx.Logger, conf *pubsubx.Config) *publisher {
 	t.Helper()
-	pubSub, err := NewPubSub(l, conf, nil)
+	pubSub, err := NewPubSub(t.Context(), l, conf, nil)
 	require.NoError(t, err)
 
 	return pubSub.Publisher().(*publisher)
 }
 
-func getEventRetryHandler(t *testing.T, l *logrusx.Logger, conf *pubsubx.Config, group messagex.ConsumerGroup, opts *pubsubx.SubscriberOptions) *eventRetryHandler {
+func getEventRetryHandler(t *testing.T, l *loggerx.Logger, conf *pubsubx.Config, group messagex.ConsumerGroup, opts *pubsubx.SubscriberOptions) *eventRetryHandler {
 	t.Helper()
-	pubSub, err := NewPubSub(l, conf, nil)
+	pubSub, err := NewPubSub(t.Context(), l, conf, nil)
 	require.NoError(t, err)
 
 	return pubSub.eventRetryHandler(group, opts)
 }
 
-func getPoisonQueueHandler(t *testing.T, l *logrusx.Logger, conf *pubsubx.Config) *poisonQueueHandler {
+func getPoisonQueueHandler(t *testing.T, l *loggerx.Logger, conf *pubsubx.Config) *poisonQueueHandler {
 	t.Helper()
-	pubSub, err := NewPubSub(l, conf, nil)
+	pubSub, err := NewPubSub(t.Context(), l, conf, nil)
 	require.NoError(t, err)
 
 	return pubSub.PoisonQueueHandler().(*poisonQueueHandler)
 }
 
-func getLogger() *logrusx.Logger {
-	l := logrusx.New("Clinia x", "testing")
-	l.Entry.Logger.SetOutput(io.Discard)
+func getLogger() *loggerx.Logger {
+	l := &loggerx.Logger{
+		Logger: slog.New(slog.DiscardHandler),
+	}
 	return l
 }
 

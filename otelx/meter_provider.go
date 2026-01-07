@@ -4,20 +4,23 @@
 package otelx
 
 import (
-	"github.com/clinia/x/logrusx"
+	"context"
+	"fmt"
+
+	"github.com/clinia/x/loggerx"
 	"github.com/clinia/x/stringsx"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/metric/noop"
 )
 
 // NewMeterProvider creates a new meter provider based on the configuration.
-func NewMeterProvider(l *logrusx.Logger, c *MeterConfig) (metric.MeterProvider, error) {
+func NewMeterProvider(ctx context.Context, l *loggerx.Logger, c *MeterConfig) (metric.MeterProvider, error) {
 	switch f := stringsx.SwitchExact(c.Provider); {
 	case f.AddCase("prometheus"):
 		if meterProvider, err := SetupPrometheusMeterProvider(c.Name, c); err != nil {
 			return nil, err
 		} else {
-			l.Infof("Prometheus meter configured! Sending measurements to /metrics endpoint")
+			l.Info(ctx, "prometheus meter configured! Sending measurements to /metrics endpoint")
 			return meterProvider, nil
 		}
 
@@ -25,7 +28,7 @@ func NewMeterProvider(l *logrusx.Logger, c *MeterConfig) (metric.MeterProvider, 
 		if meterProvider, err := SetupOTLPMeterProvider(c.Name, c); err != nil {
 			return nil, err
 		} else {
-			l.Infof("OTLP meter configured! Sending measurements to %s", c.Providers.OTLP.ServerURL)
+			l.Info(ctx, fmt.Sprintf("OTLP meter configured! Sending measurements to %s", c.Providers.OTLP.ServerURL))
 			return meterProvider, nil
 		}
 
@@ -33,12 +36,12 @@ func NewMeterProvider(l *logrusx.Logger, c *MeterConfig) (metric.MeterProvider, 
 		if meterProvider, err := SetupStdoutMeterProvider(c.Name, c); err != nil {
 			return nil, err
 		} else {
-			l.Infof("Stdout meter configured! Sending measurements to stdout")
+			l.Info(ctx, "stdout meter configured! Sending measurements to stdout")
 			return meterProvider, nil
 		}
 
 	case f.AddCase(""):
-		l.Infof("Missing provider in config - skipping meter setup")
+		l.Info(ctx, "missing provider in config - skipping meter setup")
 
 		return noop.NewMeterProvider(), nil
 	default:

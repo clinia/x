@@ -4,10 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/clinia/x/errorx"
-	"github.com/clinia/x/logrusx"
 	"github.com/clinia/x/pubsubx"
 	"github.com/clinia/x/pubsubx/messagex"
 	"github.com/twmb/franz-go/pkg/kadm"
@@ -40,7 +40,7 @@ const (
 )
 
 func (pqh *poisonQueueHandler) poisonQueueLogging(ctx context.Context, topic string, consumerGroup messagex.ConsumerGroup, msg *messagex.Message, err error) {
-	l := pqh.l.WithContext(ctx)
+	l := pqh.l
 	span := trace.SpanFromContext(ctx)
 	kvAttrs := []attribute.KeyValue{
 		keyMessagingPoisonQueue.Bool(true),
@@ -63,20 +63,20 @@ func (pqh *poisonQueueHandler) poisonQueueLogging(ctx context.Context, topic str
 	if jmErr == nil {
 		kvAttrs = append(kvAttrs, keyMessagingPoisonQueueOriginalMessageHeaders.String(string(originalHeaderJSON)))
 	} else {
-		l.WithError(jmErr).Warnf("failed to marshal poison queue message headers, omiting them from the logging")
+		l.WithError(jmErr).Warn(ctx, "failed to marshal poison queue message headers, omiting them from the logging")
 	}
 	l.WithError(err).
-		WithFields(logrusx.NewLogFields(
+		WithFields(
 			kvAttrs...,
-		)).
-		Errorf("[POISON QUEUE] - pushing to the poison queue a message coming from the topic '%s' and consumer group '%s'", topic, consumerGroup)
+		).
+		Error(ctx, fmt.Sprintf("[POISON QUEUE] - pushing to the poison queue a message coming from the topic '%s' and consumer group '%s'", topic, consumerGroup))
 }
 
 func (pqh *poisonQueueHandler) PublishMessagesToPoisonQueue(ctx context.Context, topic string, consumerGroup messagex.ConsumerGroup, msgErrs []error, msgs []*messagex.Message) error {
 	if !pqh.conf.PoisonQueue.Enabled && len(msgs) == 0 {
 		return nil
 	}
-	l := pqh.l.WithContext(ctx)
+	l := pqh.l
 	poisonQueueRecords := make([]*kgo.Record, len(msgs))
 	checkErrs := len(msgs) == len(msgErrs)
 	errs := make([]error, 0, len(msgs))
@@ -88,7 +88,7 @@ func (pqh *poisonQueueHandler) PublishMessagesToPoisonQueue(ctx context.Context,
 		pqr, err := pqh.generatePoisonQueueRecord(ctx, topic, consumerGroup, msg, msgErr)
 		if err != nil {
 			errs = append(errs, err)
-			l.WithError(err).Errorf("failed to generate poison queue record for message id '%s'", msg.ID)
+			l.WithError(err).Error(ctx, fmt.Sprintf("failed to generate poison queue record for message id '%s'", msg.ID))
 			continue
 		}
 		pqh.poisonQueueLogging(ctx, topic, consumerGroup, msg, msgErr)
@@ -96,13 +96,13 @@ func (pqh *poisonQueueHandler) PublishMessagesToPoisonQueue(ctx context.Context,
 	}
 	err := errors.Join(errs...)
 	if err != nil {
-		l.Warnf("failed to generate some poison queue records")
+		l.Warn(ctx, "failed to generate some poison queue records")
 	}
 	prs := pqh.writeClient.ProduceSync(ctx, poisonQueueRecords...)
 	prErrs := make([]error, 0, len(prs))
 	for _, pr := range prs {
 		if pr.Err != nil {
-			l.WithError(err).Errorf("failed to publish poison queue record")
+			l.WithError(err).Error(ctx, "failed to publish poison queue record")
 			prErrs = append(prErrs, pr.Err)
 		}
 	}
@@ -113,7 +113,7 @@ func (pqh *poisonQueueHandler) PublishMessagesToPoisonQueueWithGenericError(ctx 
 	if !pqh.conf.PoisonQueue.Enabled && len(msgs) == 0 {
 		return nil
 	}
-	l := pqh.l.WithContext(ctx)
+	l := pqh.l
 	poisonQueueRecords := make([]*kgo.Record, len(msgs))
 	errs := make([]error, 0, len(msgs))
 	for i, msg := range msgs {
@@ -127,7 +127,7 @@ func (pqh *poisonQueueHandler) PublishMessagesToPoisonQueueWithGenericError(ctx 
 	}
 	err := errors.Join(errs...)
 	if err != nil {
-		l.WithError(err).Errorf("failed to generate some poison queue records")
+		l.WithError(err).Error(ctx, "failed to generate some poison queue records")
 	}
 	prs := pqh.writeClient.ProduceSync(ctx, poisonQueueRecords...)
 	prErrs := make([]error, 0, len(prs))
@@ -177,7 +177,7 @@ func (pqh *poisonQueueHandler) ConsumeQueue(ctx context.Context, handler pubsubx
 	}
 	cctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	l := pqh.l.WithContext(cctx)
+	l := pqh.l
 	pqTopic := messagex.Topic(pqh.conf.PoisonQueue.TopicName).TopicName(pqh.conf.Scope)
 	kopts := []kgo.Opt{
 		kgo.SeedBrokers(pqh.conf.Providers.Kafka.Brokers...),
@@ -214,15 +214,15 @@ FLOOP:
 			fetches[0].Topics[0].Partitions[0].Err != nil {
 			if fetches[0].Topics[0].Partitions[0].Err != tcctx.Err() {
 				err = fetches[0].Topics[0].Partitions[0].Err
-				l.WithError(err).Errorf("error fetches returned")
+				l.WithError(err).Error(ctx, "error fetches returned")
 			} else {
-				l.WithError(fetches[0].Topics[0].Partitions[0].Err).Infof("expected fetch error trigger consumption termination")
+				l.WithError(fetches[0].Topics[0].Partitions[0].Err).Info(ctx, "expected fetch error trigger consumption termination")
 			}
 			tcancel()
 			break FLOOP
 		}
 		if len(fetches) == 0 {
-			l.Infof("no fetches were found, assuming poison queue is empty")
+			l.Info(ctx, "no fetches were found, assuming poison queue is empty")
 			tcancel()
 			break FLOOP
 		}
@@ -241,7 +241,7 @@ FLOOP:
 						return []error{}, errorx.InternalErrorf("end offset doesn't hold the consume partition")
 					}
 					if p.LogStartOffset >= pEndOffset.Offset {
-						l.Infof("reached the end offset identified on consumption start '%v' >= '%v'", p.LogStartOffset, pEndOffset.Offset)
+						l.Info(ctx, fmt.Sprintf("reached the end offset identified on consumption start '%v' >= '%v'", p.LogStartOffset, pEndOffset.Offset))
 						tcancel()
 						break FLOOP
 					}
@@ -268,7 +268,7 @@ FLOOP:
 	}
 	handlerErrs, err := handler(ctx, msgs)
 	if len(handlerErrs) != len(errs) {
-		l.Errorf("errors output length mismatch, dismissing Unmarshal errs")
+		l.Error(ctx, "errors output length mismatch, dismissing Unmarshal errs")
 		return handlerErrs, err
 	}
 	for i := range handlerErrs {

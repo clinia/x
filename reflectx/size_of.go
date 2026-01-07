@@ -1,10 +1,12 @@
 package reflectx
 
 import (
+	"context"
+	"fmt"
 	"reflect"
 	"unsafe"
 
-	"github.com/clinia/x/logrusx"
+	"github.com/clinia/x/loggerx"
 	"github.com/clinia/x/tracex"
 )
 
@@ -19,8 +21,8 @@ import (
 // Returns:
 //
 //	The size of the given value `v` as an integer.
-func CalculateSize(l *logrusx.Logger, v interface{}) int {
-	defer tracex.RecoverWithStackTracef(l, "failed to calculate size of %T", v)
+func CalculateSize(ctx context.Context, l *loggerx.Logger, v interface{}) int {
+	defer tracex.RecoverWithStackTrace(ctx, l, fmt.Sprintf("failed to calculate size of %T", v))
 	val := reflect.ValueOf(v)
 	return sizeOfValue(val, 0)
 }

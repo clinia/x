@@ -4,11 +4,14 @@
 package urlx
 
 import (
+	"context"
 	"net/url"
+	"os"
 	"regexp"
 	"strings"
 
-	"github.com/clinia/x/logrusx"
+	"github.com/clinia/x/loggerx"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // winPathRegex is a regex for [DRIVE-LETTER]:
@@ -73,10 +76,12 @@ func ParseOrPanic(in string) *url.URL {
 }
 
 // ParseOrFatal parses a url or fatals.
-func ParseOrFatal(l *logrusx.Logger, in string) *url.URL {
+func ParseOrFatal(ctx context.Context, l *loggerx.Logger, in string) *url.URL {
 	out, err := url.Parse(in)
 	if err != nil {
-		l.WithError(err).Fatalf("Unable to parse url: %s", in)
+		// This is a fatal error
+		l.WithError(err).Error(ctx, "unable to parse url", attribute.String("url_value", in))
+		os.Exit(1)
 	}
 	return out
 }
@@ -91,10 +96,12 @@ func ParseRequestURIOrPanic(in string) *url.URL {
 }
 
 // ParseRequestURIOrFatal parses a request uri or fatals.
-func ParseRequestURIOrFatal(l *logrusx.Logger, in string) *url.URL {
+func ParseRequestURIOrFatal(ctx context.Context, l *loggerx.Logger, in string) *url.URL {
 	out, err := url.ParseRequestURI(in)
 	if err != nil {
-		l.WithError(err).Fatalf("Unable to parse url: %s", in)
+		// This is a fatal error
+		l.WithError(err).Error(ctx, "unable to parse uri", attribute.String("uri_value", in))
+		os.Exit(1)
 	}
 	return out
 }

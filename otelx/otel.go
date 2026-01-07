@@ -4,7 +4,9 @@
 package otelx
 
 import (
-	"github.com/clinia/x/logrusx"
+	"context"
+
+	"github.com/clinia/x/loggerx"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/metric/noop"
 )
@@ -23,7 +25,7 @@ type OtelOptions struct {
 type OtelOption func(*OtelOptions)
 
 // Creates opentelemetry tools (meter and tracer). Leaving
-func New(l *logrusx.Logger, opts ...OtelOption) (*Otel, error) {
+func New(ctx context.Context, l *loggerx.Logger, opts ...OtelOption) (*Otel, error) {
 	otelOpts := &OtelOptions{}
 	for _, opt := range opts {
 		opt(otelOpts)
@@ -35,22 +37,22 @@ func New(l *logrusx.Logger, opts ...OtelOption) (*Otel, error) {
 	}
 
 	if otelOpts.TracerConfig != nil {
-		if err := o.t.setup(l, otelOpts.TracerConfig); err != nil {
+		if err := o.t.setup(ctx, l, otelOpts.TracerConfig); err != nil {
 			return nil, err
 		}
 	} else {
-		l.Infof("Tracer config is missing! - skipping tracer setup")
+		l.Info(ctx, "tracer config is missing! - skipping tracer setup")
 		o.t = NewNoopTracer("no-op-tracer")
 	}
 
 	if otelOpts.MeterConfig != nil {
-		if mp, err := NewMeterProvider(l, otelOpts.MeterConfig); err != nil {
+		if mp, err := NewMeterProvider(ctx, l, otelOpts.MeterConfig); err != nil {
 			return nil, err
 		} else {
 			o.mp = mp
 		}
 	} else {
-		l.Infof("Meter config is missing! - skipping meter setup")
+		l.Info(ctx, "meter config is missing! - skipping meter setup")
 		o.mp = noop.NewMeterProvider()
 	}
 

@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"math"
 	"net/url"
 	"os"
@@ -17,7 +18,7 @@ import (
 	"time"
 
 	"github.com/clinia/x/jsonschemax"
-	"github.com/clinia/x/logrusx"
+	"github.com/clinia/x/loggerx"
 	"github.com/clinia/x/otelx"
 	"github.com/clinia/x/pointerx"
 	"github.com/clinia/x/pubsubx"
@@ -29,7 +30,6 @@ import (
 	"github.com/knadh/koanf/parsers/json"
 	"github.com/knadh/koanf/providers/posflag"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -69,7 +69,7 @@ type Provider struct {
 	disableFileWatching bool
 	disableEnvLoading   bool
 
-	logger *logrusx.Logger
+	logger *loggerx.Logger
 
 	providers     []koanf.Provider
 	userProviders []koanf.Provider
@@ -102,15 +102,14 @@ func New(ctx context.Context, schema []byte, modifiers ...OptionModifier) (*Prov
 		return nil, err
 	}
 
-	l := logrus.New()
-	l.Out = io.Discard
+	l := slog.New(slog.NewJSONHandler(io.Discard, &slog.HandlerOptions{AddSource: false}))
 
 	p := &Provider{
 		schema:                   schema,
 		validator:                validator,
 		onValidationError:        func(k *koanf.Koanf, err error) {},
 		excludeFieldsFromTracing: []string{"dsn", "secret", "password", "key"},
-		logger:                   logrusx.New("discarding config logger", "", logrusx.UseLogger(l)),
+		logger:                   &loggerx.Logger{Logger: l},
 		Koanf:                    koanf.NewWithConf(koanf.Conf{Delim: Delimiter, StrictMerge: true}),
 	}
 
@@ -165,7 +164,7 @@ func (p *Provider) createProviders(ctx context.Context) (providers []koanf.Provi
 		paths = append(paths, p...)
 	}
 
-	p.logger.WithField("files", paths).Debugf("Adding config files.")
+	p.logger.Debug(ctx, "adding config files", attribute.StringSlice("files", paths))
 	for _, path := range paths {
 		fp, err := NewKoanfFile(ctx, path)
 		if err != nil {
@@ -173,9 +172,9 @@ func (p *Provider) createProviders(ctx context.Context) (providers []koanf.Provi
 		}
 
 		if p.disableFileWatching {
-			p.logger.WithField("file", path).Debugf("Not watching file for changes, disabled by configuration.")
+			p.logger.Debug(ctx, "not watching file for changes, disabled by configuration", attribute.String("file", path))
 		} else {
-			p.logger.WithField("file", path).Debugf("Watching file for changes.")
+			p.logger.Debug(ctx, "watching file for changes", attribute.String("file", path))
 			c := make(watcherx.EventChannel)
 			if _, err := fp.WatchChannel(c); err != nil {
 				return nil, err
@@ -410,7 +409,7 @@ func (p *Provider) DurationF(key string, fallback time.Duration) (val time.Durat
 	return p.Duration(key)
 }
 
-func (p *Provider) ByteSizeF(key string, fallback bytesize.ByteSize) bytesize.ByteSize {
+func (p *Provider) ByteSizeF(ctx context.Context, key string, fallback bytesize.ByteSize) bytesize.ByteSize {
 	p.l.RLock()
 	defer p.l.RUnlock()
 
@@ -423,7 +422,7 @@ func (p *Provider) ByteSizeF(key string, fallback bytesize.ByteSize) bytesize.By
 		// this type usually comes from user input
 		dec, err := bytesize.Parse(v)
 		if err != nil {
-			p.logger.WithField("key", key).WithField("raw_value", v).WithError(err).Warnf("error parsing byte size value, using fallback of %s", fallback)
+			p.logger.Debug(ctx, "error parsing byte size value, using fallback", attribute.String("key", key), attribute.String("raw_value", v), attribute.Stringer("fallback", fallback))
 			return fallback
 		}
 		return dec
@@ -433,7 +432,7 @@ func (p *Provider) ByteSizeF(key string, fallback bytesize.ByteSize) bytesize.By
 	case bytesize.ByteSize:
 		return v
 	default:
-		p.logger.WithField("key", key).WithField("raw_type", fmt.Sprintf("%T", v)).WithField("raw_value", fmt.Sprintf("%+v", v)).Errorf("error converting byte size value because of unknown type, using fallback of %s", fallback)
+		p.logger.Error(ctx, "error converting byte size value because of unknown type, using fallback", attribute.String("key", key), attribute.String("raw_type", fmt.Sprintf("%T", v)), attribute.String("raw_value", fmt.Sprintf("%+v", v)), attribute.Stringer("fallback", fallback))
 		return fallback
 	}
 }

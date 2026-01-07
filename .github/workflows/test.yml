@@ -43,7 +43,7 @@ jobs:
           go-version-file: go.mod
           check-latest: true
           cache: true
-      
+
       - name: Install gofumpt
         run: make install
 
@@ -61,13 +61,11 @@ jobs:
       - name: Lint
         uses: golangci/golangci-lint-action@v8
         with:
-          version: v2.1
+          version: v2.7
           args: --timeout=5m --tests=false
 
       - name: Test
         env:
-          ARANGO_URL: 'http://localhost:${{ job.services.arangodb.ports[8529] }}'
-          ELASTICSEARCH_URL: 'http://localhost:${{ job.services.elasticsearch.ports[9200] }}'
+          ARANGO_URL: "http://localhost:${{ job.services.arangodb.ports[8529] }}"
+          ELASTICSEARCH_URL: "http://localhost:${{ job.services.elasticsearch.ports[9200] }}"
         run: go test -skip TestProviderReload `go list ./... | grep -v pubsubx/kgox`
-
-      

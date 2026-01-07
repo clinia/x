@@ -10,8 +10,10 @@ import (
 
 	arangoDriver "github.com/arangodb/go-driver"
 	"github.com/clinia/x/errorx"
-	"github.com/clinia/x/logrusx"
+	"github.com/clinia/x/loggerx"
 	"github.com/clinia/x/mathx"
+	"github.com/clinia/x/tracex"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 type versionRecord struct {
@@ -35,7 +37,7 @@ type Migrator struct {
 	db                   arangoDriver.Database
 	pkg                  string
 	dryRun               bool
-	l                    *logrusx.Logger
+	l                    *loggerx.Logger
 	migrations           Migrations
 	migrationsCollection string
 }
@@ -45,7 +47,7 @@ type NewMigratorOptions struct {
 	Package    string
 	Migrations Migrations
 	DryRun     bool
-	Logger     *logrusx.Logger
+	Logger     *loggerx.Logger
 }
 
 func NewMigrator(in NewMigratorOptions) *Migrator {
@@ -61,14 +63,14 @@ func NewMigrator(in NewMigratorOptions) *Migrator {
 
 	l := in.Logger
 	if l == nil {
-		l = logrusx.New("migrator", "package="+in.Package)
+		l = loggerx.NewDefaultLogger().WithFields(tracex.Component("migrator"))
 	}
 
 	return &Migrator{
 		db:                   in.Database,
 		pkg:                  in.Package,
 		dryRun:               in.DryRun,
-		l:                    l.WithField("package", in.Package),
+		l:                    l.WithFields(attribute.String("package", in.Package)),
 		migrations:           internalMigrations,
 		migrationsCollection: DefaultMigrationsCollection,
 	}
@@ -89,7 +91,7 @@ func (m *Migrator) createCollectionIfNotExist(ctx context.Context, name string) 
 		return nil
 	} else if m.dryRun {
 		err := errorx.FailedPreconditionErrorf("collection %s does not exist", name)
-		m.l.WithError(err).Errorf("when dry-run mode is enabled, we can't create the missing collection")
+		m.l.WithError(err).Error(ctx, "when dry-run mode is enabled, we can't create the missing collection")
 		return err
 	}
 
@@ -184,7 +186,7 @@ func (m *Migrator) Up(ctx context.Context, targetVersion int) error {
 		}
 
 		if m.dryRun {
-			m.l.Warnf("[dry-run] ⬆️  up migration version %d (%s) would be applied for package %s", migration.Version, migration.Description, m.pkg)
+			m.l.Warn(ctx, fmt.Sprintf("[dry-run] ⬆️  up migration version %d (%s) would be applied for package %s", migration.Version, migration.Description, m.pkg))
 			continue
 		}
 
@@ -238,7 +240,7 @@ func (m *Migrator) Down(ctx context.Context, targetVersion int) error {
 		}
 
 		if m.dryRun {
-			m.l.Warnf("[dry-run] ⬇️  migration version %d (%s) would be applied for package %s", migration.Version, migration.Description, m.pkg)
+			m.l.Warn(ctx, fmt.Sprintf("[dry-run] ⬇️  migration version %d (%s) would be applied for package %s", migration.Version, migration.Description, m.pkg))
 			continue
 		}
 
@@ -255,9 +257,9 @@ func (m *Migrator) Down(ctx context.Context, targetVersion int) error {
 
 	if m.dryRun {
 		if target == curVersion {
-			m.l.Warnf("[dry-run] database version already at '%d', no changes would be applied ✅", curVersion)
+			m.l.Warn(ctx, fmt.Sprintf("[dry-run] database version already at '%d', no changes would be applied ✅", curVersion))
 		} else {
-			m.l.Warnf("[dry-run] database version would pass from '%d' to '%d'", curVersion, target)
+			m.l.Warn(ctx, fmt.Sprintf("[dry-run] database version would pass from '%d' to '%d'", curVersion, target))
 		}
 		return nil
 	}

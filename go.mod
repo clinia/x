@@ -1,6 +1,6 @@
 module github.com/clinia/x
 
-go 1.23.0
+go 1.25.1
 
 require (
 	github.com/arangodb/go-driver v1.6.0
@@ -21,7 +21,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.20.4
 	github.com/rs/cors v1.9.0
-	github.com/samber/lo v1.47.0
+	github.com/samber/lo v1.52.0
 	github.com/segmentio/ksuid v1.0.4
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cast v1.5.1
@@ -32,6 +32,8 @@ require (
 	github.com/twmb/franz-go v1.17.1
 	github.com/twmb/franz-go/pkg/kadm v1.13.0
 	github.com/twmb/franz-go/plugin/kotel v1.5.0
+	github.com/twmb/franz-go/plugin/kslog v1.0.0
+	github.com/veqryn/slog-context v0.8.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace v0.44.0
 	go.opentelemetry.io/contrib/propagators/b3 v1.17.0
 	go.opentelemetry.io/contrib/propagators/jaeger v1.17.0

@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strconv"
 	"strings"
 	"sync"
@@ -20,6 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/twmb/franz-go/pkg/kgo"
+	"github.com/twmb/franz-go/plugin/kslog"
 	metricnoop "go.opentelemetry.io/otel/metric/noop"
 	tracenoop "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/goleak"
@@ -45,7 +47,7 @@ func TestConsumerLifecycle(t *testing.T) {
 	t.Cleanup(tf.EnableAll)
 	config := getPubsubConfig(t, false)
 	opts := &pubsubx.SubscriberOptions{MaxBatchSize: 10, MaxTopicRetryCount: 3, EnableAsyncExecution: false, RebalanceTimeout: kafkaTimeouts, DialTimeout: kafkaTimeouts}
-	pubSub, err := NewPubSub(l, config, nil)
+	pubSub, err := NewPubSub(t.Context(), l, config, nil)
 	require.NoError(t, err)
 	pqh := pubSub.PoisonQueueHandler().(*poisonQueueHandler)
 	defer pubSub.Close()
@@ -53,7 +55,7 @@ func TestConsumerLifecycle(t *testing.T) {
 		t.Helper()
 		wc, err := kgo.NewClient(
 			kgo.SeedBrokers(config.Providers.Kafka.Brokers...),
-			kgo.WithLogger(&pubsubLogger{l: l}),
+			kgo.WithLogger(kslog.New(l.Logger)),
 		)
 		require.NoError(t, err)
 		t.Cleanup(wc.Close)
@@ -1013,7 +1015,9 @@ func consumer_Subscribe_Concurrency_test(t *testing.T, eae bool) {
 
 		// Buffer to intercept logs
 		buf := newConcurrentBuffer(t)
-		l.Entry.Logger.SetOutput(buf)
+		l.Logger = slog.New(slog.NewTextHandler(buf, &slog.HandlerOptions{
+			Level: slog.LevelDebug,
+		}))
 
 		receivedMsgs := make(chan *messagex.Message, 10)
 		cg := messagex.ConsumerGroup(group)
@@ -1096,7 +1100,7 @@ func consumer_Subscribe_Concurrency_test(t *testing.T, eae bool) {
 
 		for i := range maxRetryCount + 1 {
 			if i == 0 {
-				buf.b.Reset()
+				buf.Reset()
 				shouldPanic <- true
 			} else {
 				shouldFail <- true
@@ -1155,4 +1159,10 @@ func (c *concurrentBuffer) String() string {
 	c.m.RLock()
 	defer c.m.RUnlock()
 	return c.b.String()
+}
+
+func (c *concurrentBuffer) Reset() {
+	c.m.Lock()
+	defer c.m.Unlock()
+	c.b.Reset()
 }

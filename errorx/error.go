@@ -108,7 +108,7 @@ func (e *CliniaError) IsRetryable() bool {
 }
 
 func NewCliniaInternalErrorFromError(err error) CliniaError {
-	cErr := InternalErrorf(err.Error())
+	cErr := InternalErrorf("%s", err.Error())
 	cErr.OriginalError = err
 	return cErr
 }

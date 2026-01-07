@@ -3,12 +3,12 @@ package reflectx
 import (
 	"testing"
 
-	"github.com/clinia/x/logrusx"
+	loggerxtest "github.com/clinia/x/loggerx/test"
 	"github.com/stretchr/testify/require"
 )
 
 func TestSizeOf(t *testing.T) {
-	l := logrusx.New("", "")
+	l := loggerxtest.NewTestLogger(t)
 
 	type myOtherStruct struct {
 		A    int
@@ -50,7 +50,7 @@ func TestSizeOf(t *testing.T) {
 			},
 		}
 
-		size := CalculateSize(l, mockedStruct)
+		size := CalculateSize(t.Context(), l, mockedStruct)
 		t.Logf("Size of myStruct: %d bytes", size)
 		require.GreaterOrEqual(t, size, 4*1024*1024) // 4MB
 	})
@@ -63,7 +63,7 @@ func TestSizeOf(t *testing.T) {
 		mockedStruct := &infiniteRecursionStruct{}
 		mockedStruct.Next = mockedStruct
 
-		size := CalculateSize(l, mockedStruct)
+		size := CalculateSize(t.Context(), l, mockedStruct)
 		require.GreaterOrEqual(t, size, 0)
 	})
 }

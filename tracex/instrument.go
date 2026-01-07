@@ -3,14 +3,17 @@ package tracex
 import (
 	"context"
 
+	"github.com/clinia/x/loggerx"
 	"github.com/clinia/x/logrusx"
 	"github.com/clinia/x/otelx"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
 
 type (
-	loggerProvider func(ctx context.Context) *logrusx.Logger
-	tracerProvider func(ctx context.Context) *otelx.Tracer
+	loggerProvider     func(ctx context.Context) *logrusx.Logger
+	tracerProvider     func(ctx context.Context) *otelx.Tracer
+	loggerNextProvider func() *loggerx.Logger
 )
 
 const ComponentNameSeparator = "."
@@ -37,4 +40,17 @@ func Instrument(ctx context.Context, lp loggerProvider, tp tracerProvider, compo
 	ctx, span := tp(ctx).Tracer().Start(ctx, ComponentName(componentName, name), opts...)
 	l := lp(ctx).WithSpanStartOptions(opts...)
 	return ctx, span, l
+}
+
+func InstrumentNext(ctx context.Context, lp loggerNextProvider, tp tracerProvider, componentName string, name string, opts ...trace.SpanStartOption) (context.Context, trace.Span, *loggerx.Logger) {
+	fullComponentName := ComponentName(componentName, name)
+	ctx, span := tp(ctx).Tracer().Start(ctx, fullComponentName, opts...)
+	l := lp().
+		WithSpanStartOptions(opts...).
+		WithFields(Component(fullComponentName))
+	return ctx, span, l
+}
+
+func Component(name string) attribute.KeyValue {
+	return attribute.String("component", name)
 }

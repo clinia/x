@@ -26,7 +26,7 @@ func TestConsumerRebalancesWithAutoCommit(t *testing.T) {
 		cg := messagex.ConsumerGroup(group)
 		require.NotEmpty(t, cg)
 
-		pubSub, err := NewPubSub(l, config, nil)
+		pubSub, err := NewPubSub(ctx, l, config, nil)
 		require.NoError(t, err)
 
 		admCl, err := pubSub.AdminClient()
@@ -122,7 +122,7 @@ func TestConsumerRebalancesWithAutoCommit(t *testing.T) {
 		cg := messagex.ConsumerGroup(group)
 		require.NotEmpty(t, cg)
 
-		pubSub, err := NewPubSub(l, config, nil)
+		pubSub, err := NewPubSub(ctx, l, config, nil)
 		require.NoError(t, err)
 
 		admCl, err := pubSub.AdminClient()
