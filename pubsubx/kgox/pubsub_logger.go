@@ -34,15 +34,15 @@ func (cl *pubsubLogger) Level() kgo.LogLevel {
 	ctx := context.Background()
 	// Check from most verbose to least verbose
 	switch {
-	case cl.l.Logger.Enabled(ctx, slog.LevelDebug-4):
+	case cl.l.Enabled(ctx, slog.LevelDebug-4):
 		return kgo.LogLevelNone // Trace-like level
-	case cl.l.Logger.Enabled(ctx, slog.LevelDebug):
+	case cl.l.Enabled(ctx, slog.LevelDebug):
 		return kgo.LogLevelDebug
-	case cl.l.Logger.Enabled(ctx, slog.LevelInfo):
+	case cl.l.Enabled(ctx, slog.LevelInfo):
 		return kgo.LogLevelInfo
-	case cl.l.Logger.Enabled(ctx, slog.LevelWarn):
+	case cl.l.Enabled(ctx, slog.LevelWarn):
 		return kgo.LogLevelWarn
-	case cl.l.Logger.Enabled(ctx, slog.LevelError):
+	case cl.l.Enabled(ctx, slog.LevelError):
 		return kgo.LogLevelError
 	default:
 		return kgo.LogLevelNone
@@ -72,5 +72,5 @@ func (cl *pubsubLogger) Log(level kgo.LogLevel, msg string, keyvals ...any) {
 		}
 	}
 	lev := kgoLogLevelToSlogLevel(level)
-	cl.l.Logger.LogAttrs(ctx, lev, msg, fields...)
+	cl.l.LogAttrs(ctx, lev, msg, fields...)
 }

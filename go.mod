@@ -1,6 +1,6 @@
 module github.com/clinia/x
 
-go 1.24
+go 1.25.1
 
 require (
 	github.com/arangodb/go-driver v1.6.0

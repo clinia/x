@@ -22,11 +22,11 @@ func NewDefaultLogger() *Logger {
 }
 
 func (l *Logger) WithError(err error) *Logger {
-	return &Logger{Logger: l.Logger.With(slogx.ErrorAttr(err))}
+	return &Logger{Logger: l.With(slogx.ErrorAttr(err))}
 }
 
 func (l *Logger) WithErrors(errs ...error) *Logger {
-	return &Logger{Logger: l.Logger.With(slogx.ErrorsAttr(errs...))}
+	return &Logger{Logger: l.With(slogx.ErrorsAttr(errs...))}
 }
 
 func (l *Logger) Panic(ctx context.Context, msg string, kvs ...attribute.KeyValue) *Logger {
@@ -64,11 +64,11 @@ func (l *Logger) Debug(ctx context.Context, msg string, kvs ...attribute.KeyValu
 func (l *Logger) WithFields(kvs ...attribute.KeyValue) *Logger {
 	lfs := slogx.NewLogFields(kvs...)
 	// This is a workaround until we get a nice slog.WithAttrs method - See https://github.com/golang/go/issues/66937#issuecomment-2730350514
-	return &Logger{l.Logger.With("", slog.GroupValue(lfs...))}
+	return &Logger{l.With("", slog.GroupValue(lfs...))}
 }
 
 func (l *Logger) log(ctx context.Context, level slog.Level, msg string, kvs ...attribute.KeyValue) {
-	if !l.Logger.Enabled(ctx, level) {
+	if !l.Enabled(ctx, level) {
 		return
 	}
 
