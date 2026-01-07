@@ -1099,7 +1099,7 @@ func consumer_Subscribe_Concurrency_test(t *testing.T, eae bool) {
 
 		for i := range maxRetryCount + 1 {
 			if i == 0 {
-				buf.b.Reset()
+				buf.Reset()
 				shouldPanic <- true
 			} else {
 				shouldFail <- true
@@ -1158,4 +1158,10 @@ func (c *concurrentBuffer) String() string {
 	c.m.RLock()
 	defer c.m.RUnlock()
 	return c.b.String()
+}
+
+func (c *concurrentBuffer) Reset() {
+	c.m.Lock()
+	defer c.m.Unlock()
+	c.b.Reset()
 }
