@@ -32,6 +32,7 @@ require (
 	github.com/twmb/franz-go v1.17.1
 	github.com/twmb/franz-go/pkg/kadm v1.13.0
 	github.com/twmb/franz-go/plugin/kotel v1.5.0
+	github.com/twmb/franz-go/plugin/kslog v1.0.0
 	github.com/veqryn/slog-context v0.8.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace v0.44.0
 	go.opentelemetry.io/contrib/propagators/b3 v1.17.0

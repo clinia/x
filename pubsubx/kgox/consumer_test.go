@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/twmb/franz-go/pkg/kgo"
+	"github.com/twmb/franz-go/plugin/kslog"
 	metricnoop "go.opentelemetry.io/otel/metric/noop"
 	tracenoop "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/goleak"
@@ -54,7 +55,7 @@ func TestConsumerLifecycle(t *testing.T) {
 		t.Helper()
 		wc, err := kgo.NewClient(
 			kgo.SeedBrokers(config.Providers.Kafka.Brokers...),
-			kgo.WithLogger(&pubsubLogger{l: l}),
+			kgo.WithLogger(kslog.New(l.Logger)),
 		)
 		require.NoError(t, err)
 		t.Cleanup(wc.Close)

@@ -22,6 +22,7 @@ import (
 	"github.com/twmb/franz-go/pkg/kerr"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/plugin/kotel"
+	"github.com/twmb/franz-go/plugin/kslog"
 )
 
 type PubSub struct {
@@ -47,7 +48,7 @@ const pubsubConsumerInstrumentationName = "pubsubx_consumer"
 const ctxLoggerKey contextLoggerKey = "consumer_logger"
 
 func NewPubSub(ctx context.Context, l *loggerx.Logger, config *pubsubx.Config, opts *pubsubx.PubSubOptions) (*PubSub, error) {
-	if l == nil {
+	if l == nil || l.Logger == nil {
 		return nil, errorx.FailedPreconditionErrorf("logger is required")
 	}
 
@@ -61,7 +62,7 @@ func NewPubSub(ctx context.Context, l *loggerx.Logger, config *pubsubx.Config, o
 
 	kopts := []kgo.Opt{
 		kgo.SeedBrokers(config.Providers.Kafka.Brokers...),
-		kgo.WithLogger(&pubsubLogger{l: l}),
+		kgo.WithLogger(kslog.New(l.Logger)),
 	}
 
 	// Setup kotel

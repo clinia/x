@@ -15,6 +15,7 @@ import (
 	"github.com/samber/lo"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/plugin/kotel"
+	"github.com/twmb/franz-go/plugin/kslog"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/metric"
@@ -99,7 +100,7 @@ func newConsumerMetric(m metric.Meter) (*consumerMetric, error) {
 }
 
 func newConsumer(ctx context.Context, l *loggerx.Logger, kotelService *kotel.Kotel, config *pubsubx.Config, group messagex.ConsumerGroup, topics []messagex.Topic, opts *pubsubx.SubscriberOptions, erh *eventRetryHandler, pqh PoisonQueueHandler, m metric.Meter, t trace.Tracer) (*consumer, error) {
-	if l == nil {
+	if l == nil || l.Logger == nil {
 		return nil, errorx.FailedPreconditionErrorf("logger is required")
 	}
 
@@ -153,7 +154,7 @@ func (c *consumer) bootstrapClient(ctx context.Context) error {
 		kgo.ConsumerGroup(c.group.ConsumerGroup(c.conf.Scope)),
 		kgo.SeedBrokers(c.conf.Providers.Kafka.Brokers...),
 		kgo.ConsumeTopics(scopedTopics...),
-		kgo.WithLogger(&pubsubLogger{l: c.l}),
+		kgo.WithLogger(kslog.New(c.l.Logger)),
 	}
 
 	if c.opts.DialTimeout > 0 {
