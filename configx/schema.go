@@ -7,7 +7,6 @@ import (
 	"bytes"
 	"fmt"
 
-	"github.com/clinia/x/logrusx"
 	"github.com/clinia/x/otelx"
 
 	"github.com/google/uuid"
@@ -35,9 +34,6 @@ func newCompiler(schema []byte) (string, *jsonschema.Compiler, error) {
 		return "", nil, err
 	}
 	if err := otelx.AddMeterConfigSchema(compiler); err != nil {
-		return "", nil, err
-	}
-	if err := logrusx.AddConfigSchema(compiler); err != nil {
 		return "", nil, err
 	}
 

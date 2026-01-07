@@ -9,25 +9,88 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
-	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/clinia/x/logrusx"
+	"github.com/clinia/x/loggerx"
 	"github.com/clinia/x/watcherx"
 )
 
 var ctx = context.Background()
+
+// testLogEntry represents a captured log entry for testing
+type testLogEntry struct {
+	Level   slog.Level
+	Message string
+	Attrs   map[string]any
+}
+
+// testLogHandler is a slog.Handler that captures log entries for testing
+type testLogHandler struct {
+	mu       sync.Mutex
+	entries  []testLogEntry
+	minLevel slog.Level
+}
+
+func newTestLogHandler(minLevel slog.Level) *testLogHandler {
+	return &testLogHandler{
+		entries:  make([]testLogEntry, 0),
+		minLevel: minLevel,
+	}
+}
+
+func (h *testLogHandler) Enabled(_ context.Context, level slog.Level) bool {
+	return level >= h.minLevel
+}
+
+func (h *testLogHandler) Handle(_ context.Context, r slog.Record) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	attrs := make(map[string]any)
+	r.Attrs(func(a slog.Attr) bool {
+		attrs[a.Key] = a.Value.Any()
+		return true
+	})
+
+	h.entries = append(h.entries, testLogEntry{
+		Level:   r.Level,
+		Message: r.Message,
+		Attrs:   attrs,
+	})
+	return nil
+}
+
+func (h *testLogHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return h
+}
+
+func (h *testLogHandler) WithGroup(name string) slog.Handler {
+	return h
+}
+
+func (h *testLogHandler) AllEntries() []testLogEntry {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return append([]testLogEntry{}, h.entries...)
+}
+
+func (h *testLogHandler) Reset() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.entries = h.entries[:0]
+}
 
 func tmpConfigFile(t *testing.T, dsn, foo string) *os.File {
 	config := fmt.Sprintf("dsn: %s\nfoo: %s\n", dsn, foo)
@@ -117,12 +180,14 @@ func compareLsof(t *testing.T, file, atStart, expected string) {
 }
 
 func TestProviderReload(t *testing.T) {
-	setup := func(t *testing.T, cf *os.File, c chan<- struct{}, modifiers ...OptionModifier) (*Provider, *logrusx.Logger) {
-		l := logrusx.New("configx", "test")
+	setup := func(t *testing.T, cf *os.File, c chan<- struct{}, modifiers ...OptionModifier) (*Provider, *testLogHandler) {
+		handler := newTestLogHandler(slog.LevelInfo)
+		sl := slog.New(handler)
+		l := &loggerx.Logger{Logger: sl}
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 		modifiers = append(modifiers,
-			WithLogrusWatcher(l),
+			WithLoggerWatcher(l),
 			WithLogger(l),
 			AttachWatcher(func(event watcherx.Event, err error) {
 				t.Logf("Received event: %+v error: %+v", event, err)
@@ -132,20 +197,19 @@ func TestProviderReload(t *testing.T) {
 		)
 		p, err := newKoanf(ctx, "./stub/watch/config.schema.json", []string{cf.Name()}, modifiers...)
 		require.NoError(t, err)
-		return p, l
+		return p, handler
 	}
 
 	t.Run("case=rejects not validating changes", func(t *testing.T) {
 		configFile := tmpConfigFile(t, "memory", "bar")
 		defer configFile.Close()
 		c := make(chan struct{})
-		p, l := setup(t, configFile, c)
-		hook := test.NewLocal(l.Entry.Logger)
+		p, hook := setup(t, configFile, c)
 
 		atStart := checkLsof(t, configFile.Name())
 		lsofAtStart := lsof(t, configFile.Name())
 
-		assert.Equal(t, []*logrus.Entry{}, hook.AllEntries())
+		assert.Empty(t, hook.AllEntries())
 		assert.Equal(t, "memory", p.String("dsn"))
 		assert.Equal(t, "bar", p.String("foo"))
 
@@ -154,8 +218,8 @@ func TestProviderReload(t *testing.T) {
 		entries := hook.AllEntries()
 		require.False(t, len(entries) > 4, "%+v", entries) // should be 2 but addresses flake https://github.com/ory/x/runs/2332130952
 
-		assert.Equal(t, "A change to a configuration file was detected.", entries[0].Message)
-		assert.Equal(t, "The changed configuration is invalid and could not be loaded. Rolling back to the last working configuration revision. Please address the validation errors before restarting the process.", entries[1].Message)
+		assert.Equal(t, "a change to a configuration file was detected", entries[0].Message)
+		assert.Equal(t, "the changed configuration is invalid and could not be loaded. Rolling back to the last working configuration revision. Please address the validation errors before restarting the process", entries[1].Message)
 
 		assert.Equal(t, "memory", p.String("dsn"))
 		assert.Equal(t, "bar", p.String("foo"))
@@ -173,14 +237,13 @@ func TestProviderReload(t *testing.T) {
 		configFile := tmpConfigFile(t, "memory", "bar")
 		defer configFile.Close()
 		c := make(chan struct{})
-		p, l := setup(t, configFile, c,
+		p, hook := setup(t, configFile, c,
 			WithImmutables("dsn"))
-		hook := test.NewLocal(l.Entry.Logger)
 
 		atStart := checkLsof(t, configFile.Name())
 		lsofAtStart := lsof(t, configFile.Name())
 
-		assert.Equal(t, []*logrus.Entry{}, hook.AllEntries())
+		assert.Empty(t, hook.AllEntries())
 		assert.Equal(t, "memory", p.String("dsn"))
 		assert.Equal(t, "bar", p.String("foo"))
 
@@ -188,8 +251,8 @@ func TestProviderReload(t *testing.T) {
 
 		entries := hook.AllEntries()
 		require.False(t, len(entries) > 4, "%+v", entries) // should be 2 but addresses flake https://github.com/ory/x/runs/2332130952
-		assert.Equal(t, "A change to a configuration file was detected.", entries[0].Message)
-		assert.Equal(t, "A configuration value marked as immutable has changed. Rolling back to the last working configuration revision. To reload the values please restart the process.", entries[1].Message)
+		assert.Equal(t, "a change to a configuration file was detected", entries[0].Message)
+		assert.Equal(t, "a configuration value marked as immutable has changed. Rolling back to the last working configuration revision. To reload the values please restart the process", entries[1].Message)
 		assert.Equal(t, "memory", p.String("dsn"))
 		assert.Equal(t, "bar", p.String("foo"))
 
@@ -204,10 +267,9 @@ func TestProviderReload(t *testing.T) {
 		configFile := tmpConfigFile(t, "some string", "bar")
 		defer configFile.Close()
 		c := make(chan struct{})
-		p, l := setup(t, configFile, c)
-		hook := test.NewLocal(l.Entry.Logger)
+		p, hook := setup(t, configFile, c)
 
-		assert.Equal(t, []*logrus.Entry{}, hook.AllEntries())
+		assert.Empty(t, hook.AllEntries())
 		assert.Equal(t, "some string", p.String("dsn"))
 		assert.Equal(t, "bar", p.String("foo"))
 	})
@@ -216,10 +278,9 @@ func TestProviderReload(t *testing.T) {
 		configFile := tmpConfigFile(t, "some string", "bar")
 		defer configFile.Close()
 		c := make(chan struct{})
-		p, l := setup(t, configFile, c)
-		hook := test.NewLocal(l.Entry.Logger)
+		p, hook := setup(t, configFile, c)
 
-		assert.Equal(t, []*logrus.Entry{}, hook.AllEntries())
+		assert.Empty(t, hook.AllEntries())
 		assert.Equal(t, "some string", p.String("dsn"))
 		assert.Equal(t, "bar", p.String("foo"))
 
@@ -230,18 +291,18 @@ func TestProviderReload(t *testing.T) {
 	t.Run("case=has with validation errors", func(t *testing.T) {
 		configFile := tmpConfigFile(t, "some string", "not bar")
 		defer configFile.Close()
-		l := logrusx.New("", "")
-		hook := test.NewLocal(l.Entry.Logger)
+		lBuf := new(bytes.Buffer)
+		sl := slog.New(slog.NewJSONHandler(lBuf, nil))
+		l := &loggerx.Logger{Logger: sl}
 
 		var b bytes.Buffer
 		_, err := newKoanf(ctx, "./stub/watch/config.schema.json", []string{configFile.Name()},
 			WithStandardValidationReporter(&b),
-			WithLogrusWatcher(l),
+			WithLoggerWatcher(l),
 		)
 		require.Error(t, err)
 
-		entries := hook.AllEntries()
-		require.Equal(t, 0, len(entries))
+		require.Empty(t, lBuf)
 		assert.Equal(t, "The configuration contains values or keys which are invalid:\nfoo: not bar\n     ^-- value must be \"bar\"\n\n", b.String())
 	})
 
@@ -294,11 +355,10 @@ func TestProviderReload(t *testing.T) {
 		configFile := tmpConfigFile(t, "initial", "bar")
 		defer configFile.Close()
 		c := make(chan struct{})
-		p, l := setup(t, configFile, c, DisableFileWatching())
-		hook := test.NewLocal(l.Entry.Logger)
+		p, hook := setup(t, configFile, c, DisableFileWatching())
 
 		// Verify initial values
-		assert.Equal(t, []*logrus.Entry{}, hook.AllEntries())
+		assert.Empty(t, hook.AllEntries())
 		assert.Equal(t, "initial", p.String("dsn"))
 		assert.Equal(t, "bar", p.String("foo"))
 

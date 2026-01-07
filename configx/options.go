@@ -11,8 +11,9 @@ import (
 	"os"
 
 	"github.com/spf13/pflag"
+	"go.opentelemetry.io/otel/attribute"
 
-	"github.com/clinia/x/logrusx"
+	"github.com/clinia/x/loggerx"
 	"github.com/ory/jsonschema/v3"
 
 	"github.com/knadh/koanf"
@@ -50,7 +51,7 @@ func WithFlags(flags *pflag.FlagSet) OptionModifier {
 	}
 }
 
-func WithLogger(l *logrusx.Logger) OptionModifier {
+func WithLogger(l *loggerx.Logger) OptionModifier {
 	return func(p *Provider) {
 		p.logger = l
 	}
@@ -114,31 +115,28 @@ func AttachWatcher(watcher func(event watcherx.Event, err error)) OptionModifier
 	}
 }
 
-func WithLogrusWatcher(l *logrusx.Logger) OptionModifier {
-	return AttachWatcher(LogrusWatcher(l))
+func WithLoggerWatcher(l *loggerx.Logger) OptionModifier {
+	return AttachWatcher(LoggerWatcher(l))
 }
 
-func LogrusWatcher(l *logrusx.Logger) func(e watcherx.Event, err error) {
+func LoggerWatcher(l *loggerx.Logger) func(e watcherx.Event, err error) {
 	return func(e watcherx.Event, err error) {
-		l.WithField("file", e.Source()).
-			WithField("event_type", fmt.Sprintf("%T", e)).
-			Infof("A change to a configuration file was detected.")
+		ctx := context.Background()
+		l.Info(ctx, "a change to a configuration file was detected", attribute.String("event_type", fmt.Sprintf("%T", e)), attribute.String("file", e.Source()))
 
 		if et := new(jsonschema.ValidationError); errors.As(err, &et) {
-			l.WithField("event", fmt.Sprintf("%#v", et)).
-				Errorf("The changed configuration is invalid and could not be loaded. Rolling back to the last working configuration revision. Please address the validation errors before restarting the process.")
+			l.
+				Error(ctx, "the changed configuration is invalid and could not be loaded. Rolling back to the last working configuration revision. Please address the validation errors before restarting the process", attribute.String("event", fmt.Sprintf("%#v", et)))
 		} else if et := new(ImmutableError); errors.As(err, &et) {
 			l.WithError(err).
-				WithField("key", et.Key).
-				WithField("old_value", fmt.Sprintf("%v", et.From)).
-				WithField("new_value", fmt.Sprintf("%v", et.To)).
-				Errorf("A configuration value marked as immutable has changed. Rolling back to the last working configuration revision. To reload the values please restart the process.")
+				Error(ctx, "a configuration value marked as immutable has changed. Rolling back to the last working configuration revision. To reload the values please restart the process",
+					attribute.String("key", et.Key),
+					attribute.String("old_value", fmt.Sprintf("%v", et.From)),
+					attribute.String("new_value", fmt.Sprintf("%v", et.To)))
 		} else if err != nil {
-			l.WithError(err).Errorf("An error occurred while watching config file %s", e.Source())
+			l.WithError(err).Error(ctx, "an error occurred while watching config file", attribute.String("file", e.Source()))
 		} else {
-			l.WithField("file", e.Source()).
-				WithField("event_type", fmt.Sprintf("%T", e)).
-				Infof("Configuration change processed successfully.")
+			l.Info(ctx, "configuration change processed successfully", attribute.String("file", e.Source()), attribute.String("event_type", fmt.Sprintf("%T", e)))
 		}
 	}
 }

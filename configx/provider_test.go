@@ -70,7 +70,7 @@ func TestProviderMethods(t *testing.T) {
 				"1MB",
 			} {
 				require.NoError(t, p.Set(key, v))
-				assert.Equal(t, bytesize.MB, p.ByteSizeF(key, 0))
+				assert.Equal(t, bytesize.MB, p.ByteSizeF(ctx, key, 0))
 			}
 		})
 
