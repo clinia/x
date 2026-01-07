@@ -11,7 +11,10 @@ import (
 	"github.com/clinia/x/pointerx"
 	"github.com/clinia/x/pubsubx"
 	"go.opentelemetry.io/otel/metric"
-	"go.opentelemetry.io/otel/metric/noop"
+	metricnoop "go.opentelemetry.io/otel/metric/noop"
+	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
+	"go.opentelemetry.io/otel/trace"
+	tracenoop "go.opentelemetry.io/otel/trace/noop"
 
 	"github.com/clinia/x/errorx"
 	"github.com/clinia/x/pubsubx/messagex"
@@ -29,6 +32,7 @@ type PubSub struct {
 	writeClient                     *kgo.Client
 	l                               *loggerx.Logger
 	mp                              metric.MeterProvider
+	tp                              trace.TracerProvider
 
 	mu        sync.RWMutex
 	consumers map[messagex.ConsumerGroup]*consumer
@@ -37,6 +41,8 @@ type PubSub struct {
 var _ pubsubx.PubSub = (*PubSub)(nil)
 
 type contextLoggerKey string
+
+const pubsubConsumerInstrumentationName = "pubsubx_consumer"
 
 const ctxLoggerKey contextLoggerKey = "consumer_logger"
 
@@ -62,8 +68,10 @@ func NewPubSub(ctx context.Context, l *loggerx.Logger, config *pubsubx.Config, o
 	var kotelService *kotel.Kotel
 	defaultCreateTopicConfigEntries := map[string]*string{}
 	var mp metric.MeterProvider
+	var tp trace.TracerProvider
 	if opts != nil {
 		mp = opts.MeterProvider
+		tp = opts.TracerProvider
 		kotelService = newKotel(opts.TracerProvider, opts.Propagator, opts.MeterProvider)
 		kopts = append(kopts, kgo.WithHooks(kotelService.Hooks()...))
 
@@ -77,7 +85,11 @@ func NewPubSub(ctx context.Context, l *loggerx.Logger, config *pubsubx.Config, o
 	}
 	if mp == nil {
 		l.Warn(ctx, "no meter provider was defined in pubsub options, using noop")
-		mp = noop.NewMeterProvider()
+		mp = metricnoop.NewMeterProvider()
+	}
+	if tp == nil {
+		l.Warn(ctx, "no tracer provider was defined in pubsub options, using noop")
+		tp = tracenoop.NewTracerProvider()
 	}
 
 	wc, err := kgo.NewClient(kopts...)
@@ -89,6 +101,7 @@ func NewPubSub(ctx context.Context, l *loggerx.Logger, config *pubsubx.Config, o
 		l:                               l,
 		conf:                            config,
 		mp:                              mp,
+		tp:                              tp,
 		kotelService:                    kotelService,
 		kopts:                           kopts,
 		defaultCreateTopicConfigEntries: defaultCreateTopicConfigEntries,
@@ -183,10 +196,22 @@ func (p *PubSub) Subscriber(group string, topics []messagex.Topic, opts ...pubsu
 	}
 
 	var m metric.Meter
+	var t trace.Tracer
 	if p.mp != nil {
-		m = p.mp.Meter("pubsubx_consumer")
+		m = p.mp.Meter(pubsubConsumerInstrumentationName, metric.WithInstrumentationAttributes(
+			semconv.MessagingKafkaConsumerGroup(consumerGroup.ConsumerGroup(p.conf.Scope)),
+		))
+	} else {
+		m = metricnoop.NewMeterProvider().Meter(pubsubConsumerInstrumentationName)
 	}
-	cs, err := newConsumer(context.Background(), p.l, p.kotelService, p.conf, consumerGroup, topics, o, p.eventRetryHandler(consumerGroup, o), p.PoisonQueueHandler(), m)
+	if p.tp != nil {
+		t = p.tp.Tracer(pubsubConsumerInstrumentationName, trace.WithInstrumentationAttributes(
+			semconv.MessagingKafkaConsumerGroup(consumerGroup.ConsumerGroup(p.conf.Scope)),
+		))
+	} else {
+		t = tracenoop.NewTracerProvider().Tracer(pubsubConsumerInstrumentationName)
+	}
+	cs, err := newConsumer(context.Background(), p.l, p.kotelService, p.conf, consumerGroup, topics, o, p.eventRetryHandler(consumerGroup, o), p.PoisonQueueHandler(), m, t)
 	if err != nil {
 		p.l.WithError(err).Error(context.Background(), "failed to create consumer")
 		return nil, errorx.InternalErrorf("failed to create consumer: %v", err)

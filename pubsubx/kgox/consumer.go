@@ -16,8 +16,10 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/plugin/kotel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/metric"
 	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -34,6 +36,7 @@ type (
 		meter        metric.Meter
 		erh          *eventRetryHandler
 		pqh          PoisonQueueHandler
+		tracer       trace.Tracer
 
 		loopProcMu       sync.Mutex
 		loopProcessingWg sync.WaitGroup
@@ -76,6 +79,8 @@ const (
 	// We want to wait a max of 3 seconds between retries
 	maxRetryInterval = 3 * time.Second
 	maxRetryCount    = 3
+
+	componentName = "kgox.consumer"
 )
 
 func newConsumerMetric(m metric.Meter) (*consumerMetric, error) {
@@ -93,7 +98,7 @@ func newConsumerMetric(m metric.Meter) (*consumerMetric, error) {
 	}, nil
 }
 
-func newConsumer(ctx context.Context, l *loggerx.Logger, kotelService *kotel.Kotel, config *pubsubx.Config, group messagex.ConsumerGroup, topics []messagex.Topic, opts *pubsubx.SubscriberOptions, erh *eventRetryHandler, pqh PoisonQueueHandler, m metric.Meter) (*consumer, error) {
+func newConsumer(ctx context.Context, l *loggerx.Logger, kotelService *kotel.Kotel, config *pubsubx.Config, group messagex.ConsumerGroup, topics []messagex.Topic, opts *pubsubx.SubscriberOptions, erh *eventRetryHandler, pqh PoisonQueueHandler, m metric.Meter, t trace.Tracer) (*consumer, error) {
 	if l == nil {
 		l = loggerx.NewDefaultLogger()
 	}
@@ -108,8 +113,7 @@ func newConsumer(ctx context.Context, l *loggerx.Logger, kotelService *kotel.Kot
 	if err != nil {
 		l.WithError(err).Error(ctx, "failed to create consumer metrics, not recording any library metrics")
 	}
-
-	cons := &consumer{l: l, kotelService: kotelService, group: group, conf: config, topics: topics, opts: opts, erh: erh, pqh: pqh, consumerMetric: cm}
+	cons := &consumer{l: l, kotelService: kotelService, group: group, conf: config, topics: topics, opts: opts, erh: erh, pqh: pqh, consumerMetric: cm, tracer: t}
 
 	return cons, nil
 }
@@ -231,6 +235,7 @@ func (c *consumer) handleTopic(ctx context.Context, tp kgo.FetchTopic) error {
 		c.attributes(&topic)...,
 	)
 	ctx = context.WithValue(ctx, ctxLoggerKey, l)
+	span := trace.SpanFromContext(ctx)
 
 	// We do not protect the read to handlers here since we cannot get to a point where the handlers are reset and we are still in this consuming loop
 	topicHandler, ok := c.handlers[topic]
@@ -239,9 +244,12 @@ func (c *consumer) handleTopic(ctx context.Context, tp kgo.FetchTopic) error {
 		return errorx.InternalErrorf("no handler for topic")
 	}
 	records := tp.Records()
+	span.SetAttributes(
+		semconv.MessagingBatchMessageCount(len(records)),
+	)
 	if len(records) == 0 {
 		l.Debug(ctx, "no records to process")
-		return nil
+		span.AddEvent("no records to process")
 	}
 	go func() {
 		if c.consumerMetric != nil {
@@ -260,7 +268,16 @@ func (c *consumer) handleTopic(ctx context.Context, tp kgo.FetchTopic) error {
 	bc.MaxElapsedTime = maxElapsedTime
 	bc.MaxInterval = maxRetryInterval
 	retries := 0
-	err := backoff.Retry(func() error {
+	err := backoff.Retry(func() (outErr error) {
+		ctx, span := c.tracer.Start(ctx, componentName+".handleTopic.handle",
+			trace.WithAttributes(
+				attribute.Int("messaging.batch.handle.retry_count", retries),
+			),
+		)
+		defer func() {
+			span.RecordError(outErr)
+			span.End()
+		}()
 		errs, err := topicHandler.handle(ctx, msgs)
 		if err != nil {
 			l.WithError(err).Error(ctx, "error while handling messages")
@@ -314,6 +331,15 @@ func (c *consumer) start(ctx context.Context) {
 			// Sync task that hang until it receive at least one record
 			// When records are pulled, metadata is also updated within the client
 			fetches := c.cl.PollRecords(ctx, int(c.opts.MaxBatchSize))
+			ctx, span := c.tracer.Start(ctx, componentName+".workLoop",
+				trace.WithSpanKind(trace.SpanKindConsumer),
+			)
+			defer func() {
+				if shouldBreak {
+					span.SetStatus(codes.Error, "stopping consumer loop")
+				}
+				span.End()
+			}()
 			// This signifies we are currently processing records
 			// If the context was cancelled here, this is a noop
 			c.loopProcMu.Lock()
@@ -341,7 +367,9 @@ func (c *consumer) start(ctx context.Context) {
 					return shouldBreak
 				}
 
-				l.WithError(errors.Join(lo.Map(errs, func(err kgo.FetchError, i int) error { return err.Err })...)).Error(ctx, "error while polling records, Stopping consumer")
+				err := errors.Join(lo.Map(errs, func(err kgo.FetchError, i int) error { return err.Err })...)
+				span.RecordError(err)
+				l.WithError(err).Error(ctx, "error while polling records, Stopping consumer")
 				return shouldBreak
 			}
 
@@ -370,11 +398,22 @@ func (c *consumer) start(ctx context.Context) {
 			backgroundCtx := context.Background()
 			var abortErr error
 			fetches.EachTopic(func(tp kgo.FetchTopic) {
+				backgroundCtx, span := c.tracer.Start(backgroundCtx, componentName+".handleTopic",
+					trace.WithSpanKind(trace.SpanKindConsumer),
+					trace.WithAttributes(
+						semconv.MessagingOperationProcess,
+						semconv.MessagingSourceKindTopic,
+						semconv.MessagingSourceName(tp.Topic),
+					),
+				)
+				defer span.End()
 				processTopic := func() error {
 					if err := c.handleTopic(backgroundCtx, tp); err != nil {
 						switch err {
 						case pubsubx.AbortSubscribeError():
-							l.WithError(err).Error(ctx, "critical error received, stopping consumer", attribute.String("topic", tp.Topic))
+							l.WithError(err).Error(ctx, "critical error received, stopping consumer", semconv.MessagingSourceName(tp.Topic))
+							span.RecordError(err)
+							span.SetStatus(codes.Error, "critical error received, stopping consumer")
 							return err
 						default:
 							return nil
