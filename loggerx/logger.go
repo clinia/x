@@ -2,7 +2,9 @@ package loggerx
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
+	"os"
 	"runtime"
 	"time"
 
@@ -36,8 +38,7 @@ func (l *Logger) Panic(ctx context.Context, msg string, kvs ...attribute.KeyValu
 
 func (l *Logger) WithSpanStartOptions(opts ...trace.SpanStartOption) *Logger {
 	sc := trace.NewSpanStartConfig(opts...)
-	ll := l.WithFields(sc.Attributes()...)
-	return ll
+	return l.WithFields(sc.Attributes()...)
 }
 
 func (l *Logger) WithStackTrace() *Logger {
@@ -81,5 +82,8 @@ func (l *Logger) log(ctx context.Context, level slog.Level, msg string, kvs ...a
 	r := slog.NewRecord(time.Now(), level, msg, pc)
 	r.AddAttrs(slogx.NewLogFields(kvs...)...)
 
-	_ = l.Logger.Handler().Handle(ctx, r)
+	if err := l.Logger.Handler().Handle(ctx, r); err != nil {
+		// In case logging itself fails, write the error to stderr
+		fmt.Fprintf(os.Stderr, "logging error: %v\n", err)
+	}
 }

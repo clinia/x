@@ -100,10 +100,10 @@ func newConsumerMetric(m metric.Meter) (*consumerMetric, error) {
 
 func newConsumer(ctx context.Context, l *loggerx.Logger, kotelService *kotel.Kotel, config *pubsubx.Config, group messagex.ConsumerGroup, topics []messagex.Topic, opts *pubsubx.SubscriberOptions, erh *eventRetryHandler, pqh PoisonQueueHandler, m metric.Meter, t trace.Tracer) (*consumer, error) {
 	if l == nil {
-		l = loggerx.NewDefaultLogger()
+		return nil, errorx.FailedPreconditionErrorf("logger is required")
 	}
 
-	l = l.WithFields(tracex.Component("kgox.Consumer"))
+	l = l.WithFields(tracex.Component(componentName))
 
 	if opts == nil {
 		opts = pubsubx.NewDefaultSubscriberOptions()
