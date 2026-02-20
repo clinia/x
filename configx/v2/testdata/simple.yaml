@@ -1,0 +1,3 @@
+host: "simple-host"
+port: 9090
+debug: true
