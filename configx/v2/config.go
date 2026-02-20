@@ -7,8 +7,8 @@
 // Define your configuration as a Go struct and a programmatic gozod schema:
 //
 //	type Config struct {
-//	    Host string `json:"host" yaml:"host"`
-//	    Port int    `json:"port" yaml:"port"`
+//	    Host string `json:"host"`
+//	    Port int    `json:"port"`
 //	}
 //
 //	var configSchema = gozod.Struct[Config](gozod.StructSchema{

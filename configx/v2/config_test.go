@@ -15,27 +15,27 @@ import (
 // ---------- shared test types & schemas ----------
 
 type SimpleConfig struct {
-	Host  string `json:"host"  yaml:"host"`
-	Port  int    `json:"port"  yaml:"port"`
-	Debug bool   `json:"debug" yaml:"debug"`
+	Host  string `json:"host"`
+	Port  int    `json:"port"`
+	Debug bool   `json:"debug"`
 }
 
 type ServerConfig struct {
-	Host string `json:"host" yaml:"host"`
-	Port int    `json:"port" yaml:"port"`
+	Host string `json:"host"`
+	Port int    `json:"port"`
 }
 
 type DatabaseConfig struct {
-	Host     string `json:"host"     yaml:"host"`
-	Port     int    `json:"port"     yaml:"port"`
-	Name     string `json:"name"     yaml:"name"`
-	Username string `json:"username" yaml:"username"`
-	Password string `json:"password" yaml:"password"`
+	Host     string `json:"host"`
+	Port     int    `json:"port"`
+	Name     string `json:"name"`
+	Username string `json:"username"`
+	Password string `json:"password"`
 }
 
 type FullConfig struct {
-	Server   ServerConfig   `json:"server"   yaml:"server"`
-	Database DatabaseConfig `json:"database" yaml:"database"`
+	Server   ServerConfig   `json:"server"`
+	Database DatabaseConfig `json:"database"`
 }
 
 func simpleSchema() gozod.ZodType[SimpleConfig] {
@@ -162,10 +162,10 @@ func TestLoad_EnvVarsOverride(t *testing.T) {
 func TestLoad_EnvVarsDoubleUnderscore(t *testing.T) {
 	// Test that __ maps to nesting and single _ is preserved.
 	type DBConfig struct {
-		MaxConns int `json:"max_conns" yaml:"max_conns"`
+		MaxConns int `json:"max_conns"`
 	}
 	type AppConfig struct {
-		Database DBConfig `json:"database" yaml:"database"`
+		Database DBConfig `json:"database"`
 	}
 	schema := gozod.Struct[AppConfig](gozod.StructSchema{
 		"database": gozod.Struct[DBConfig](gozod.StructSchema{
@@ -274,7 +274,7 @@ func TestLoad_MissingFile(t *testing.T) {
 func TestLoad_ValidationFailure(t *testing.T) {
 	// Schema with required field and no default, no sources.
 	type RequiredConfig struct {
-		Name string `json:"name" yaml:"name"`
+		Name string `json:"name"`
 	}
 	schema := gozod.Struct[RequiredConfig](gozod.StructSchema{
 		"name": gozod.String().Min(1),
