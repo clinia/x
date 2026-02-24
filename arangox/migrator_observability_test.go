@@ -38,8 +38,8 @@ func TestMigratorTracing_Up(t *testing.T) {
 
 	// --- span names ---
 	require.NotEmpty(t, spansNamed(f.recorder, "arangox.migrator.createCollectionIfNotExist"), "expected createCollectionIfNotExist span")
-	require.NotEmpty(t, spansNamed(f.recorder, "arangox.migrator.version"), "expected version span")
-	upSpans := spansNamed(f.recorder, "arangox.migrator.up")
+	require.NotEmpty(t, spansNamed(f.recorder, "arangox.migrator.Version"), "expected version span")
+	upSpans := spansNamed(f.recorder, "arangox.migrator.Up")
 	require.Len(t, upSpans, 1, "expected exactly one up span")
 	applySpans := spansNamed(f.recorder, "arangox.migrator.up.apply")
 	assert.Len(t, applySpans, 2, "expected one up.apply span per migration")
@@ -97,7 +97,7 @@ func TestMigratorTracing_Down(t *testing.T) {
 	require.NoError(t, err)
 
 	// --- span names ---
-	downSpans := spansNamed(f.recorder, "arangox.migrator.down")
+	downSpans := spansNamed(f.recorder, "arangox.migrator.Down")
 	require.Len(t, downSpans, 1, "expected exactly one down span")
 	applySpans := spansNamed(f.recorder, "arangox.migrator.down.apply")
 	assert.Len(t, applySpans, 2, "expected one down.apply span per migration")
@@ -144,7 +144,7 @@ func TestMigratorTracing_ErrorRecordedOnSpan(t *testing.T) {
 	assert.Equal(t, migrationErr.Error(), applySpans[0].Status().Description)
 
 	// The outer up span should also have error status.
-	upSpans := spansNamed(f.recorder, "arangox.migrator.up")
+	upSpans := spansNamed(f.recorder, "arangox.migrator.Up")
 	require.Len(t, upSpans, 1)
 	assert.Equal(t, codes.Error, upSpans[0].Status().Code)
 }
@@ -166,7 +166,7 @@ func TestMigratorTracing_Version(t *testing.T) {
 	assert.Equal(t, uint(0), current)
 	assert.Equal(t, uint(1), latest)
 
-	versionSpans := spansNamed(f.recorder, "arangox.migrator.version")
+	versionSpans := spansNamed(f.recorder, "arangox.migrator.Version")
 	require.Len(t, versionSpans, 1)
 
 	versionSpan := versionSpans[0]
@@ -210,7 +210,7 @@ func TestMigratorTracing_DryRun(t *testing.T) {
 	require.NoError(t, err)
 
 	// Outer span should still be produced even in dry-run.
-	upSpans := spansNamed(f.recorder, "arangox.migrator.up")
+	upSpans := spansNamed(f.recorder, "arangox.migrator.Up")
 	require.Len(t, upSpans, 1)
 	hasAttr(t, upSpans[0], migrationDryRunKey, true)
 
