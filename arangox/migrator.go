@@ -144,7 +144,7 @@ func (m *Migrator) createCollectionIfNotExist(ctx context.Context, name string) 
 
 // Version returns current database version and comment.
 func (m *Migrator) Version(ctx context.Context) (current uint, latest uint, desc string, outErr error) {
-	ctx, span, l := m.instrument(ctx, "version", trace.WithAttributes(
+	ctx, span, l := m.instrument(ctx, "Version", trace.WithAttributes(
 		DBSystemAttr(),
 	))
 	defer func() {
@@ -205,7 +205,7 @@ func (m *Migrator) Version(ctx context.Context) (current uint, latest uint, desc
 // If targetVersion<=0 all "up" migrations will be executed (if not executed yet)
 // If targetVersion>0 only migrations where version<=targetVersion will be performed (if not executed yet)
 func (m *Migrator) Up(ctx context.Context, targetVersion int) (outErr error) {
-	ctx, span, l := m.instrument(ctx, "up", trace.WithAttributes(
+	ctx, span, l := m.instrument(ctx, "Up", trace.WithAttributes(
 		DBSystemAttr(),
 		MigrationDirectionUpAttr(),
 		MigrationDryRunAttr(m.dryRun),
@@ -257,43 +257,47 @@ func (m *Migrator) Up(ctx context.Context, targetVersion int) (outErr error) {
 			break
 		}
 
-		migAttrs := []attribute.KeyValue{
-			MigrationVersionAttr(migration.Version),
-			MigrationDescriptionAttr(migration.Description),
-		}
+		if err := func() (outErr error) {
+			migAttrs := []attribute.KeyValue{
+				MigrationVersionAttr(migration.Version),
+				MigrationDescriptionAttr(migration.Description),
+			}
 
-		if m.dryRun {
-			l.Warn(ctx, fmt.Sprintf("[dry-run] ⬆️  up migration version %d (%s) would be applied for package %s", migration.Version, migration.Description, m.pkg), migAttrs...)
-			continue
-		}
+			if m.dryRun {
+				l.Warn(ctx, fmt.Sprintf("[dry-run] ⬆️  up migration version %d (%s) would be applied for package %s", migration.Version, migration.Description, m.pkg), migAttrs...)
+				return nil
+			}
+			ctx, span, l := m.instrument(ctx, "up.apply", trace.WithAttributes(migAttrs...))
+			defer func() {
+				if outErr != nil {
+					span.RecordError(outErr)
+					span.SetStatus(codes.Error, outErr.Error())
+				}
+				span.End()
+			}()
+			l.Info(ctx, fmt.Sprintf("⬆️  applying up migration version %d (%s)", migration.Version, migration.Description), migAttrs...)
 
-		_, migSpan, migL := m.instrument(ctx, "up.apply", trace.WithAttributes(migAttrs...))
-		migL.Info(ctx, fmt.Sprintf("⬆️  applying up migration version %d (%s)", migration.Version, migration.Description), migAttrs...)
+			if err := migration.Up(ctx, m.db); err != nil {
+				return err
+			}
 
-		if err := migration.Up(ctx, m.db); err != nil {
-			migSpan.RecordError(err)
-			migSpan.SetStatus(codes.Error, err.Error())
-			migSpan.End()
+			rec := versionRecord{
+				Version:     migration.Version,
+				Package:     m.pkg,
+				Timestamp:   time.Now().UTC(),
+				Description: migration.Description,
+			}
+
+			_, err = col.CreateDocument(ctx, rec)
+			if err != nil {
+				return err
+			}
+
+			l.Info(ctx, fmt.Sprintf("✅ up migration version %d (%s) applied", migration.Version, migration.Description), migAttrs...)
+			return nil
+		}(); err != nil {
 			return err
 		}
-
-		rec := versionRecord{
-			Version:     migration.Version,
-			Package:     m.pkg,
-			Timestamp:   time.Now().UTC(),
-			Description: migration.Description,
-		}
-
-		_, err = col.CreateDocument(ctx, rec)
-		if err != nil {
-			migSpan.RecordError(err)
-			migSpan.SetStatus(codes.Error, err.Error())
-			migSpan.End()
-			return err
-		}
-
-		migL.Info(ctx, fmt.Sprintf("✅ up migration version %d (%s) applied", migration.Version, migration.Description), migAttrs...)
-		migSpan.End()
 	}
 
 	return nil
@@ -303,7 +307,7 @@ func (m *Migrator) Up(ctx context.Context, targetVersion int) (outErr error) {
 // If targetVersion<=0 all "down" migrations will be performed.
 // If targetVersion>0, only the down migrations where version>targetVersion will be performed (only if they were applied).
 func (m *Migrator) Down(ctx context.Context, targetVersion int) (outErr error) {
-	ctx, span, l := m.instrument(ctx, "down", trace.WithAttributes(
+	ctx, span, l := m.instrument(ctx, "Down", trace.WithAttributes(
 		DBSystemAttr(),
 		MigrationDirectionDownAttr(),
 		MigrationDryRunAttr(m.dryRun),
@@ -347,28 +351,36 @@ func (m *Migrator) Down(ctx context.Context, targetVersion int) (outErr error) {
 			break
 		}
 
-		migAttrs := []attribute.KeyValue{
-			MigrationVersionAttr(migration.Version),
-			MigrationDescriptionAttr(migration.Description),
-		}
+		if err := func() (outErr error) {
+			migAttrs := []attribute.KeyValue{
+				MigrationVersionAttr(migration.Version),
+				MigrationDescriptionAttr(migration.Description),
+			}
 
-		if m.dryRun {
-			l.Warn(ctx, fmt.Sprintf("[dry-run] ⬇️  migration version %d (%s) would be applied for package %s", migration.Version, migration.Description, m.pkg), migAttrs...)
-			continue
-		}
+			if m.dryRun {
+				l.Warn(ctx, fmt.Sprintf("[dry-run] ⬇️  migration version %d (%s) would be applied for package %s", migration.Version, migration.Description, m.pkg), migAttrs...)
+				return nil
+			}
 
-		_, migSpan, migL := m.instrument(ctx, "down.apply", trace.WithAttributes(migAttrs...))
-		migL.Info(ctx, fmt.Sprintf("⬇️  applying down migration version %d (%s)", migration.Version, migration.Description), migAttrs...)
+			ctx, span, l := m.instrument(ctx, "down.apply", trace.WithAttributes(migAttrs...))
+			defer func() {
+				if outErr != nil {
+					span.RecordError(outErr)
+					span.SetStatus(codes.Error, outErr.Error())
+				}
+				span.End()
+			}()
+			l.Info(ctx, fmt.Sprintf("⬇️  applying down migration version %d (%s)", migration.Version, migration.Description), migAttrs...)
 
-		if err := migration.Down(ctx, m.db); err != nil {
-			migSpan.RecordError(err)
-			migSpan.SetStatus(codes.Error, err.Error())
-			migSpan.End()
+			if err := migration.Down(ctx, m.db); err != nil {
+				return err
+			}
+
+			l.Info(ctx, fmt.Sprintf("✅ down migration version %d (%s) applied", migration.Version, migration.Description), migAttrs...)
+			return nil
+		}(); err != nil {
 			return err
 		}
-
-		migL.Info(ctx, fmt.Sprintf("✅ down migration version %d (%s) applied", migration.Version, migration.Description), migAttrs...)
-		migSpan.End()
 
 		if i == 0 {
 			version = 0
