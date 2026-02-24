@@ -46,16 +46,16 @@ func TestMigratorTracing_Up(t *testing.T) {
 
 	// --- outer up span attributes ---
 	upSpan := upSpans[0]
-	hasAttr(t, upSpan, AttrDBSystem, attrDBSystemValue)
-	hasAttr(t, upSpan, AttrMigrationDirection, attrMigrationDirUp)
-	hasAttr(t, upSpan, AttrMigrationDryRun, false)
-	hasAttr(t, upSpan, AttrMigrationTargetVersion, 0)
+	hasAttr(t, upSpan, dbSystemKey, dbSystemValue)
+	hasAttr(t, upSpan, migrationDirectionKey, migrationDirUp)
+	hasAttr(t, upSpan, migrationDryRunKey, false)
+	hasAttr(t, upSpan, migrationTargetVersionKey, 0)
 	assert.Equal(t, codes.Unset, upSpan.Status().Code, "up span should have no error status")
 
 	// --- per-migration apply span attributes ---
 	for i, applySpan := range applySpans {
 		expectedVersion := i + 1
-		hasAttr(t, applySpan, AttrMigrationVersion, expectedVersion)
+		hasAttr(t, applySpan, migrationVersionKey, expectedVersion)
 		assert.Equal(t, codes.Unset, applySpan.Status().Code)
 	}
 
@@ -104,15 +104,15 @@ func TestMigratorTracing_Down(t *testing.T) {
 
 	// --- outer down span attributes ---
 	downSpan := downSpans[0]
-	hasAttr(t, downSpan, AttrDBSystem, attrDBSystemValue)
-	hasAttr(t, downSpan, AttrMigrationDirection, attrMigrationDirDown)
-	hasAttr(t, downSpan, AttrMigrationDryRun, false)
+	hasAttr(t, downSpan, dbSystemKey, dbSystemValue)
+	hasAttr(t, downSpan, migrationDirectionKey, migrationDirDown)
+	hasAttr(t, downSpan, migrationDryRunKey, false)
 	assert.Equal(t, codes.Unset, downSpan.Status().Code)
 
 	// --- per-migration apply span attributes ---
 	for _, applySpan := range applySpans {
-		assert.True(t, spanHasAttrKey(applySpan, AttrMigrationVersion), "down.apply span should have migration.version attribute")
-		assert.True(t, spanHasAttrKey(applySpan, AttrMigrationDescription), "down.apply span should have migration.description attribute")
+		assert.True(t, spanHasAttrKey(applySpan, migrationVersionKey), "down.apply span should have migration.version attribute")
+		assert.True(t, spanHasAttrKey(applySpan, migrationDescriptionKey), "down.apply span should have migration.description attribute")
 		assert.Equal(t, codes.Unset, applySpan.Status().Code)
 	}
 
@@ -170,9 +170,9 @@ func TestMigratorTracing_Version(t *testing.T) {
 	require.Len(t, versionSpans, 1)
 
 	versionSpan := versionSpans[0]
-	hasAttr(t, versionSpan, AttrDBSystem, attrDBSystemValue)
-	hasAttr(t, versionSpan, AttrMigrationCurrentVersion, 0)
-	hasAttr(t, versionSpan, AttrMigrationLatestVersion, 1)
+	hasAttr(t, versionSpan, dbSystemKey, dbSystemValue)
+	hasAttr(t, versionSpan, migrationCurrentVersionKey, 0)
+	hasAttr(t, versionSpan, migrationLatestVersionKey, 1)
 	assert.Equal(t, codes.Unset, versionSpan.Status().Code)
 }
 
@@ -212,7 +212,7 @@ func TestMigratorTracing_DryRun(t *testing.T) {
 	// Outer span should still be produced even in dry-run.
 	upSpans := spansNamed(f.recorder, "arangox.migrator.up")
 	require.Len(t, upSpans, 1)
-	hasAttr(t, upSpans[0], AttrMigrationDryRun, true)
+	hasAttr(t, upSpans[0], migrationDryRunKey, true)
 
 	// No up.apply child spans should be produced in dry-run.
 	applySpans := spansNamed(f.recorder, "arangox.migrator.up.apply")
@@ -233,8 +233,8 @@ func TestMigratorTracing_CreateCollectionIfNotExist(t *testing.T) {
 
 	spans := spansNamed(f.recorder, "arangox.migrator.createCollectionIfNotExist")
 	require.Len(t, spans, 1)
-	hasAttr(t, spans[0], AttrDBSystem, attrDBSystemValue)
-	hasAttr(t, spans[0], AttrDBCollectionName, "test_col")
+	hasAttr(t, spans[0], dbSystemKey, dbSystemValue)
+	hasAttr(t, spans[0], dbCollectionNameKey, "test_col")
 	assert.Equal(t, codes.Unset, spans[0].Status().Code)
 
 	// Calling again on the same collection should still produce a span (already-exists path).

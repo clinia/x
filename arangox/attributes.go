@@ -2,77 +2,85 @@ package arangox
 
 import "go.opentelemetry.io/otel/attribute"
 
-// Attribute key constants for spans and log fields produced by this package.
-// Consumers can use these to filter or enrich telemetry without hard-coding strings.
+// Attribute key constants — private to this package; use the typed helper
+// functions below to construct KeyValues and avoid hard-coded strings.
 const (
-	AttrPackage = "package"
+	packageKey = "package"
 
-	AttrDBSystem         = "db.system"
-	AttrDBCollectionName = "db.collection.name"
+	dbSystemKey         = "db.system"
+	dbCollectionNameKey = "db.collection.name"
 
-	AttrMigrationDirection             = "migration.direction"
-	AttrMigrationDryRun                = "migration.dry_run"
-	AttrMigrationTargetVersion         = "migration.target_version"
-	AttrMigrationCurrentVersion        = "migration.current_version"
-	AttrMigrationLatestVersion         = "migration.latest_version"
-	AttrMigrationResolvedTargetVersion = "migration.resolved_target_version"
-	AttrMigrationVersion               = "migration.version"
-	AttrMigrationDescription           = "migration.description"
+	migrationDirectionKey             = "migration.direction"
+	migrationDryRunKey                = "migration.dry_run"
+	migrationTargetVersionKey         = "migration.target_version"
+	migrationCurrentVersionKey        = "migration.current_version"
+	migrationLatestVersionKey         = "migration.latest_version"
+	migrationResolvedTargetVersionKey = "migration.resolved_target_version"
+	migrationVersionKey               = "migration.version"
+	migrationDescriptionKey           = "migration.description"
 
-	attrDBSystemValue    = "arangodb"
-	attrMigrationDirUp   = "up"
-	attrMigrationDirDown = "down"
+	dbSystemValue    = "arangodb"
+	migrationDirUp   = "up"
+	migrationDirDown = "down"
 )
 
-func attrDBSystem() attribute.KeyValue {
-	return attribute.String(AttrDBSystem, attrDBSystemValue)
+// DBSystemAttr returns an attribute identifying the database system.
+func DBSystemAttr() attribute.KeyValue {
+	return attribute.String(dbSystemKey, dbSystemValue)
 }
 
-func attrPackage(pkg string) attribute.KeyValue {
-	return attribute.String(AttrPackage, pkg)
+// PackageAttr returns an attribute for the migration package name.
+func PackageAttr(pkg string) attribute.KeyValue {
+	return attribute.String(packageKey, pkg)
 }
 
-func attrDBCollectionName(name string) attribute.KeyValue {
-	return attribute.String(AttrDBCollectionName, name)
+// DBCollectionNameAttr returns an attribute for the database collection name.
+func DBCollectionNameAttr(name string) attribute.KeyValue {
+	return attribute.String(dbCollectionNameKey, name)
 }
 
-func attrMigrationDirectionUp() attribute.KeyValue {
-	return attribute.String(AttrMigrationDirection, attrMigrationDirUp)
+// MigrationDirectionUpAttr returns an attribute marking an upward migration direction.
+func MigrationDirectionUpAttr() attribute.KeyValue {
+	return attribute.String(migrationDirectionKey, migrationDirUp)
 }
 
-func attrMigrationDirectionDown() attribute.KeyValue {
-	return attribute.String(AttrMigrationDirection, attrMigrationDirDown)
+// MigrationDirectionDownAttr returns an attribute marking a downward migration direction.
+func MigrationDirectionDownAttr() attribute.KeyValue {
+	return attribute.String(migrationDirectionKey, migrationDirDown)
 }
 
-func attrMigrationDryRun(dryRun bool) attribute.KeyValue {
-	return attribute.Bool(AttrMigrationDryRun, dryRun)
+// MigrationDryRunAttr returns an attribute indicating whether the migration is a dry-run.
+func MigrationDryRunAttr(dryRun bool) attribute.KeyValue {
+	return attribute.Bool(migrationDryRunKey, dryRun)
 }
 
-func attrMigrationTargetVersion(v int) attribute.KeyValue {
-	return attribute.Int(AttrMigrationTargetVersion, v)
+// MigrationTargetVersionAttr returns an attribute for the requested target migration version.
+func MigrationTargetVersionAttr(v int) attribute.KeyValue {
+	return attribute.Int(migrationTargetVersionKey, v)
 }
 
-// attrMigrationCurrentVersion converts a uint version to an int attribute.
-// Migration version numbers are far below math.MaxInt, so this conversion is safe.
-func attrMigrationCurrentVersion(v uint) attribute.KeyValue {
-	return attribute.Int(AttrMigrationCurrentVersion, int(v)) //nolint:gosec
+// MigrationCurrentVersionAttr returns an attribute for the current applied migration version.
+// Migration version numbers are far below math.MaxInt, so the uint->int conversion is safe.
+func MigrationCurrentVersionAttr(v uint) attribute.KeyValue {
+	return attribute.Int(migrationCurrentVersionKey, int(v)) //nolint:gosec
 }
 
-// attrMigrationLatestVersion converts a uint version to an int attribute.
-func attrMigrationLatestVersion(v uint) attribute.KeyValue {
-	return attribute.Int(AttrMigrationLatestVersion, int(v)) //nolint:gosec
+// MigrationLatestVersionAttr returns an attribute for the latest known migration version.
+func MigrationLatestVersionAttr(v uint) attribute.KeyValue {
+	return attribute.Int(migrationLatestVersionKey, int(v)) //nolint:gosec
 }
 
-// attrMigrationResolvedTargetVersion converts a uint version to an int attribute.
-func attrMigrationResolvedTargetVersion(v uint) attribute.KeyValue {
-	return attribute.Int(AttrMigrationResolvedTargetVersion, int(v)) //nolint:gosec
+// MigrationResolvedTargetVersionAttr returns an attribute for the clamped resolved target version.
+func MigrationResolvedTargetVersionAttr(v uint) attribute.KeyValue {
+	return attribute.Int(migrationResolvedTargetVersionKey, int(v)) //nolint:gosec
 }
 
-// attrMigrationVersion converts a uint version to an int attribute.
-func attrMigrationVersion(v uint) attribute.KeyValue {
-	return attribute.Int(AttrMigrationVersion, int(v)) //nolint:gosec
+// MigrationVersionAttr returns an attribute for an individual migration's version number.
+func MigrationVersionAttr(v uint) attribute.KeyValue {
+	return attribute.Int(migrationVersionKey, int(v)) //nolint:gosec
 }
 
-func attrMigrationDescription(desc string) attribute.KeyValue {
-	return attribute.String(AttrMigrationDescription, desc)
+// MigrationDescriptionAttr returns an attribute for an individual migration's description.
+func MigrationDescriptionAttr(desc string) attribute.KeyValue {
+	return attribute.String(migrationDescriptionKey, desc)
 }

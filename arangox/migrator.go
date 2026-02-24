@@ -82,7 +82,7 @@ func NewMigrator(in NewMigratorOptions) *Migrator {
 		db:                   in.Database,
 		pkg:                  in.Package,
 		dryRun:               in.DryRun,
-		l:                    l.WithFields(attrPackage(in.Package)),
+		l:                    l.WithFields(PackageAttr(in.Package)),
 		t:                    t,
 		migrations:           internalMigrations,
 		migrationsCollection: DefaultMigrationsCollection,
@@ -101,8 +101,8 @@ func (m *Migrator) SetMigrationsCollection(name string) {
 
 func (m *Migrator) createCollectionIfNotExist(ctx context.Context, name string) (outErr error) {
 	ctx, span, l := m.instrument(ctx, "createCollectionIfNotExist", trace.WithAttributes(
-		attrDBSystem(),
-		attrDBCollectionName(name),
+		DBSystemAttr(),
+		DBCollectionNameAttr(name),
 	))
 	defer func() {
 		if outErr != nil {
@@ -145,7 +145,7 @@ func (m *Migrator) createCollectionIfNotExist(ctx context.Context, name string) 
 // Version returns current database version and comment.
 func (m *Migrator) Version(ctx context.Context) (current uint, latest uint, desc string, outErr error) {
 	ctx, span, l := m.instrument(ctx, "version", trace.WithAttributes(
-		attrDBSystem(),
+		DBSystemAttr(),
 	))
 	defer func() {
 		if outErr != nil {
@@ -153,8 +153,8 @@ func (m *Migrator) Version(ctx context.Context) (current uint, latest uint, desc
 			span.SetStatus(codes.Error, outErr.Error())
 		} else {
 			span.SetAttributes(
-				attrMigrationCurrentVersion(current),
-				attrMigrationLatestVersion(latest),
+				MigrationCurrentVersionAttr(current),
+				MigrationLatestVersionAttr(latest),
 			)
 		}
 		span.End()
@@ -195,8 +195,8 @@ func (m *Migrator) Version(ctx context.Context) (current uint, latest uint, desc
 	}
 
 	l.Debug(ctx, "current migration version retrieved",
-		attrMigrationCurrentVersion(rec.Version),
-		attrMigrationLatestVersion(latest),
+		MigrationCurrentVersionAttr(rec.Version),
+		MigrationLatestVersionAttr(latest),
 	)
 	return rec.Version, latest, rec.Description, nil
 }
@@ -206,10 +206,10 @@ func (m *Migrator) Version(ctx context.Context) (current uint, latest uint, desc
 // If targetVersion>0 only migrations where version<=targetVersion will be performed (if not executed yet)
 func (m *Migrator) Up(ctx context.Context, targetVersion int) (outErr error) {
 	ctx, span, l := m.instrument(ctx, "up", trace.WithAttributes(
-		attrDBSystem(),
-		attrMigrationDirectionUp(),
-		attrMigrationDryRun(m.dryRun),
-		attrMigrationTargetVersion(targetVersion),
+		DBSystemAttr(),
+		MigrationDirectionUpAttr(),
+		MigrationDryRunAttr(m.dryRun),
+		MigrationTargetVersionAttr(targetVersion),
 	))
 	defer func() {
 		if outErr != nil {
@@ -238,8 +238,8 @@ func (m *Migrator) Up(ctx context.Context, targetVersion int) (outErr error) {
 	}
 
 	l.Info(ctx, "running up migrations",
-		attrMigrationCurrentVersion(currentVersion),
-		attrMigrationResolvedTargetVersion(target),
+		MigrationCurrentVersionAttr(currentVersion),
+		MigrationResolvedTargetVersionAttr(target),
 	)
 
 	col, err := m.db.Collection(ctx, m.migrationsCollection)
@@ -258,8 +258,8 @@ func (m *Migrator) Up(ctx context.Context, targetVersion int) (outErr error) {
 		}
 
 		migAttrs := []attribute.KeyValue{
-			attrMigrationVersion(migration.Version),
-			attrMigrationDescription(migration.Description),
+			MigrationVersionAttr(migration.Version),
+			MigrationDescriptionAttr(migration.Description),
 		}
 
 		if m.dryRun {
@@ -304,10 +304,10 @@ func (m *Migrator) Up(ctx context.Context, targetVersion int) (outErr error) {
 // If targetVersion>0, only the down migrations where version>targetVersion will be performed (only if they were applied).
 func (m *Migrator) Down(ctx context.Context, targetVersion int) (outErr error) {
 	ctx, span, l := m.instrument(ctx, "down", trace.WithAttributes(
-		attrDBSystem(),
-		attrMigrationDirectionDown(),
-		attrMigrationDryRun(m.dryRun),
-		attrMigrationTargetVersion(targetVersion),
+		DBSystemAttr(),
+		MigrationDirectionDownAttr(),
+		MigrationDryRunAttr(m.dryRun),
+		MigrationTargetVersionAttr(targetVersion),
 	))
 	defer func() {
 		if outErr != nil {
@@ -332,8 +332,8 @@ func (m *Migrator) Down(ctx context.Context, targetVersion int) (outErr error) {
 	target := uint(mathx.Clamp(targetVersion, 0, latestInt)) //nolint:errcheck,gosec
 
 	l.Info(ctx, "running down migrations",
-		attrMigrationCurrentVersion(curVersion),
-		attrMigrationResolvedTargetVersion(target),
+		MigrationCurrentVersionAttr(curVersion),
+		MigrationResolvedTargetVersionAttr(target),
 	)
 
 	for i := len(m.migrations) - 1; i >= 0; i-- {
@@ -348,8 +348,8 @@ func (m *Migrator) Down(ctx context.Context, targetVersion int) (outErr error) {
 		}
 
 		migAttrs := []attribute.KeyValue{
-			attrMigrationVersion(migration.Version),
-			attrMigrationDescription(migration.Description),
+			MigrationVersionAttr(migration.Version),
+			MigrationDescriptionAttr(migration.Description),
 		}
 
 		if m.dryRun {
