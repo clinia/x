@@ -153,8 +153,8 @@ func (m *Migrator) Version(ctx context.Context) (current uint, latest uint, desc
 			span.SetStatus(codes.Error, outErr.Error())
 		} else {
 			span.SetAttributes(
-				attribute.Int("migration.current_version", int(current)),
-				attribute.Int("migration.latest_version", int(latest)),
+				attribute.Int("migration.current_version", int(current)), //nolint:gosec
+				attribute.Int("migration.latest_version", int(latest)),   //nolint:gosec
 			)
 		}
 		span.End()
@@ -195,8 +195,8 @@ func (m *Migrator) Version(ctx context.Context) (current uint, latest uint, desc
 	}
 
 	l.Debug(ctx, "current migration version retrieved",
-		attribute.Int("migration.current_version", int(rec.Version)),
-		attribute.Int("migration.latest_version", int(latest)),
+		attribute.Int("migration.current_version", int(rec.Version)), //nolint:gosec
+		attribute.Int("migration.latest_version", int(latest)),       //nolint:gosec
 	)
 	return rec.Version, latest, rec.Description, nil
 }
@@ -238,8 +238,8 @@ func (m *Migrator) Up(ctx context.Context, targetVersion int) (outErr error) {
 	}
 
 	l.Info(ctx, "running up migrations",
-		attribute.Int("migration.current_version", int(currentVersion)),
-		attribute.Int("migration.resolved_target_version", int(target)),
+		attribute.Int("migration.current_version", int(currentVersion)), //nolint:gosec
+		attribute.Int("migration.resolved_target_version", int(target)), //nolint:gosec
 	)
 
 	col, err := m.db.Collection(ctx, m.migrationsCollection)
@@ -258,7 +258,7 @@ func (m *Migrator) Up(ctx context.Context, targetVersion int) (outErr error) {
 		}
 
 		migAttrs := []attribute.KeyValue{
-			attribute.Int("migration.version", int(migration.Version)),
+			attribute.Int("migration.version", int(migration.Version)), //nolint:gosec
 			attribute.String("migration.description", migration.Description),
 		}
 
@@ -332,8 +332,8 @@ func (m *Migrator) Down(ctx context.Context, targetVersion int) (outErr error) {
 	target := uint(mathx.Clamp(targetVersion, 0, latestInt)) //nolint:errcheck,gosec
 
 	l.Info(ctx, "running down migrations",
-		attribute.Int("migration.current_version", int(curVersion)),
-		attribute.Int("migration.resolved_target_version", int(target)),
+		attribute.Int("migration.current_version", int(curVersion)),     //nolint:gosec
+		attribute.Int("migration.resolved_target_version", int(target)), //nolint:gosec
 	)
 
 	for i := len(m.migrations) - 1; i >= 0; i-- {
@@ -348,7 +348,7 @@ func (m *Migrator) Down(ctx context.Context, targetVersion int) (outErr error) {
 		}
 
 		migAttrs := []attribute.KeyValue{
-			attribute.Int("migration.version", int(migration.Version)),
+			attribute.Int("migration.version", int(migration.Version)), //nolint:gosec
 			attribute.String("migration.description", migration.Description),
 		}
 
