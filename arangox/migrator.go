@@ -90,7 +90,13 @@ func NewMigrator(in NewMigratorOptions) *Migrator {
 }
 
 func (m *Migrator) instrument(ctx context.Context, name string, opts ...trace.SpanStartOption) (context.Context, trace.Span, *loggerx.Logger) {
-	return tracex.InstrumentNext(ctx, func() *loggerx.Logger { return m.l }, func(ctx context.Context) *otelx.Tracer { return m.t }, migratorComponentName, name, opts...)
+	opts = append(opts, trace.WithAttributes(DBSystemAttr(), PackageAttr(m.pkg)))
+	return tracex.InstrumentNext(ctx,
+		func() *loggerx.Logger { return m.l },
+		func(ctx context.Context) *otelx.Tracer { return m.t },
+		migratorComponentName,
+		name,
+		opts...)
 }
 
 // SetMigrationsCollection replaces name of collection for storing migration information.
@@ -105,11 +111,7 @@ func (m *Migrator) createCollectionIfNotExist(ctx context.Context, name string) 
 		DBCollectionNameAttr(name),
 	))
 	defer func() {
-		if outErr != nil {
-			span.RecordError(outErr)
-			span.SetStatus(codes.Error, outErr.Error())
-		}
-		span.End()
+		statusErrorHandler(span, outErr)
 	}()
 
 	exist, err := m.db.CollectionExists(ctx, name)
@@ -148,16 +150,14 @@ func (m *Migrator) Version(ctx context.Context) (current uint, latest uint, desc
 		DBSystemAttr(),
 	))
 	defer func() {
-		if outErr != nil {
-			span.RecordError(outErr)
-			span.SetStatus(codes.Error, outErr.Error())
-		} else {
+		if outErr == nil {
 			span.SetAttributes(
 				MigrationCurrentVersionAttr(current),
 				MigrationLatestVersionAttr(latest),
+				MigrationDescriptionAttr(desc),
 			)
 		}
-		span.End()
+		statusErrorHandler(span, outErr)
 	}()
 
 	m.migrations.Sort()
@@ -165,6 +165,7 @@ func (m *Migrator) Version(ctx context.Context) (current uint, latest uint, desc
 		latest = m.migrations[len(m.migrations)-1].Version
 	}
 	if err := m.createCollectionIfNotExist(ctx, m.migrationsCollection); err != nil {
+		l.WithError(err).Error(ctx, "failed to ensure migrations collection exists")
 		return 0, latest, "", err
 	}
 
@@ -179,6 +180,7 @@ func (m *Migrator) Version(ctx context.Context) (current uint, latest uint, desc
 		"pkg":         m.pkg,
 	})
 	if err != nil {
+		l.WithError(err).Error(ctx, "failed to query current migration version")
 		return 0, latest, "", err
 	}
 	defer cursor.Close() //nolint:errcheck,gosec
@@ -188,9 +190,10 @@ func (m *Migrator) Version(ctx context.Context) (current uint, latest uint, desc
 	if err != nil {
 		_, ok := err.(arangoDriver.NoMoreDocumentsError)
 		if ok {
-			l.Debug(ctx, "no migration version found, database is at version 0")
+			l.Error(ctx, "no migration version found, database is at version 0")
 			return 0, latest, "", nil
 		}
+		l.WithError(err).Error(ctx, "failed to read current migration version from cursor")
 		return 0, latest, "", err
 	}
 
@@ -212,21 +215,19 @@ func (m *Migrator) Up(ctx context.Context, targetVersion int) (outErr error) {
 		MigrationTargetVersionAttr(targetVersion),
 	))
 	defer func() {
-		if outErr != nil {
-			span.RecordError(outErr)
-			span.SetStatus(codes.Error, outErr.Error())
-		}
-		span.End()
+		statusErrorHandler(span, outErr)
 	}()
 
 	m.migrations.Sort()
 	currentVersion, latest, _, err := m.Version(ctx)
 	if err != nil {
+		l.WithError(err).Error(ctx, "failed to get current migration version")
 		return err
 	}
 
 	latestInt, err := safeUintToInt(latest)
 	if err != nil {
+		l.WithError(err).Error(ctx, "latest migration version is too large to fit in an int")
 		return err
 	}
 
@@ -250,10 +251,12 @@ func (m *Migrator) Up(ctx context.Context, targetVersion int) (outErr error) {
 	for i := 0; i < len(m.migrations); i++ {
 		migration := m.migrations[i]
 		if migration.Version <= currentVersion || migration.Up == nil {
+			l.Info(ctx, fmt.Sprintf("migration version %d (%s) already applied or has no up migration, skipping", migration.Version, migration.Description), MigrationVersionAttr(migration.Version), MigrationDescriptionAttr(migration.Description))
 			continue
 		}
 
 		if migration.Version > target {
+			l.Warn(ctx, fmt.Sprintf("migration version %d (%s) is above target version %d, skipping", migration.Version, migration.Description, target), MigrationVersionAttr(migration.Version), MigrationDescriptionAttr(migration.Description))
 			break
 		}
 
@@ -264,20 +267,17 @@ func (m *Migrator) Up(ctx context.Context, targetVersion int) (outErr error) {
 			}
 
 			if m.dryRun {
-				l.Warn(ctx, fmt.Sprintf("[dry-run] ⬆️  up migration version %d (%s) would be applied for package %s", migration.Version, migration.Description, m.pkg), migAttrs...)
+				l.Warn(ctx, fmt.Sprintf("[dry-run] ⬆️ up migration version %d (%s) would be applied for package %s", migration.Version, migration.Description, m.pkg), migAttrs...)
 				return nil
 			}
 			ctx, span, l := m.instrument(ctx, "up.apply", trace.WithAttributes(migAttrs...))
 			defer func() {
-				if outErr != nil {
-					span.RecordError(outErr)
-					span.SetStatus(codes.Error, outErr.Error())
-				}
-				span.End()
+				statusErrorHandler(span, outErr)
 			}()
-			l.Info(ctx, fmt.Sprintf("⬆️  applying up migration version %d (%s)", migration.Version, migration.Description), migAttrs...)
+			l.Info(ctx, fmt.Sprintf("⬆️ applying up migration version %d (%s)", migration.Version, migration.Description), migAttrs...)
 
 			if err := migration.Up(ctx, m.db); err != nil {
+				l.WithError(err).Error(ctx, fmt.Sprintf("❌ failed to apply up migration version %d (%s)", migration.Version, migration.Description))
 				return err
 			}
 
@@ -290,6 +290,7 @@ func (m *Migrator) Up(ctx context.Context, targetVersion int) (outErr error) {
 
 			_, err = col.CreateDocument(ctx, rec)
 			if err != nil {
+				l.WithError(err).Error(ctx, fmt.Sprintf("❌ failed to record up migration version %d (%s) in database", migration.Version, migration.Description))
 				return err
 			}
 
@@ -314,21 +315,19 @@ func (m *Migrator) Down(ctx context.Context, targetVersion int) (outErr error) {
 		MigrationTargetVersionAttr(targetVersion),
 	))
 	defer func() {
-		if outErr != nil {
-			span.RecordError(outErr)
-			span.SetStatus(codes.Error, outErr.Error())
-		}
-		span.End()
+		statusErrorHandler(span, outErr)
 	}()
 
 	m.migrations.Sort()
 	curVersion, latest, _, err := m.Version(ctx)
 	if err != nil {
+		l.WithError(err).Error(ctx, "failed to get current migration version")
 		return err
 	}
 
 	latestInt, err := safeUintToInt(latest)
 	if err != nil {
+		l.WithError(err).Error(ctx, "latest migration version is too large to fit in an int")
 		return err
 	}
 
@@ -343,11 +342,13 @@ func (m *Migrator) Down(ctx context.Context, targetVersion int) (outErr error) {
 	for i := len(m.migrations) - 1; i >= 0; i-- {
 		migration := m.migrations[i]
 		if migration.Version > version || migration.Down == nil {
+			l.Info(ctx, fmt.Sprintf("migration version %d (%s) not applied or has no down migration, skipping", migration.Version, migration.Description), MigrationVersionAttr(migration.Version), MigrationDescriptionAttr(migration.Description))
 			continue
 		}
 
 		if migration.Version <= uint(target) {
 			// We down-ed enough
+			l.Warn(ctx, fmt.Sprintf("migration version %d (%s) is at or below target version %d, skipping", migration.Version, migration.Description, target), MigrationVersionAttr(migration.Version), MigrationDescriptionAttr(migration.Description))
 			break
 		}
 
@@ -358,21 +359,18 @@ func (m *Migrator) Down(ctx context.Context, targetVersion int) (outErr error) {
 			}
 
 			if m.dryRun {
-				l.Warn(ctx, fmt.Sprintf("[dry-run] ⬇️  migration version %d (%s) would be applied for package %s", migration.Version, migration.Description, m.pkg), migAttrs...)
+				l.Warn(ctx, fmt.Sprintf("[dry-run] ⬇️ migration version %d (%s) would be applied for package %s", migration.Version, migration.Description, m.pkg), migAttrs...)
 				return nil
 			}
 
 			ctx, span, l := m.instrument(ctx, "down.apply", trace.WithAttributes(migAttrs...))
 			defer func() {
-				if outErr != nil {
-					span.RecordError(outErr)
-					span.SetStatus(codes.Error, outErr.Error())
-				}
-				span.End()
+				statusErrorHandler(span, outErr)
 			}()
-			l.Info(ctx, fmt.Sprintf("⬇️  applying down migration version %d (%s)", migration.Version, migration.Description), migAttrs...)
+			l.Info(ctx, fmt.Sprintf("⬇️ applying down migration version %d (%s)", migration.Version, migration.Description), migAttrs...)
 
 			if err := migration.Down(ctx, m.db); err != nil {
+				l.WithError(err).Error(ctx, fmt.Sprintf("❌ failed to apply down migration version %d (%s)", migration.Version, migration.Description))
 				return err
 			}
 
@@ -404,12 +402,13 @@ func (m *Migrator) Down(ctx context.Context, targetVersion int) (outErr error) {
 			REMOVE m IN @@collection
 			LET removed = OLD
   			RETURN removed
-	`, map[string]interface{}{
+	`, map[string]any{
 		"@collection": m.migrationsCollection,
 		"pkg":         m.pkg,
 		"version":     version,
 	})
 	if err != nil {
+		l.WithError(err).Error(ctx, "❌ failed to remove down-ed migration records from database")
 		return err
 	}
 
@@ -423,4 +422,12 @@ func safeUintToInt(u uint) (int, error) {
 	// Suppress gosec warning for safe conversion
 	// #nosec G115
 	return int(u), nil
+}
+
+func statusErrorHandler(span trace.Span, outErr error) {
+	if outErr != nil {
+		span.RecordError(outErr)
+		span.SetStatus(codes.Error, outErr.Error())
+	}
+	span.End()
 }
