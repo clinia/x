@@ -71,6 +71,16 @@ func NewNoopTracer(tracerName string) *Tracer {
 	}
 }
 
+// NewTracerFromProvider creates a Tracer backed by the given TracerProvider.
+// This is primarily useful in tests to inject a recording or mock tracer.
+func NewTracerFromProvider(tp trace.TracerProvider, tracerName string) *Tracer {
+	return &Tracer{
+		tracer:     tp.Tracer(tracerName),
+		tp:         tp,
+		propagator: propagation.NewCompositeTextMapPropagator(),
+	}
+}
+
 // IsLoaded returns true if the tracer has been loaded.
 func (t *Tracer) IsLoaded() bool {
 	if t == nil || t.tracer == nil {
