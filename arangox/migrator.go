@@ -31,7 +31,7 @@ const DefaultMigrationsCollection = "migrations"
 // AllAvailable used in "Up" or "Down" methods to run all available migrations.
 const AllAvailable = -1
 
-const migratorComponentName = "arangox.migrator"
+const migratorComponentName = "arangox.Migrator"
 
 // Migrate is type for performing migrations in provided database.
 // Database versioned using dedicated collection.
@@ -270,7 +270,7 @@ func (m *Migrator) Up(ctx context.Context, targetVersion int) (outErr error) {
 				l.Warn(ctx, fmt.Sprintf("[dry-run] ⬆️ up migration version %d (%s) would be applied for package %s", migration.Version, migration.Description, m.pkg), migAttrs...)
 				return nil
 			}
-			ctx, span, l := m.instrument(ctx, "up.apply", trace.WithAttributes(migAttrs...))
+			ctx, span, l := m.instrument(ctx, "Up.apply", trace.WithAttributes(migAttrs...))
 			defer func() {
 				statusErrorHandler(span, outErr)
 			}()
@@ -363,7 +363,7 @@ func (m *Migrator) Down(ctx context.Context, targetVersion int) (outErr error) {
 				return nil
 			}
 
-			ctx, span, l := m.instrument(ctx, "down.apply", trace.WithAttributes(migAttrs...))
+			ctx, span, l := m.instrument(ctx, "Down.apply", trace.WithAttributes(migAttrs...))
 			defer func() {
 				statusErrorHandler(span, outErr)
 			}()

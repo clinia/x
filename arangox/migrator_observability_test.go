@@ -37,11 +37,11 @@ func TestMigratorTracing_Up(t *testing.T) {
 	require.NoError(t, err)
 
 	// --- span names ---
-	require.NotEmpty(t, spansNamed(f.recorder, "arangox.migrator.createCollectionIfNotExist"), "expected createCollectionIfNotExist span")
-	require.NotEmpty(t, spansNamed(f.recorder, "arangox.migrator.Version"), "expected version span")
-	upSpans := spansNamed(f.recorder, "arangox.migrator.Up")
+	require.NotEmpty(t, spansNamed(f.recorder, "arangox.Migrator.createCollectionIfNotExist"), "expected createCollectionIfNotExist span")
+	require.NotEmpty(t, spansNamed(f.recorder, "arangox.Migrator.Version"), "expected version span")
+	upSpans := spansNamed(f.recorder, "arangox.Migrator.Up")
 	require.Len(t, upSpans, 1, "expected exactly one up span")
-	applySpans := spansNamed(f.recorder, "arangox.migrator.up.apply")
+	applySpans := spansNamed(f.recorder, "arangox.Migrator.Up.apply")
 	assert.Len(t, applySpans, 2, "expected one up.apply span per migration")
 
 	// --- outer up span attributes ---
@@ -97,9 +97,9 @@ func TestMigratorTracing_Down(t *testing.T) {
 	require.NoError(t, err)
 
 	// --- span names ---
-	downSpans := spansNamed(f.recorder, "arangox.migrator.Down")
+	downSpans := spansNamed(f.recorder, "arangox.Migrator.Down")
 	require.Len(t, downSpans, 1, "expected exactly one down span")
-	applySpans := spansNamed(f.recorder, "arangox.migrator.down.apply")
+	applySpans := spansNamed(f.recorder, "arangox.Migrator.Down.apply")
 	assert.Len(t, applySpans, 2, "expected one down.apply span per migration")
 
 	// --- outer down span attributes ---
@@ -111,8 +111,8 @@ func TestMigratorTracing_Down(t *testing.T) {
 
 	// --- per-migration apply span attributes ---
 	for _, applySpan := range applySpans {
-		assert.True(t, spanHasAttrKey(applySpan, migrationVersionKey), "down.apply span should have migration.version attribute")
-		assert.True(t, spanHasAttrKey(applySpan, migrationDescriptionKey), "down.apply span should have migration.description attribute")
+		assert.True(t, spanHasAttrKey(applySpan, migrationVersionKey), "Down.apply span should have migration.version attribute")
+		assert.True(t, spanHasAttrKey(applySpan, migrationDescriptionKey), "Down.apply span should have migration.description attribute")
 		assert.Equal(t, codes.Unset, applySpan.Status().Code)
 	}
 
@@ -138,13 +138,13 @@ func TestMigratorTracing_ErrorRecordedOnSpan(t *testing.T) {
 	assert.ErrorIs(t, err, migrationErr)
 
 	// The up.apply span should have error status.
-	applySpans := spansNamed(f.recorder, "arangox.migrator.up.apply")
+	applySpans := spansNamed(f.recorder, "arangox.Migrator.Up.apply")
 	require.Len(t, applySpans, 1)
 	assert.Equal(t, codes.Error, applySpans[0].Status().Code)
 	assert.Equal(t, migrationErr.Error(), applySpans[0].Status().Description)
 
 	// The outer up span should also have error status.
-	upSpans := spansNamed(f.recorder, "arangox.migrator.Up")
+	upSpans := spansNamed(f.recorder, "arangox.Migrator.Up")
 	require.Len(t, upSpans, 1)
 	assert.Equal(t, codes.Error, upSpans[0].Status().Code)
 }
@@ -166,7 +166,7 @@ func TestMigratorTracing_Version(t *testing.T) {
 	assert.Equal(t, uint(0), current)
 	assert.Equal(t, uint(1), latest)
 
-	versionSpans := spansNamed(f.recorder, "arangox.migrator.Version")
+	versionSpans := spansNamed(f.recorder, "arangox.Migrator.Version")
 	require.Len(t, versionSpans, 1)
 
 	versionSpan := versionSpans[0]
@@ -210,12 +210,12 @@ func TestMigratorTracing_DryRun(t *testing.T) {
 	require.NoError(t, err)
 
 	// Outer span should still be produced even in dry-run.
-	upSpans := spansNamed(f.recorder, "arangox.migrator.Up")
+	upSpans := spansNamed(f.recorder, "arangox.Migrator.Up")
 	require.Len(t, upSpans, 1)
 	hasAttr(t, upSpans[0], migrationDryRunKey, true)
 
 	// No up.apply child spans should be produced in dry-run.
-	applySpans := spansNamed(f.recorder, "arangox.migrator.up.apply")
+	applySpans := spansNamed(f.recorder, "arangox.Migrator.Up.apply")
 	assert.Empty(t, applySpans, "dry-run should not produce apply spans")
 
 	// Dry-run log warning should be present.
@@ -231,7 +231,7 @@ func TestMigratorTracing_CreateCollectionIfNotExist(t *testing.T) {
 	err := m.createCollectionIfNotExist(f.ctx, "test_col")
 	require.NoError(t, err)
 
-	spans := spansNamed(f.recorder, "arangox.migrator.createCollectionIfNotExist")
+	spans := spansNamed(f.recorder, "arangox.Migrator.createCollectionIfNotExist")
 	require.Len(t, spans, 1)
 	hasAttr(t, spans[0], dbSystemKey, dbSystemValue)
 	hasAttr(t, spans[0], dbCollectionNameKey, "test_col")
@@ -244,6 +244,6 @@ func TestMigratorTracing_CreateCollectionIfNotExist(t *testing.T) {
 
 	err = m.createCollectionIfNotExist(f.ctx, "test_col")
 	require.NoError(t, err)
-	spans = spansNamed(f.recorder, "arangox.migrator.createCollectionIfNotExist")
+	spans = spansNamed(f.recorder, "arangox.Migrator.createCollectionIfNotExist")
 	require.Len(t, spans, 1, "should produce a span even when collection already exists")
 }
