@@ -47,7 +47,7 @@ func TestMigratorTracing_Up(t *testing.T) {
 	// --- outer up span attributes ---
 	upSpan := upSpans[0]
 	hasAttr(t, upSpan, dbSystemKey, dbSystemValue)
-	hasAttr(t, upSpan, migrationDirectionKey, migrationDirUp)
+	hasAttr(t, upSpan, migrationDirectionKey, migrationDirUpValue)
 	hasAttr(t, upSpan, migrationDryRunKey, false)
 	hasAttr(t, upSpan, migrationTargetVersionKey, 0)
 	assert.Equal(t, codes.Unset, upSpan.Status().Code, "up span should have no error status")
@@ -105,7 +105,7 @@ func TestMigratorTracing_Down(t *testing.T) {
 	// --- outer down span attributes ---
 	downSpan := downSpans[0]
 	hasAttr(t, downSpan, dbSystemKey, dbSystemValue)
-	hasAttr(t, downSpan, migrationDirectionKey, migrationDirDown)
+	hasAttr(t, downSpan, migrationDirectionKey, migrationDirDownValue)
 	hasAttr(t, downSpan, migrationDryRunKey, false)
 	assert.Equal(t, codes.Unset, downSpan.Status().Code)
 

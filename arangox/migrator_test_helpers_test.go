@@ -11,6 +11,7 @@ import (
 	loggerxtest "github.com/clinia/x/loggerx/test"
 	"github.com/clinia/x/otelx"
 	"github.com/stretchr/testify/assert"
+	"go.opentelemetry.io/otel/attribute"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
@@ -62,10 +63,10 @@ func spansNamed(recorder *tracetest.SpanRecorder, nameSuffix string) []sdktrace.
 }
 
 // hasAttr asserts that a span carries an attribute with the given key and value.
-func hasAttr(t *testing.T, span sdktrace.ReadOnlySpan, key string, value interface{}) {
+func hasAttr(t *testing.T, span sdktrace.ReadOnlySpan, key attribute.Key, value interface{}) {
 	t.Helper()
 	for _, attr := range span.Attributes() {
-		if string(attr.Key) != key {
+		if string(attr.Key) != string(key) {
 			continue
 		}
 		switch v := value.(type) {
@@ -82,9 +83,9 @@ func hasAttr(t *testing.T, span sdktrace.ReadOnlySpan, key string, value interfa
 }
 
 // spanHasAttrKey returns true if any attribute on the span has the given key.
-func spanHasAttrKey(span sdktrace.ReadOnlySpan, key string) bool {
+func spanHasAttrKey(span sdktrace.ReadOnlySpan, key attribute.Key) bool {
 	for _, attr := range span.Attributes() {
-		if string(attr.Key) == key {
+		if string(attr.Key) == string(key) {
 			return true
 		}
 	}
