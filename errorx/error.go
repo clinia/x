@@ -429,6 +429,11 @@ func (e CliniaError) WithAdditionalContext(key string, value any) CliniaError {
 	return e
 }
 
+func (e CliniaError) WithAdditionalContextMap(additionalContextMaps ...map[string]any) CliniaError {
+	e.AdditionalContext = lo.Assign(append([]map[string]any{e.AdditionalContext}, additionalContextMaps...)...)
+	return e
+}
+
 func (e CliniaError) WithApplicationErrorCode(code string) CliniaError {
 	e.ApplicationErrorCode = code
 	return e

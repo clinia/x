@@ -67,4 +67,37 @@ func TestErrorWithAdditionalContext(t *testing.T) {
 
 		assert.Equal(t, "TEST_CODE_2", err.ApplicationErrorCode)
 	})
+
+	t.Run("should be able to attach additional details on an error pointer", func(t *testing.T) {
+		err := InvalidArgumentErrorf("test error")
+		errPtr := &err
+		err = errPtr.WithAdditionalContext("test", "ing").
+			WithAdditionalContext("numerical", 10).
+			WithApplicationErrorCode("TEST_CODE")
+
+		assert.Equal(t, map[string]any{
+			"test":      "ing",
+			"numerical": 10,
+		}, err.AdditionalContext)
+		assert.Equal(t, "TEST_CODE", err.ApplicationErrorCode)
+	})
+
+	t.Run("should be able to attach additional context using maps", func(t *testing.T) {
+		err := InvalidArgumentErrorf("test error").
+			WithAdditionalContextMap(map[string]any{
+				"test":      "ing",
+				"numerical": 10,
+				"overriden": "old",
+			}, map[string]any{
+				"overriden": "new",
+			}).
+			WithApplicationErrorCode("TEST_CODE")
+
+		assert.Equal(t, map[string]any{
+			"test":      "ing",
+			"numerical": 10,
+			"overriden": "new",
+		}, err.AdditionalContext)
+		assert.Equal(t, "TEST_CODE", err.ApplicationErrorCode)
+	})
 }
