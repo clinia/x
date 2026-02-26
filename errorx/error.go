@@ -18,6 +18,9 @@ type CliniaError struct {
 	OriginalError error `json:"-"`
 	// List of errors that caused the error if applicable
 	Details []CliniaError
+
+	ApplicationErrorCode string         `json:"applicationErrorCode,omitempty"`
+	AdditionalContext    map[string]any `json:"additionalContext,omitempty"`
 }
 
 var _ error = (*CliniaError)(nil)
@@ -416,6 +419,19 @@ func NewEnumOutOfRangeError(actual string, expectedOneOf []string, enumName stri
 		Type:    ErrorTypeOutOfRange,
 		Message: fmt.Sprintf("%q is not a valid %s. Possible values: [%s]", actual, enumName, strings.Join(expectedOneOf, ", ")),
 	}
+}
+
+func (e CliniaError) WithAdditionalContext(key string, value any) CliniaError {
+	if e.AdditionalContext == nil {
+		e.AdditionalContext = make(map[string]any)
+	}
+	e.AdditionalContext[key] = value
+	return e
+}
+
+func (e CliniaError) WithApplicationErrorCode(code string) CliniaError {
+	e.ApplicationErrorCode = code
+	return e
 }
 
 // Deprecated: use NotFoundErrorf instead

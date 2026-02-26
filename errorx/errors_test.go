@@ -35,3 +35,36 @@ func TestOutputErrsMatchInputLength(t *testing.T) {
 		assert.Len(t, errs, 2)
 	})
 }
+
+func TestErrorWithAdditionalContext(t *testing.T) {
+	t.Run("should be able to add additional context to an error", func(t *testing.T) {
+		err := InvalidArgumentErrorf("test error").
+			WithAdditionalContext("test", "ing").
+			WithAdditionalContext("numerical", 10).
+			WithApplicationErrorCode("TEST_CODE")
+
+		assert.Equal(t, map[string]any{
+			"test":      "ing",
+			"numerical": 10,
+		}, err.AdditionalContext)
+		assert.Equal(t, "TEST_CODE", err.ApplicationErrorCode)
+	})
+
+	t.Run("should only take latest additional context value for a given key", func(t *testing.T) {
+		err := InvalidArgumentErrorf("test error").
+			WithAdditionalContext("test", "ing").
+			WithAdditionalContext("test", "ed")
+
+		assert.Equal(t, map[string]any{
+			"test": "ed",
+		}, err.AdditionalContext)
+	})
+
+	t.Run("should only take latest application error code", func(t *testing.T) {
+		err := InvalidArgumentErrorf("test error").
+			WithApplicationErrorCode("TEST_CODE").
+			WithApplicationErrorCode("TEST_CODE_2")
+
+		assert.Equal(t, "TEST_CODE_2", err.ApplicationErrorCode)
+	})
+}
