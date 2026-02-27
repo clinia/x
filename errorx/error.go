@@ -8,6 +8,7 @@ import (
 	"github.com/clinia/x/pointerx"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 type CliniaError struct {
@@ -425,15 +426,48 @@ func (e CliniaError) WithAdditionalContext(key string, value any) CliniaError {
 	if e.AdditionalContext == nil {
 		e.AdditionalContext = make(map[string]any)
 	}
-	e.AdditionalContext[key] = value
+	switch value.(type) {
+	case string, bool, int, int64, float64, []string, []bool, []int, []int64, []float64:
+		e.AdditionalContext[key] = value
+	default:
+		// For unsupported types, we simply skip without throwing
+	}
 	return e
 }
 
 func (e CliniaError) WithAdditionalContextMap(additionalContextMaps ...map[string]any) CliniaError {
-	e.AdditionalContext = lo.Assign(append([]map[string]any{e.AdditionalContext}, additionalContextMaps...)...)
+	for _, m := range additionalContextMaps {
+		for k, v := range m {
+			e = e.WithAdditionalContext(k, v)
+		}
+	}
+
 	return e
 }
 
+func (e CliniaError) WithAdditionalContextAttributes(attrs ...attribute.KeyValue) CliniaError {
+	for _, attr := range attrs {
+		switch t := attr.Value.Type(); t {
+		case attribute.BOOL:
+			e = e.WithAdditionalContext(string(attr.Key), attr.Value.AsBool())
+		case attribute.INT64:
+			e = e.WithAdditionalContext(string(attr.Key), attr.Value.AsInt64())
+		case attribute.FLOAT64:
+			e = e.WithAdditionalContext(string(attr.Key), attr.Value.AsFloat64())
+		case attribute.STRING:
+			e = e.WithAdditionalContext(string(attr.Key), attr.Value.AsString())
+		case attribute.BOOLSLICE:
+			e = e.WithAdditionalContext(string(attr.Key), attr.Value.AsBoolSlice())
+		case attribute.INT64SLICE:
+			e = e.WithAdditionalContext(string(attr.Key), attr.Value.AsInt64Slice())
+		case attribute.FLOAT64SLICE:
+			e = e.WithAdditionalContext(string(attr.Key), attr.Value.AsFloat64Slice())
+		case attribute.STRINGSLICE:
+			e = e.WithAdditionalContext(string(attr.Key), attr.Value.AsStringSlice())
+		}
+	}
+	return e
+}
 func (e CliniaError) WithApplicationErrorCode(code string) CliniaError {
 	e.ApplicationErrorCode = code
 	return e
