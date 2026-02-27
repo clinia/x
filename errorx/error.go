@@ -468,6 +468,7 @@ func (e CliniaError) WithAdditionalContextAttributes(attrs ...attribute.KeyValue
 	}
 	return e
 }
+
 func (e CliniaError) WithApplicationErrorCode(code string) CliniaError {
 	e.ApplicationErrorCode = code
 	return e
