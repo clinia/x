@@ -1,6 +1,6 @@
 package elasticxbulk
 
-import "github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/operationtype"
+import "github.com/elastic/go-elasticsearch/v9/typedapi/types/enums/operationtype"
 
 type Action string
 

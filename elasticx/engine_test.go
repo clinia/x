@@ -10,16 +10,16 @@ import (
 	elasticxsearch "github.com/clinia/x/elasticx/search"
 	"github.com/clinia/x/jsonx"
 	"github.com/clinia/x/pointerx"
-	"github.com/elastic/go-elasticsearch/v8/typedapi/core/bulk"
-	"github.com/elastic/go-elasticsearch/v8/typedapi/core/mget"
-	"github.com/elastic/go-elasticsearch/v8/typedapi/core/msearch"
-	"github.com/elastic/go-elasticsearch/v8/typedapi/core/scroll"
-	"github.com/elastic/go-elasticsearch/v8/typedapi/core/search"
-	"github.com/elastic/go-elasticsearch/v8/typedapi/types"
-	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/dynamicmapping"
-	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/operationtype"
-	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/refresh"
-	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/totalhitsrelation"
+	"github.com/elastic/go-elasticsearch/v9/typedapi/core/bulk"
+	"github.com/elastic/go-elasticsearch/v9/typedapi/core/mget"
+	"github.com/elastic/go-elasticsearch/v9/typedapi/core/msearch"
+	"github.com/elastic/go-elasticsearch/v9/typedapi/core/scroll"
+	"github.com/elastic/go-elasticsearch/v9/typedapi/core/search"
+	"github.com/elastic/go-elasticsearch/v9/typedapi/types"
+	"github.com/elastic/go-elasticsearch/v9/typedapi/types/enums/dynamicmapping"
+	"github.com/elastic/go-elasticsearch/v9/typedapi/types/enums/operationtype"
+	"github.com/elastic/go-elasticsearch/v9/typedapi/types/enums/refresh"
+	"github.com/elastic/go-elasticsearch/v9/typedapi/types/enums/totalhitsrelation"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -85,8 +85,8 @@ func TestEngineCreateIndex(t *testing.T) {
 			},
 			Settings: &types.IndexSettings{
 				Index: &types.IndexSettings{
-					NumberOfShards:   "1",
-					NumberOfReplicas: "2",
+					NumberOfShards:   pointerx.Ptr("1"),
+					NumberOfReplicas: pointerx.Ptr("2"),
 				},
 				Analysis: &types.IndexSettingsAnalysis{
 					Analyzer: map[string]types.Analyzer{
@@ -124,8 +124,8 @@ func TestEngineCreateIndex(t *testing.T) {
 			},
 			Settings: &types.IndexSettings{
 				Index: &types.IndexSettings{
-					NumberOfShards:   "1",
-					NumberOfReplicas: "2",
+					NumberOfShards:   pointerx.Ptr("1"),
+					NumberOfReplicas: pointerx.Ptr("2"),
 					Analysis: &types.IndexSettingsAnalysis{
 						Analyzer: map[string]types.Analyzer{
 							"my_custom_analyzer": &types.CustomAnalyzer{
@@ -469,7 +469,7 @@ func TestEngineQueries(t *testing.T) {
 				Header: types.MultisearchHeader{
 					Index: []string{index.Info().Name},
 				},
-				Body: types.MultisearchBody{
+				Body: types.SearchRequestBody{
 					Query: &types.Query{
 						Match: map[string]types.MatchQuery{
 							"name": {
@@ -484,7 +484,7 @@ func TestEngineQueries(t *testing.T) {
 				Header: types.MultisearchHeader{
 					Index: []string{index.Info().Name},
 				},
-				Body: types.MultisearchBody{
+				Body: types.SearchRequestBody{
 					Query: &types.Query{
 						MatchAll: &types.MatchAllQuery{},
 					},

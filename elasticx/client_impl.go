@@ -8,12 +8,12 @@ import (
 
 	"github.com/cenkalti/backoff"
 	"github.com/clinia/x/errorx"
-	"github.com/elastic/go-elasticsearch/v8"
-	"github.com/elastic/go-elasticsearch/v8/typedapi/indices/create"
-	"github.com/elastic/go-elasticsearch/v8/typedapi/types"
-	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/dynamicmapping"
-	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/refresh"
-	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/sortorder"
+	"github.com/elastic/go-elasticsearch/v9"
+	"github.com/elastic/go-elasticsearch/v9/typedapi/indices/create"
+	"github.com/elastic/go-elasticsearch/v9/typedapi/types"
+	"github.com/elastic/go-elasticsearch/v9/typedapi/types/enums/dynamicmapping"
+	"github.com/elastic/go-elasticsearch/v9/typedapi/types/enums/refresh"
+	"github.com/elastic/go-elasticsearch/v9/typedapi/types/enums/sortorder"
 )
 
 const (
@@ -159,7 +159,7 @@ func (c *client) Engines(ctx context.Context) ([]EngineInfo, error) {
 		From(0).
 		Size(1000).
 		Sort(
-			types.SortOptions{
+			&types.SortOptions{
 				SortOptions: map[string]types.FieldSort{
 					"name": {
 						Order: &sortorder.Desc,

@@ -6,12 +6,12 @@ import (
 	elasticxbulk "github.com/clinia/x/elasticx/bulk"
 	elasticxmsearch "github.com/clinia/x/elasticx/msearch"
 	elasticxsearch "github.com/clinia/x/elasticx/search"
-	"github.com/elastic/go-elasticsearch/v8/typedapi/core/bulk"
-	"github.com/elastic/go-elasticsearch/v8/typedapi/core/mget"
-	"github.com/elastic/go-elasticsearch/v8/typedapi/core/msearch"
-	"github.com/elastic/go-elasticsearch/v8/typedapi/core/scroll"
-	"github.com/elastic/go-elasticsearch/v8/typedapi/core/search"
-	"github.com/elastic/go-elasticsearch/v8/typedapi/types"
+	"github.com/elastic/go-elasticsearch/v9/typedapi/core/bulk"
+	"github.com/elastic/go-elasticsearch/v9/typedapi/core/mget"
+	"github.com/elastic/go-elasticsearch/v9/typedapi/core/msearch"
+	"github.com/elastic/go-elasticsearch/v9/typedapi/core/scroll"
+	"github.com/elastic/go-elasticsearch/v9/typedapi/core/search"
+	"github.com/elastic/go-elasticsearch/v9/typedapi/types"
 )
 
 // Engine provides access to all indexes in a single engine.

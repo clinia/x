@@ -1,9 +1,9 @@
 package elasticxmsearch
 
 import (
-	"github.com/elastic/go-elasticsearch/v8/typedapi/core/msearch"
-	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/expandwildcard"
-	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/searchtype"
+	"github.com/elastic/go-elasticsearch/v9/typedapi/core/msearch"
+	"github.com/elastic/go-elasticsearch/v9/typedapi/types/enums/expandwildcard"
+	"github.com/elastic/go-elasticsearch/v9/typedapi/types/enums/searchtype"
 )
 
 type Option func(*msearch.Msearch)
@@ -57,7 +57,7 @@ func IgnoreUnavailable(b bool) Option {
 
 // MaxConcurrentSearches The number of concurrent searches the multi search api can execute.
 // API name: max_concurrent_searches
-func MaxConcurrentSearches(s string) Option {
+func MaxConcurrentSearches(s int) Option {
 	return func(m *msearch.Msearch) {
 		m.MaxConcurrentSearches(s)
 	}
@@ -66,7 +66,7 @@ func MaxConcurrentSearches(s string) Option {
 // MaxConcurrentShardRequests The number of concurrent shard requests the multi search api can execute per
 // search.
 // API name: max_concurrent_shard_requests
-func MaxConcurrentShardRequests(s string) Option {
+func MaxConcurrentShardRequests(s int) Option {
 	return func(m *msearch.Msearch) {
 		m.MaxConcurrentShardRequests(s)
 	}
