@@ -1,93 +1,86 @@
 # for Watermill development purposes.
 # For Watermill based application docker please check https://watermill.io/docs/getting-started/
-
-version: "3"
+# Confluent Platform 8.x uses KRaft mode (ZooKeeper removed).
 
 services:
-  zookeeper:
-    image: confluentinc/cp-zookeeper:7.3.1
-    restart: unless-stopped
-    environment:
-      ZOOKEEPER_SERVER_ID: 1
-      ZOOKEEPER_CLIENT_PORT: "2181"
-      ZOOKEEPER_TICK_TIME: "2000"
-
   kafka1:
-    image: confluentinc/cp-kafka:7.3.1
-    depends_on:
-      - zookeeper
-    env_file:
-      - .docker/docker-kafka.env
+    image: confluentinc/cp-kafka:8.1.1
     environment:
+      KAFKA_NODE_ID: 1
       KAFKA_BROKER_ID: 1
-      KAFKA_LISTENERS: EXTERNAL://0.0.0.0:9091,INTERNAL://0.0.0.0:29091
+      KAFKA_PROCESS_ROLES: broker,controller
+      CLUSTER_ID: alN2lfZjQd6CKFHM6GXSUw
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka1:39091,2@kafka2:39092,3@kafka3:39093
+      KAFKA_LISTENERS: EXTERNAL://0.0.0.0:9091,INTERNAL://0.0.0.0:29091,CONTROLLER://0.0.0.0:39091
       KAFKA_ADVERTISED_LISTENERS: EXTERNAL://localhost:9091,INTERNAL://kafka1:29091
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: EXTERNAL:PLAINTEXT,INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_MESSAGE_MAX_BYTES: 200000000
       KAFKA_REPLICA_FETCH_MAX_BYTES: 200000000
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_DELETE_TOPIC_ENABLE: "true"
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG4J_ROOT_LOGLEVEL: INFO
+      KAFKA_LOG4J_LOGGERS: kafka.authorizer.logger=INFO
     ports:
-      - 9091:9091
+      # Expose as 9991 so toxiproxy can sit in front of 9091
+      - 9991:9091
     restart: unless-stopped
 
   kafka2:
-    image: confluentinc/cp-kafka:7.3.1
-    depends_on:
-      - zookeeper
-    env_file:
-      - .docker/docker-kafka.env
+    image: confluentinc/cp-kafka:8.1.1
     environment:
+      KAFKA_NODE_ID: 2
       KAFKA_BROKER_ID: 2
-      KAFKA_LISTENERS: EXTERNAL://0.0.0.0:9092,INTERNAL://0.0.0.0:29092
+      KAFKA_PROCESS_ROLES: broker,controller
+      CLUSTER_ID: alN2lfZjQd6CKFHM6GXSUw
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka1:39091,2@kafka2:39092,3@kafka3:39093
+      KAFKA_LISTENERS: EXTERNAL://0.0.0.0:9092,INTERNAL://0.0.0.0:29092,CONTROLLER://0.0.0.0:39092
       KAFKA_ADVERTISED_LISTENERS: EXTERNAL://localhost:9092,INTERNAL://kafka2:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: EXTERNAL:PLAINTEXT,INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_MESSAGE_MAX_BYTES: 200000000
       KAFKA_REPLICA_FETCH_MAX_BYTES: 200000000
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_DELETE_TOPIC_ENABLE: "true"
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG4J_ROOT_LOGLEVEL: INFO
+      KAFKA_LOG4J_LOGGERS: kafka.authorizer.logger=INFO
     ports:
-      - 9092:9092
+      # Expose as 9992 so toxiproxy can sit in front of 9092
+      - 9992:9092
     restart: unless-stopped
 
   kafka3:
-    image: confluentinc/cp-kafka:7.3.1
-    depends_on:
-      - zookeeper
-    env_file:
-      - .docker/docker-kafka.env
+    image: confluentinc/cp-kafka:8.1.1
     environment:
+      KAFKA_NODE_ID: 3
       KAFKA_BROKER_ID: 3
-      KAFKA_LISTENERS: EXTERNAL://0.0.0.0:9093,INTERNAL://0.0.0.0:29093
+      KAFKA_PROCESS_ROLES: broker,controller
+      CLUSTER_ID: alN2lfZjQd6CKFHM6GXSUw
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka1:39091,2@kafka2:39092,3@kafka3:39093
+      KAFKA_LISTENERS: EXTERNAL://0.0.0.0:9093,INTERNAL://0.0.0.0:29093,CONTROLLER://0.0.0.0:39093
       KAFKA_ADVERTISED_LISTENERS: EXTERNAL://localhost:9093,INTERNAL://kafka3:29093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: EXTERNAL:PLAINTEXT,INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_MESSAGE_MAX_BYTES: 200000000
       KAFKA_REPLICA_FETCH_MAX_BYTES: 200000000
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_DELETE_TOPIC_ENABLE: "true"
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG4J_ROOT_LOGLEVEL: INFO
+      KAFKA_LOG4J_LOGGERS: kafka.authorizer.logger=INFO
     ports:
-      - 9093:9093
+      # Expose as 9993 so toxiproxy can sit in front of 9093
+      - 9993:9093
     restart: unless-stopped
 
-  kafka4:
-    image: confluentinc/cp-kafka:7.3.1
-    depends_on:
-      - zookeeper
-    env_file:
-      - .docker/docker-kafka.env
-    environment:
-      KAFKA_BROKER_ID: 4
-      KAFKA_LISTENERS: EXTERNAL://0.0.0.0:9094,INTERNAL://0.0.0.0:29094
-      KAFKA_ADVERTISED_LISTENERS: EXTERNAL://localhost:9094,INTERNAL://kafka4:29094
-      KAFKA_MESSAGE_MAX_BYTES: 200000000
-      KAFKA_REPLICA_FETCH_MAX_BYTES: 200000000
-    ports:
-      - 9094:9094
-    restart: unless-stopped
-
-  kafka5:
-    image: confluentinc/cp-kafka:7.3.1
-    depends_on:
-      - zookeeper
-    env_file:
-      - .docker/docker-kafka.env
-    environment:
-      KAFKA_BROKER_ID: 5
-      KAFKA_LISTENERS: EXTERNAL://0.0.0.0:9095,INTERNAL://0.0.0.0:29095
-      KAFKA_ADVERTISED_LISTENERS: EXTERNAL://localhost:9095,INTERNAL://kafka5:29095
-      KAFKA_MESSAGE_MAX_BYTES: 200000000
-      KAFKA_REPLICA_FETCH_MAX_BYTES: 200000000
-    ports:
-      - 9095:9095
-    restart: unless-stopped
+  toxiproxy:
+    image: ghcr.io/shopify/toxiproxy
+    command: -host=0.0.0.0 --config /toxiconfig.json
+    network_mode: host
+    volumes:
+      - ./toxiproxy.kafka.json:/toxiconfig.json

@@ -76,27 +76,27 @@ func TestEnd(t *testing.T) {
 	assert.NoError(t, returnsNormally(ctx))
 	require.NotEmpty(t, recorder.Ended())
 	assert.Equal(t, last(recorder).Name(), "returnsNormally")
-	assert.Equal(t, last(recorder).Status(), sdktrace.Status{codes.Unset, ""})
+	assert.Equal(t, last(recorder).Status(), sdktrace.Status{Code: codes.Unset, Description: ""})
 
 	assert.Errorf(t, returnsError(ctx), "error from returnsError()")
 	require.NotEmpty(t, recorder.Ended())
 	assert.Equal(t, last(recorder).Name(), "returnsError")
-	assert.Equal(t, last(recorder).Status(), sdktrace.Status{codes.Error, "error from returnsError()"})
+	assert.Equal(t, last(recorder).Status(), sdktrace.Status{Code: codes.Error, Description: "error from returnsError()"})
 
 	assert.Errorf(t, returnsNamedError(ctx), "err2 message")
 	require.NotEmpty(t, recorder.Ended())
 	assert.Equal(t, last(recorder).Name(), "returnsNamedError")
-	assert.Equal(t, last(recorder).Status(), sdktrace.Status{codes.Error, "err2 message"})
+	assert.Equal(t, last(recorder).Status(), sdktrace.Status{Code: codes.Error, Description: "err2 message"})
 
 	assert.PanicsWithError(t, "panic from panics()", func() { panics(ctx) })
 	require.NotEmpty(t, recorder.Ended())
 	assert.Equal(t, last(recorder).Name(), "panics")
-	assert.Equal(t, last(recorder).Status(), sdktrace.Status{codes.Error, "panic: panic from panics()"})
+	assert.Equal(t, last(recorder).Status(), sdktrace.Status{Code: codes.Error, Description: "panic: panic from panics()"})
 
 	span.End()
 	require.NotEmpty(t, recorder.Ended())
 	assert.Equal(t, last(recorder).Name(), "parent")
-	assert.Equal(t, last(recorder).Status(), sdktrace.Status{codes.Unset, ""})
+	assert.Equal(t, last(recorder).Status(), sdktrace.Status{Code: codes.Unset, Description: ""})
 }
 
 func last(r *tracetest.SpanRecorder) sdktrace.ReadOnlySpan {

@@ -1,24 +1,26 @@
 services:
   arangodb:
-    image: arangodb/arangodb:3.11.1
+    image: arangodb/arangodb:3.12.4.3
     environment:
       - ARANGO_NO_AUTH=1
     ports:
       - "8529:8529"
   
   elasticsearch:
-    image: elasticsearch:8.17.6
+    image: elasticsearch:9.3.1
     environment:
       - node.name=es
       - cluster.name=docker-cluster
       - discovery.type=single-node
       - xpack.security.enabled=false
+      - xpack.ilm.history.index.enabled=false
+      - cluster.routing.allocation.disk.threshold_enabled=false
       - 'ES_JAVA_OPTS=-Xms2g -Xmx2g'
     ports:
       - '9200:9200'
 
   kibana:
-    image: kibana:8.17.6
+    image: kibana:9.3.1
     environment:
       - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
     ports:

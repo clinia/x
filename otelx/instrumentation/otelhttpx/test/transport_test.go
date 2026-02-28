@@ -450,7 +450,7 @@ func assertClientScopeMetrics(t *testing.T, sm metricdata.ScopeMetrics, attrs at
 		Description: "Measures the size of HTTP request messages.",
 		Unit:        "By",
 	}
-	metricdatatest.AssertEqual(t, want, sm.Metrics[0], metricdatatest.IgnoreTimestamp())
+	metricdatatest.AssertEqual(t, want, sm.Metrics[0], metricdatatest.IgnoreTimestamp(), metricdatatest.IgnoreExemplars())
 
 	want = metricdata.Metrics{
 		Name: "http.client.response.size",
@@ -462,7 +462,7 @@ func assertClientScopeMetrics(t *testing.T, sm metricdata.ScopeMetrics, attrs at
 		Description: "Measures the size of HTTP response messages.",
 		Unit:        "By",
 	}
-	metricdatatest.AssertEqual(t, want, sm.Metrics[1], metricdatatest.IgnoreTimestamp())
+	metricdatatest.AssertEqual(t, want, sm.Metrics[1], metricdatatest.IgnoreTimestamp(), metricdatatest.IgnoreExemplars())
 
 	want = metricdata.Metrics{
 		Name: "http.client.duration",
@@ -473,5 +473,5 @@ func assertClientScopeMetrics(t *testing.T, sm metricdata.ScopeMetrics, attrs at
 		Description: "Measures the duration of outbound HTTP requests.",
 		Unit:        "ms",
 	}
-	metricdatatest.AssertEqual(t, want, sm.Metrics[2], metricdatatest.IgnoreTimestamp(), metricdatatest.IgnoreValue())
+	metricdatatest.AssertEqual(t, want, sm.Metrics[2], metricdatatest.IgnoreTimestamp(), metricdatatest.IgnoreValue(), metricdatatest.IgnoreExemplars())
 }

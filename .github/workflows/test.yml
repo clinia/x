@@ -11,18 +11,20 @@ jobs:
     runs-on: ubuntu-22.04
     services:
       arangodb:
-        image: arangodb/arangodb:3.11.1
+        image: arangodb/arangodb:3.12.4.3
         env:
           ARANGO_NO_AUTH: 1
         ports:
           - 8529/tcp
       elasticsearch:
-        image: docker.elastic.co/elasticsearch/elasticsearch:8.17.6
+        image: docker.elastic.co/elasticsearch/elasticsearch:9.3.1
         env:
           discovery.type: single-node
           node.name: es
           cluster.name: docker-cluster
           xpack.security.enabled: false
+          xpack.ilm.history.index.enabled: false
+          cluster.routing.allocation.disk.threshold_enabled: false
         options: >-
           --health-cmd "curl http://localhost:9200/_cluster/health"
           --health-interval 10s
