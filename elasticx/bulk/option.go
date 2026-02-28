@@ -1,8 +1,8 @@
 package elasticxbulk
 
 import (
-	"github.com/elastic/go-elasticsearch/v8/typedapi/core/bulk"
-	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/refresh"
+	"github.com/elastic/go-elasticsearch/v9/typedapi/core/bulk"
+	"github.com/elastic/go-elasticsearch/v9/typedapi/types/enums/refresh"
 )
 
 type Option func(*bulk.Bulk)

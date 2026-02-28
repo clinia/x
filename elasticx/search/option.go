@@ -1,11 +1,11 @@
 package elasticxsearch
 
 import (
-	"github.com/elastic/go-elasticsearch/v8/typedapi/core/search"
-	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/expandwildcard"
-	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/operator"
-	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/searchtype"
-	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/suggestmode"
+	"github.com/elastic/go-elasticsearch/v9/typedapi/core/search"
+	"github.com/elastic/go-elasticsearch/v9/typedapi/types/enums/expandwildcard"
+	"github.com/elastic/go-elasticsearch/v9/typedapi/types/enums/operator"
+	"github.com/elastic/go-elasticsearch/v9/typedapi/types/enums/searchtype"
+	"github.com/elastic/go-elasticsearch/v9/typedapi/types/enums/suggestmode"
 )
 
 type Option func(*search.Search)
@@ -136,18 +136,9 @@ func Lenient(b bool) Option {
 // This value should be used to limit the impact of the search on the cluster in
 // order to limit the number of concurrent shard requests.
 // API name: max_concurrent_shard_requests
-func MaxConcurrentShardRequests(m string) Option {
+func MaxConcurrentShardRequests(m int) Option {
 	return func(s *search.Search) {
 		s.MaxConcurrentShardRequests(m)
-	}
-}
-
-// MinCompatibleShardNode The minimum version of the node that can handle the request
-// Any handling node with a lower version will fail the request.
-// API name: min_compatible_shard_node
-func MinCompatibleShardNode(m string) Option {
-	return func(s *search.Search) {
-		s.MinCompatibleShardNode(m)
 	}
 }
 

@@ -8,10 +8,10 @@ import (
 	"strconv"
 
 	"github.com/clinia/x/errorx"
-	"github.com/elastic/go-elasticsearch/v8"
-	"github.com/elastic/go-elasticsearch/v8/typedapi/indices/putmapping"
-	"github.com/elastic/go-elasticsearch/v8/typedapi/types"
-	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/result"
+	"github.com/elastic/go-elasticsearch/v9"
+	"github.com/elastic/go-elasticsearch/v9/typedapi/indices/putmapping"
+	"github.com/elastic/go-elasticsearch/v9/typedapi/types"
+	"github.com/elastic/go-elasticsearch/v9/typedapi/types/enums/result"
 	"github.com/samber/lo"
 	"github.com/segmentio/ksuid"
 )
@@ -225,7 +225,8 @@ func (i *index) DeleteDocumentsByQuery(ctx context.Context, query *types.Query, 
 
 	var taskId *TaskId
 	if res.Task != nil {
-		taskId = (*TaskId)(&res.Task)
+		t := TaskId(*res.Task)
+		taskId = &t
 	}
 
 	resp := &DeleteQueryResponse{
@@ -242,7 +243,7 @@ func (i *index) DeleteDocumentsByQuery(ctx context.Context, query *types.Query, 
 		return resp, errors.Join(lo.Map(
 			res.Failures,
 			func(item types.BulkIndexByScrollFailure, _ int) error {
-				return errors.New(item.Type)
+				return errors.New(item.Cause.Type)
 			})...)
 	}
 
@@ -279,7 +280,8 @@ func (i *index) UpdateDocumentsByQuery(ctx context.Context, query *types.Query, 
 
 	var taskId *TaskId
 	if res.Task != nil {
-		taskId = (*TaskId)(&res.Task)
+		t := TaskId(*res.Task)
+		taskId = &t
 	}
 
 	var updateCount int64 = 0
@@ -301,7 +303,7 @@ func (i *index) UpdateDocumentsByQuery(ctx context.Context, query *types.Query, 
 		return resp, errors.Join(lo.Map(
 			res.Failures,
 			func(item types.BulkIndexByScrollFailure, _ int) error {
-				return errors.New(item.Type)
+				return errors.New(item.Cause.Type)
 			})...)
 	}
 

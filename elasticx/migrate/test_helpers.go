@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/clinia/x/elasticx"
-	"github.com/elastic/go-elasticsearch/v8"
+	"github.com/elastic/go-elasticsearch/v9"
 	"github.com/stretchr/testify/assert"
 )
 
