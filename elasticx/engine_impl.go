@@ -308,12 +308,14 @@ func (e *engine) Index(ctx context.Context, name string) (Index, error) {
 	indexName := NewIndexName(enginesIndexNameSegment, pathEscape(e.name), pathEscape(name))
 
 	// Check if index exists
-	_, err := e.es.Indices.Get(indexName.String()).Do(ctx)
+	exists, err := e.es.Indices.Exists(indexName.String()).Do(ctx)
 	if err != nil {
 		if isElasticNotFoundError(err) {
 			return nil, newIndexNotFoundCliniaError(name)
 		}
 		return nil, err
+	} else if !exists {
+		return nil, newIndexNotFoundCliniaError(name)
 	}
 
 	index, err := newIndex(name, e)
