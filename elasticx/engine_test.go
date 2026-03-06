@@ -246,13 +246,13 @@ func TestEngineGetIndexLazy(t *testing.T) {
 		_, err := engine.CreateIndex(ctx, name, nil)
 		assert.NoError(t, err)
 
-		index, err := engine.IndexLazy(name)
+		index, err := engine.IndexLazy(ctx, name)
 		assert.NoError(t, err)
 		assert.Equal(t, name, index.Info().Name)
 	})
 
 	t.Run("should succeed even when index does not exist", func(t *testing.T) {
-		index, err := engine.IndexLazy("index-2")
+		index, err := engine.IndexLazy(ctx, "index-2")
 		assert.NoError(t, err)
 		assert.Equal(t, "index-2", index.Info().Name)
 	})
@@ -261,7 +261,7 @@ func TestEngineGetIndexLazy(t *testing.T) {
 		const indexName = "non-existent-index"
 		const expectedErr = "[NOT_FOUND] index with name 'non-existent-index' does not exist"
 
-		index, err := engine.IndexLazy(indexName)
+		index, err := engine.IndexLazy(ctx, indexName)
 		require.NoError(t, err)
 
 		cases := []struct {

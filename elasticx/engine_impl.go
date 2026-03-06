@@ -328,7 +328,7 @@ func (e *engine) Index(ctx context.Context, name string) (Index, error) {
 
 // IndexLazy returns an Index handle for the given name without verifying its existence.
 // No network call is made. If the index does not exist, operations on it will return a NotFoundError.
-func (e *engine) IndexLazy(name string) (Index, error) {
+func (e *engine) IndexLazy(ctx context.Context, name string) (Index, error) {
 	return newLazyIndex(name, e)
 }
 
