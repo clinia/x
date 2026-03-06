@@ -56,6 +56,10 @@ type EngineIndexes interface {
 	// If no index with given name exists, a NotFoundError is returned.
 	Index(ctx context.Context, name string) (Index, error)
 
+	// IndexLazy returns an Index handle for the given name without verifying its existence.
+	// No network call is made. If the index does not exist, operations on it will return a NotFoundError.
+	IndexLazy(name string) (Index, error)
+
 	// IndexExists returns true if an index with given name exists within the engine.
 	IndexExists(ctx context.Context, name string) (bool, error)
 

@@ -1,6 +1,7 @@
 package elasticx
 
 import (
+	"github.com/clinia/x/errorx"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types"
 )
 
@@ -39,4 +40,17 @@ func isElasticNotFoundError(err error) bool {
 	}
 
 	return eserror.Status == 404
+}
+
+func isElasticIndexNotFoundError(err error) bool {
+	eserror, ok := isElasticError(err)
+	if !ok {
+		return false
+	}
+
+	return eserror.Status == 404 && eserror.ErrorCause.Type == IndexNotFoundExceptionName
+}
+
+func newIndexNotFoundCliniaError(indexName string) errorx.CliniaError {
+	return errorx.NotFoundErrorf("index with name '%s' does not exist", indexName)
 }

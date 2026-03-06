@@ -54,11 +54,22 @@ func (i *index) Engine() Engine {
 	return i.engine
 }
 
+func (i *index) handleError(err error) (_ error, handled bool) {
+	if isElasticIndexNotFoundError(err) {
+		return newIndexNotFoundCliniaError(i.name), true
+	}
+
+	return nil, false
+}
+
 // Remove removes the entire index.
 // If the view does not exists, a NotFoundError us returned.
 func (i *index) Remove(ctx context.Context) error {
 	_, err := i.es.Indices.Delete(i.indexName().String()).Do(ctx)
 	if err != nil {
+		if handledErr, handled := i.handleError(err); handled {
+			return handledErr
+		}
 		return err
 	}
 
@@ -75,6 +86,9 @@ func (i *index) UpdateMappings(ctx context.Context, mappings *types.TypeMapping)
 
 	_, err := i.es.Indices.PutMapping(i.indexName().String()).Request(request).Do(ctx)
 	if err != nil {
+		if handledErr, handled := i.handleError(err); handled {
+			return handledErr
+		}
 		return err
 	}
 
@@ -82,12 +96,23 @@ func (i *index) UpdateMappings(ctx context.Context, mappings *types.TypeMapping)
 }
 
 func (i *index) DocumentExists(ctx context.Context, id string) (bool, error) {
-	return i.es.Exists(i.indexName().String(), id).Do(ctx)
+	exists, err := i.es.Exists(i.indexName().String(), id).Do(ctx)
+	if err != nil {
+		if handledErr, handled := i.handleError(err); handled {
+			return false, handledErr
+		}
+		return false, err
+	}
+
+	return exists, nil
 }
 
 func (i *index) ReadDocument(ctx context.Context, id string, result interface{}) (*DocumentMeta, error) {
 	res, err := i.es.Get(i.indexName().String(), id).Do(ctx)
 	if err != nil {
+		if handledErr, handled := i.handleError(err); handled {
+			return nil, handledErr
+		}
 		if isElasticNotFoundError(err) {
 			return nil, errorx.NotFoundErrorf("document with key '%s' does not exist", id)
 		}
@@ -121,6 +146,9 @@ func (i *index) CreateDocument(ctx context.Context, document interface{}, opts .
 		Refresh(options.refresh).
 		Do(ctx)
 	if err != nil {
+		if handledErr, handled := i.handleError(err); handled {
+			return nil, handledErr
+		}
 		if eserr, ok := isElasticError(err); ok && eserr.ErrorCause.Type == elasticStrictDynamicMappingErrorType {
 			return nil, errorx.FailedPreconditionErrorf("document contains fields that are not allowed by the index mapping: %s", *eserr.ErrorCause.Reason)
 		}
@@ -146,6 +174,9 @@ func (i *index) UpsertDocument(ctx context.Context, key string, document interfa
 		Refresh(options.refresh).
 		Do(ctx)
 	if err != nil {
+		if handledErr, handled := i.handleError(err); handled {
+			return nil, handledErr
+		}
 		if eserr, ok := isElasticError(err); ok && eserr.ErrorCause.Type == elasticStrictDynamicMappingErrorType {
 			return nil, errorx.FailedPreconditionErrorf("document contains fields that are not allowed by the index mapping: %s", *eserr.ErrorCause.Reason)
 		}
@@ -172,6 +203,9 @@ func (i *index) DeleteDocument(ctx context.Context, key string, opts ...Document
 		Refresh(options.refresh).
 		Do(ctx)
 	if err != nil {
+		if handledErr, handled := i.handleError(err); handled {
+			return handledErr
+		}
 		if isElasticNotFoundError(err) {
 			return errorx.NotFoundErrorf("document with key '%s' does not exist", key)
 		}
@@ -215,6 +249,9 @@ func (i *index) DeleteDocumentsByQuery(ctx context.Context, query *types.Query, 
 		Query(query).
 		Do(ctx)
 	if err != nil {
+		if handledErr, handled := i.handleError(err); handled {
+			return nil, handledErr
+		}
 		return nil, err
 	}
 
@@ -274,6 +311,9 @@ func (i *index) UpdateDocumentsByQuery(ctx context.Context, query *types.Query, 
 		Script(updateScript).
 		Do(ctx)
 	if err != nil {
+		if handledErr, handled := i.handleError(err); handled {
+			return nil, handledErr
+		}
 		return nil, err
 	}
 
