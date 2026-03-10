@@ -490,7 +490,7 @@ func TestIndexDocumentExists(t *testing.T) {
 	})
 
 	t.Run("should return not found error when index does not exist", func(t *testing.T) {
-		lazyIndex, err := engine.IndexLazy("non-existent-index")
+		lazyIndex, err := engine.IndexLazy(ctx, "non-existent-index")
 		assert.NoError(t, err)
 
 		_, err = lazyIndex.DocumentExists(ctx, "some-id")
