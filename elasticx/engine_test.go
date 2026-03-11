@@ -8,6 +8,7 @@ import (
 	elasticxbulk "github.com/clinia/x/elasticx/bulk"
 	elasticxmsearch "github.com/clinia/x/elasticx/msearch"
 	elasticxsearch "github.com/clinia/x/elasticx/search"
+	"github.com/clinia/x/errorx"
 	"github.com/clinia/x/jsonx"
 	"github.com/clinia/x/pointerx"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/core/bulk"
@@ -225,6 +226,117 @@ func TestEngineGetIndex(t *testing.T) {
 	t.Cleanup(func() {
 		err := engine.Remove(ctx)
 		assert.NoError(t, err)
+	})
+}
+
+func TestEngineGetIndexLazy(t *testing.T) {
+	t.Parallel()
+
+	f := newTestFixture(t)
+	ctx := f.ctx
+
+	engine := f.setupEngine(t, "test-engine-get-index-lazy")
+	t.Cleanup(func() {
+		err := engine.Remove(ctx)
+		assert.NoError(t, err)
+	})
+
+	t.Run("should return an index handle without a network call", func(t *testing.T) {
+		name := "index-1"
+		_, err := engine.CreateIndex(ctx, name, nil)
+		assert.NoError(t, err)
+
+		index, err := engine.IndexLazy(ctx, name)
+		assert.NoError(t, err)
+		assert.Equal(t, name, index.Info().Name)
+	})
+
+	t.Run("should succeed even when index does not exist", func(t *testing.T) {
+		index, err := engine.IndexLazy(ctx, "index-2")
+		assert.NoError(t, err)
+		assert.Equal(t, "index-2", index.Info().Name)
+	})
+
+	t.Run("should return not found error for all methods on a non-existent index", func(t *testing.T) {
+		const indexName = "non-existent-index"
+		const expectedErr = "[NOT_FOUND] index with name 'non-existent-index' does not exist"
+
+		index, err := engine.IndexLazy(ctx, indexName)
+		require.NoError(t, err)
+
+		cases := []struct {
+			name string
+			fn   func() error
+		}{
+			{
+				name: "Remove",
+				fn:   func() error { return index.Remove(ctx) },
+			},
+			{
+				name: "UpdateMappings",
+				fn: func() error {
+					return index.UpdateMappings(ctx, &types.TypeMapping{})
+				},
+			},
+			{
+				name: "DocumentExists",
+				fn: func() error {
+					_, err := index.DocumentExists(ctx, "some-id")
+					return err
+				},
+			},
+			{
+				name: "ReadDocument",
+				fn: func() error {
+					_, err := index.ReadDocument(ctx, "some-id", &struct{}{})
+					return err
+				},
+			},
+			{
+				name: "CreateDocument",
+				fn: func() error {
+					_, err := index.CreateDocument(ctx, map[string]any{"id": "1"})
+					return err
+				},
+			},
+			{
+				name: "UpsertDocument",
+				fn: func() error {
+					_, err := index.UpsertDocument(ctx, "some-key", map[string]any{"id": "1"})
+					return err
+				},
+			},
+			{
+				name: "DeleteDocument",
+				fn: func() error {
+					return index.DeleteDocument(ctx, "some-key")
+				},
+			},
+			{
+				name: "DeleteDocumentsByQuery",
+				fn: func() error {
+					_, err := index.DeleteDocumentsByQuery(ctx, &types.Query{MatchAll: &types.MatchAllQuery{}})
+					return err
+				},
+			},
+			{
+				name: "UpdateDocumentsByQuery",
+				fn: func() error {
+					_, err := index.UpdateDocumentsByQuery(ctx, &types.Query{MatchAll: &types.MatchAllQuery{}}, &types.Script{
+						Source: pointerx.Ptr("ctx._source.field = 'value'"),
+					})
+					return err
+				},
+			},
+		}
+
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				err := tc.fn()
+				assert.True(t, errorx.IsNotFoundError(err))
+				require.EqualError(t, err, expectedErr)
+			})
+		}
 	})
 }
 

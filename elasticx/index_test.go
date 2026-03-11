@@ -453,6 +453,56 @@ func TestIndexUpsertDocument(t *testing.T) {
 	})
 }
 
+func TestIndexDocumentExists(t *testing.T) {
+	t.Parallel()
+
+	f := newTestFixture(t)
+	ctx := f.ctx
+
+	engine, err := f.client.CreateEngine(ctx, "test-index-document-exists")
+	assert.NoError(t, err)
+
+	index, err := engine.CreateIndex(ctx, "index-1", &CreateIndexOptions{
+		Mappings: &types.TypeMapping{
+			Dynamic: &dynamicmapping.Strict,
+			Properties: map[string]types.Property{
+				"foo": types.NewKeywordProperty(),
+			},
+		},
+	})
+	assert.NoError(t, err)
+
+	t.Run("should return false when document does not exist", func(t *testing.T) {
+		exists, err := index.DocumentExists(ctx, "unknown")
+		assert.NoError(t, err)
+		assert.False(t, exists)
+	})
+
+	t.Run("should return true when document exists", func(t *testing.T) {
+		meta, err := index.CreateDocument(ctx, map[string]interface{}{
+			"foo": "bar",
+		}, WithRefresh(refresh.Waitfor))
+		assert.NoError(t, err)
+
+		exists, err := index.DocumentExists(ctx, meta.ID)
+		assert.NoError(t, err)
+		assert.True(t, exists)
+	})
+
+	t.Run("should return not found error when index does not exist", func(t *testing.T) {
+		lazyIndex, err := engine.IndexLazy(ctx, "non-existent-index")
+		assert.NoError(t, err)
+
+		_, err = lazyIndex.DocumentExists(ctx, "some-id")
+		assert.EqualError(t, err, "[NOT_FOUND] index with name 'non-existent-index' does not exist")
+	})
+
+	t.Cleanup(func() {
+		err := engine.Remove(ctx)
+		assert.NoError(t, err)
+	})
+}
+
 func TestIndexDeleteDocument(t *testing.T) {
 	t.Parallel()
 

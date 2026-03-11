@@ -308,12 +308,14 @@ func (e *engine) Index(ctx context.Context, name string) (Index, error) {
 	indexName := NewIndexName(enginesIndexNameSegment, pathEscape(e.name), pathEscape(name))
 
 	// Check if index exists
-	_, err := e.es.Indices.Get(indexName.String()).Do(ctx)
+	exists, err := e.es.Indices.Exists(indexName.String()).Do(ctx)
 	if err != nil {
 		if isElasticNotFoundError(err) {
-			return nil, errorx.NotFoundErrorf("index with name '%s' does not exist", name)
+			return nil, newIndexNotFoundCliniaError(name)
 		}
 		return nil, err
+	} else if !exists {
+		return nil, newIndexNotFoundCliniaError(name)
 	}
 
 	index, err := newIndex(name, e)
@@ -322,6 +324,12 @@ func (e *engine) Index(ctx context.Context, name string) (Index, error) {
 	}
 
 	return index, nil
+}
+
+// IndexLazy returns an Index handle for the given name without verifying its existence.
+// No network call is made. If the index does not exist, operations on it will return a NotFoundError.
+func (e *engine) IndexLazy(ctx context.Context, name string) (Index, error) {
+	return newLazyIndex(name, e)
 }
 
 // IndexExists returns true if an index with given name exists within the engine.
