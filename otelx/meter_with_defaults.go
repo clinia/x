@@ -5,7 +5,7 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
-	"go.opentelemetry.io/otel/semconv/v1.32.0/dbconv"
+	"go.opentelemetry.io/otel/semconv/v1.38.0/dbconv"
 )
 
 type (
@@ -15,7 +15,7 @@ type (
 	nInstrument[N numericInstrumentType] interface {
 		Record(ctx context.Context, incr N, options ...metric.RecordOption)
 	}
-	instrumentWithDefaults[N numericInstrumentType, T nInstrument[N]] struct {
+	InstrumentWithDefaults[N numericInstrumentType, T nInstrument[N]] struct {
 		t           T
 		defaultOpts []metric.RecordOption
 	}
@@ -24,39 +24,39 @@ type (
 		Record(ctx context.Context, val N, systemName dbconv.SystemNameAttr, attrs ...attribute.KeyValue)
 	}
 
-	instrumentWithDBSystemAndDefaults[N numericInstrumentType, T nInstrumentWithDBSystem[N]] struct {
+	InstrumentWithDBSystemAndDefaults[N numericInstrumentType, T nInstrumentWithDBSystem[N]] struct {
 		t            T
 		defaultAttrs []attribute.KeyValue
 	}
 )
 
 var (
-	_ nInstrument[int64]               = (*instrumentWithDefaults[int64, nInstrument[int64]])(nil)
-	_ nInstrument[float64]             = (*instrumentWithDefaults[float64, nInstrument[float64]])(nil)
-	_ nInstrumentWithDBSystem[int64]   = (*instrumentWithDBSystemAndDefaults[int64, nInstrumentWithDBSystem[int64]])(nil)
-	_ nInstrumentWithDBSystem[float64] = (*instrumentWithDBSystemAndDefaults[float64, nInstrumentWithDBSystem[float64]])(nil)
+	_ nInstrument[int64]               = (*InstrumentWithDefaults[int64, nInstrument[int64]])(nil)
+	_ nInstrument[float64]             = (*InstrumentWithDefaults[float64, nInstrument[float64]])(nil)
+	_ nInstrumentWithDBSystem[int64]   = (*InstrumentWithDBSystemAndDefaults[int64, nInstrumentWithDBSystem[int64]])(nil)
+	_ nInstrumentWithDBSystem[float64] = (*InstrumentWithDBSystemAndDefaults[float64, nInstrumentWithDBSystem[float64]])(nil)
 )
 
-func NewInstrumentWithDefaults[N numericInstrumentType, T nInstrument[N]](t T, defaults ...metric.RecordOption) *instrumentWithDefaults[N, T] {
-	return &instrumentWithDefaults[N, T]{
+func NewInstrumentWithDefaults[N numericInstrumentType, T nInstrument[N]](t T, defaults ...metric.RecordOption) *InstrumentWithDefaults[N, T] {
+	return &InstrumentWithDefaults[N, T]{
 		t:           t,
 		defaultOpts: defaults,
 	}
 }
 
 // Record implements [nInstrument].
-func (i *instrumentWithDefaults[N, T]) Record(ctx context.Context, incr N, options ...metric.RecordOption) {
+func (i *InstrumentWithDefaults[N, T]) Record(ctx context.Context, incr N, options ...metric.RecordOption) {
 	i.t.Record(ctx, incr, append(i.defaultOpts, options...)...)
 }
 
-func NewInstrumentWithDBSystemAndDefaults[N int64 | float64, T nInstrumentWithDBSystem[N]](t T, defaultAttrs ...attribute.KeyValue) *instrumentWithDBSystemAndDefaults[N, T] {
-	return &instrumentWithDBSystemAndDefaults[N, T]{
+func NewInstrumentWithDBSystemAndDefaults[N int64 | float64, T nInstrumentWithDBSystem[N]](t T, defaultAttrs ...attribute.KeyValue) *InstrumentWithDBSystemAndDefaults[N, T] {
+	return &InstrumentWithDBSystemAndDefaults[N, T]{
 		t:            t,
 		defaultAttrs: defaultAttrs,
 	}
 }
 
 // Record implements [nInstrumentWithDBSystem].
-func (i *instrumentWithDBSystemAndDefaults[N, T]) Record(ctx context.Context, val N, systemName dbconv.SystemNameAttr, attrs ...attribute.KeyValue) {
+func (i *InstrumentWithDBSystemAndDefaults[N, T]) Record(ctx context.Context, val N, systemName dbconv.SystemNameAttr, attrs ...attribute.KeyValue) {
 	i.t.Record(ctx, val, systemName, append(i.defaultAttrs, attrs...)...)
 }

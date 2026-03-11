@@ -10,7 +10,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
-	"go.opentelemetry.io/otel/semconv/v1.32.0/dbconv"
+	"go.opentelemetry.io/otel/semconv/v1.38.0/dbconv"
 )
 
 func TestInstrumentWithDefaults_Int64Histogram(t *testing.T) {
