@@ -198,7 +198,7 @@ func TestLazyIndexMethodsOnExistingIndex(t *testing.T) {
 			Do(ctx)
 		require.NoError(t, err)
 
-		resp, err := lazy.DeleteDocumentsByQuery(ctx, &types.Query{MatchAll: &types.MatchAllQuery{}}, WithRefresh(refresh.Waitfor))
+		resp, err := lazy.DeleteDocumentsByQuery(ctx, &types.Query{MatchAll: &types.MatchAllQuery{}}, WithRefresh(refresh.Waitfor), WithWaitForCompletion(true))
 		require.NoError(t, err)
 		assert.Greater(t, resp.DeleteCount, int64(0))
 	})
