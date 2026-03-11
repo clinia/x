@@ -76,4 +76,3 @@ func TestMultipleSubscribersPrometheusCollection(t *testing.T) {
 	_, err = registry.Gather()
 	require.NoError(t, err, "Prometheus gather failed; likely duplicate otel_scope_info from multiple meter scopes")
 }
-
