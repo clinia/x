@@ -20,7 +20,8 @@ type (
 )
 
 var (
-	_ nInstrument[int64] = (*instrumentWithDefaults[int64, nInstrument[int64]])(nil)
+	_ nInstrument[int64]   = (*instrumentWithDefaults[int64, nInstrument[int64]])(nil)
+	_ nInstrument[float64] = (*instrumentWithDefaults[float64, nInstrument[float64]])(nil)
 )
 
 func NewInstrumentWithDefaults[N numericInstrumentType, T nInstrument[N]](t T, defaults ...metric.RecordOption) *instrumentWithDefaults[N, T] {
