@@ -254,7 +254,10 @@ func (c *consumer) handleTopic(ctx context.Context, tp kgo.FetchTopic) error {
 	}
 	go func() {
 		if c.consumerMetric != nil {
-			mtc := metric.WithAttributes(attribute.String("topic", tp.Topic))
+			mtc := metric.WithAttributes(
+				attribute.String("topic", tp.Topic),
+				semconv.MessagingKafkaConsumerGroup(c.group.ConsumerGroup(c.conf.Scope)),
+			)
 			c.recordProcessingCount.Record(ctx, int64(len(records)), mtc)
 			for _, r := range records {
 				if r != nil {

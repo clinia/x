@@ -12,7 +12,6 @@ import (
 	"github.com/clinia/x/pubsubx"
 	"go.opentelemetry.io/otel/metric"
 	metricnoop "go.opentelemetry.io/otel/metric/noop"
-	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 	"go.opentelemetry.io/otel/trace"
 	tracenoop "go.opentelemetry.io/otel/trace/noop"
 
@@ -199,16 +198,12 @@ func (p *PubSub) Subscriber(group string, topics []messagex.Topic, opts ...pubsu
 	var m metric.Meter
 	var t trace.Tracer
 	if p.mp != nil {
-		m = p.mp.Meter(pubsubConsumerInstrumentationName, metric.WithInstrumentationAttributes(
-			semconv.MessagingKafkaConsumerGroup(consumerGroup.ConsumerGroup(p.conf.Scope)),
-		))
+		m = p.mp.Meter(pubsubConsumerInstrumentationName)
 	} else {
 		m = metricnoop.NewMeterProvider().Meter(pubsubConsumerInstrumentationName)
 	}
 	if p.tp != nil {
-		t = p.tp.Tracer(pubsubConsumerInstrumentationName, trace.WithInstrumentationAttributes(
-			semconv.MessagingKafkaConsumerGroup(consumerGroup.ConsumerGroup(p.conf.Scope)),
-		))
+		t = p.tp.Tracer(pubsubConsumerInstrumentationName)
 	} else {
 		t = tracenoop.NewTracerProvider().Tracer(pubsubConsumerInstrumentationName)
 	}
